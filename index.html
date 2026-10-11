@@ -139,6 +139,9 @@ input[type=range]{accent-color:var(--accent);width:9rem;max-width:50%;min-height
 .dial .num{fill:var(--muted);font:500 13px var(--font-display);letter-spacing:.04em}
 .dial .mark{fill:var(--amber);stroke:var(--bg);stroke-width:2}
 /* The ring can be dragged to set the length. Only the ring takes the touch, so the middle of the dial still scrolls the page. */
+.dial .breath{display:none;fill:var(--accent);fill-opacity:.3;stroke:var(--accent);stroke-width:3;stroke-opacity:.9}
+.dial.breathing .breath{display:inline}
+.dial.breathing .arc,.dial.breathing .tick,.dial.breathing .num{opacity:.3}
 .dial .knob{fill:var(--raised);stroke:var(--accent);stroke-width:3;pointer-events:none}
 .dial .ring{stroke:transparent;fill:none;pointer-events:stroke;cursor:grab;touch-action:none}
 .dial .ring:active{cursor:grabbing}
@@ -160,6 +163,19 @@ input[type=range]{accent-color:var(--accent);width:9rem;max-width:50%;min-height
 .facts dt{font-size:.8125rem;color:var(--muted)}
 .facts dd{font:500 1.5rem/1.2 var(--font-display);font-variant-numeric:tabular-nums}
 .setting{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.goal-set{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem 1rem}
+.stepper{display:flex;align-items:center;gap:.35rem}
+.stepper .btn{min-width:2.75rem;padding-inline:0;font-size:1.25rem;line-height:1}
+.stepper input{width:5rem;text-align:center}
+.sheet-wrap{overflow-x:auto;max-width:100%}
+.sheet{border-collapse:collapse;width:100%;min-width:26rem;font-size:.9375rem;font-variant-numeric:tabular-nums}
+.sheet th{font:500 .8125rem/1.2 var(--font-display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:.5rem .6rem .5rem 0;border-bottom:1px solid var(--line);white-space:nowrap}
+.sheet td{padding:.55rem .6rem .55rem 0;border-bottom:1px solid var(--line);white-space:nowrap}
+.sheet .num{text-align:right}
+.sheet .met{color:var(--accent);font-weight:600}
+.sheet .n{display:none}
+@media (max-width:30rem){.sheet{min-width:0;font-size:.875rem}.sheet th,.sheet td{padding-right:.4rem}.sheet .w{display:none}.sheet .n{display:inline}}
+.changes{display:flex;flex-direction:column;gap:.35rem;font-size:.9375rem;font-variant-numeric:tabular-nums}
 
 /* Train tab */
 .drills{border-top:1px solid var(--line)}
@@ -237,6 +253,30 @@ input[type=range]{accent-color:var(--accent);width:9rem;max-width:50%;min-height
 select{font:inherit;color:var(--ink);background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:.5rem .6rem;min-height:2.75rem;max-width:100%}
 
 .foot{border-top:1px solid var(--line);padding-top:1rem;font-size:.8125rem;color:var(--muted);display:flex;flex-direction:column;gap:.25rem}
+/* Sign-in screen and profile signs */
+.gated .wrap{display:none}
+.gate{position:relative;z-index:2;display:flex;justify-content:center;padding-inline:clamp(1rem,4vw,2rem);padding-block:2.5rem 3rem}
+.gate-card{width:100%;max-width:24rem;display:flex;flex-direction:column;gap:1.5rem}
+.pitch{max-width:44rem;margin-bottom:1.5rem;color:var(--muted);text-wrap:pretty}
+.pitch b{color:var(--ink);font-weight:600}
+.locked .pitch{display:none}
+.gate-pitch{font:600 1.375rem/1.2 var(--font-display);letter-spacing:.02em;text-wrap:balance}
+.section-h{font:600 1.25rem/1.2 var(--font-display);letter-spacing:.04em}
+.steps{display:flex;flex-direction:column;gap:.6rem;margin:0;padding-left:1.4rem;max-width:44rem}
+.steps li::marker{font-family:var(--font-display);font-weight:600;color:var(--accent)}
+.gate-title{font:600 1.75rem/1.15 var(--font-display);letter-spacing:.03em;text-wrap:balance}
+.who{display:flex;flex-direction:column;gap:.5rem}
+.who-btn{appearance:none;display:flex;align-items:center;gap:.8rem;width:100%;text-align:left;font:500 1.0625rem/1.2 var(--font-body);padding:.6rem .9rem;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:4px;cursor:pointer;min-height:3.5rem}
+.who-btn:hover{border-color:var(--muted)}
+.who-btn[aria-pressed="true"]{border-color:var(--accent);outline:2px solid var(--accent)}
+.who-btn span:last-child{min-width:0;overflow-wrap:anywhere}
+.sign{width:2.25rem;height:2.25rem;flex:none;color:var(--accent)}
+.sign svg,.sign-btn svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.signs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5rem}
+.sign-btn{appearance:none;aspect-ratio:1;padding:22%;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:4px;cursor:pointer}
+.sign-btn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);outline:2px solid var(--accent)}
+.me{display:flex;align-items:center;gap:.7rem;min-width:0}
+.me-name{font:500 1.25rem/1.2 var(--font-display);letter-spacing:.03em;min-width:0;overflow-wrap:anywhere}
 .toast{position:fixed;left:50%;bottom:calc(1.25rem + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:.7rem 1rem;border-radius:4px;font-size:.9375rem;max-width:calc(100% - 2rem);text-align:center;z-index:10}
 @media (prefers-reduced-motion:no-preference){.meter-fill{transition:width .4s ease}.nb,.cell{transition:background-color .12s}}
 </style>
@@ -258,6 +298,7 @@ select{font:inherit;color:var(--ink);background:var(--raised);border:1px solid v
   <main>
     <!-- FOCUS -->
     <section id="panel-focus" role="tabpanel" aria-labelledby="tab-focus">
+      <p class="pitch" id="pitch"><b>Build longer focus, one session at a time.</b> Fovea lengthens your sessions as you hold them, logs what pulls you away, and shows when you focus best.</p>
       <div class="focus-grid">
         <div class="dial-col">
           <div class="dial" id="dial">
@@ -285,6 +326,10 @@ select{font:inherit;color:var(--ink);background:var(--raised);border:1px solid v
                 <label for="customLen">Minutes</label>
                 <input type="number" id="customLen" min="1" max="180" step="1" inputmode="numeric">
               </div>
+            </div>
+            <div class="field">
+              <div class="setting"><label for="breathOn">Begin with two minutes of breathing</label><input type="checkbox" id="breathOn"></div>
+              <p class="hint" id="breathHint"></p>
             </div>
             <div class="field" id="lockField">
               <div class="setting"><label for="lockOn">Lock this session until the timer ends</label><input type="checkbox" id="lockOn"></div>
@@ -318,6 +363,23 @@ select{font:inherit;color:var(--ink);background:var(--raised);border:1px solid v
               </details>
             </div>
             <button class="btn btn-primary btn-big" id="start" type="button">Start focus session</button>
+          </div>
+
+          <div id="breathPanel" class="stack" hidden>
+            <div>
+              <h2 class="section-h" id="breathName"></h2>
+              <p class="hint" id="breathWhy"></p>
+            </div>
+            <p class="hint">Follow the circle: it grows as you breathe in and shrinks as you breathe out. Breathe gently, through your nose if you can. If you feel light-headed, stop and breathe normally.</p>
+            <div class="stack" style="gap:.35rem">
+              <span class="label">From the yogic texts</span>
+              <p class="hint" id="breathNote"></p>
+              <p class="hint">This is tradition, not a tested claim. To try it, gently close the other nostril with a finger while you follow the circle. Skip it if your nose is blocked.</p>
+            </div>
+            <div class="row">
+              <button class="btn btn-primary" id="breathSkip" type="button">Skip to the session</button>
+              <button class="btn btn-quiet" id="breathCancel" type="button">Cancel</button>
+            </div>
           </div>
 
           <div id="running" class="stack" hidden>
@@ -367,10 +429,29 @@ select{font:inherit;color:var(--ink);background:var(--raised);border:1px solid v
         </div>
 
         <aside class="rail" aria-label="Today and settings">
+          <section class="block" id="profileBlock">
+            <h2 class="label">Profile</h2>
+            <div class="me"><span class="sign" id="meSign"></span><span class="me-name" id="meName"></span></div>
+            <p class="hint" id="meNote"></p>
+            <div class="row">
+              <button class="btn" id="signOut" type="button">Sign out</button>
+              <button class="btn" id="makeProfile" type="button">Create a profile</button>
+              <button class="btn btn-quiet" id="delProfile" type="button">Delete this profile</button>
+            </div>
+          </section>
           <section class="block">
             <h2 class="label">Today</h2>
             <div><span class="fig" id="todayMin">0</span><span class="fig-unit">of <span id="goalOut">120</span> min</span></div>
             <div class="meter" id="goalMeter" role="progressbar" aria-label="Progress to daily goal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="meter-fill" id="goalFill"></div></div>
+            <div class="goal-set">
+              <label for="goal">Daily goal, in minutes</label>
+              <div class="stepper">
+                <button class="btn" id="goalDown" type="button" aria-label="Lower the goal by 15 minutes">&minus;</button>
+                <input type="number" id="goal" min="10" max="720" step="5" inputmode="numeric">
+                <button class="btn" id="goalUp" type="button" aria-label="Raise the goal by 15 minutes">+</button>
+              </div>
+            </div>
+            <p class="hint">120 minutes is only a starting suggestion. Set the amount that suits you. Changes are kept in the log sheet on the Progress page.</p>
             <dl class="facts">
               <div><dt>Sessions</dt><dd id="todaySess">0</dd></div>
               <div><dt>Distractions</dt><dd id="todayDis">0</dd></div>
@@ -406,7 +487,6 @@ select{font:inherit;color:var(--ink);background:var(--raised);border:1px solid v
           </section>
           <section class="block">
             <h2 class="label">Settings</h2>
-            <div class="setting"><label for="goal">Daily goal, in minutes</label><input type="number" id="goal" min="10" max="720" step="10" inputmode="numeric"></div>
             <div class="setting"><label for="sound">Chime when a session ends</label><input type="checkbox" id="sound"></div>
             <div><button class="btn" id="testSound" type="button">Play the chime</button></div>
           </section>
@@ -417,7 +497,16 @@ select{font:inherit;color:var(--ink);background:var(--raised);border:1px solid v
     <!-- TRAIN -->
     <section id="panel-train" role="tabpanel" aria-labelledby="tab-train" hidden>
       <div class="stack">
-        <p class="lead" id="trainIntro">Short drills that work one attention skill at a time. Two or three a day is plenty. Scores improve with practice, so read them as a warm-up and a trend, not as proof of better focus elsewhere.</p>
+        <div class="stack" id="trainIntro" style="gap:1rem">
+          <h2 class="section-h">How the training works</h2>
+          <ol class="steps">
+            <li><b>Warm up with one drill.</b> Each drill below isolates a single attention skill and gives one score. Most take about a minute.</li>
+            <li><b>Hold a session at your current length.</b> <span id="trainNow"></span></li>
+            <li><b>Let the length grow.</b> Three clean sessions in a row add 5 minutes. Two rough ones in a row take 5 minutes off, so the target stays within reach.</li>
+            <li><b>Check what broke it.</b> The Progress page shows what pulls you away and the hours you focus best.</li>
+          </ol>
+          <p class="hint">A clean session is one you finish as planned, with two or fewer distractions and a focus rating of 4 or 5. A rough one is ended early, has five or more distractions, or is rated 1 or 2. Drill scores rise with practice, so treat them as a warm-up and a trend. The real measure of progress is the session length you can hold.</p>
+        </div>
         <div class="drills" id="drillList"></div>
         <div id="drillStage" hidden>
           <div class="stage-head">
@@ -433,6 +522,7 @@ select{font:inherit;color:var(--ink);background:var(--raised);border:1px solid v
     <section id="panel-progress" role="tabpanel" aria-labelledby="tab-progress" hidden>
       <div class="stack" style="gap:2rem">
         <div class="stats" id="stats"></div>
+        <p class="hint">High-quality focus counts the minutes in clean sessions: finished as planned, with two or fewer distractions and a focus rating of 4 or 5.</p>
         <div class="section">
           <h2>Focus minutes per day</h2>
           <div class="chart" id="chartDays"></div>
@@ -450,6 +540,14 @@ select{font:inherit;color:var(--ink);background:var(--raised);border:1px solid v
           </div>
         </div>
         <div class="section">
+          <h2>Log sheet</h2>
+          <p class="hint" id="sheetNote"></p>
+          <div class="sheet-wrap"><table class="sheet" id="sheet"></table></div>
+          <div id="sheetMore"></div>
+          <h3 class="label" style="margin-top:.75rem">Goal changes</h3>
+          <div class="changes" id="goalChanges"></div>
+        </div>
+        <div class="section">
           <h2>Session history</h2>
           <p class="hint" id="historyNote"></p>
           <ul id="history"></ul>
@@ -462,6 +560,42 @@ select{font:inherit;color:var(--ink);background:var(--raised);border:1px solid v
     <span id="sync">Your history is saved in this browser.</span>
     <span>The timer runs on clock time, so it stays accurate if your screen sleeps. Keep this page open to hear the chime.</span>
   </footer>
+</div>
+<div class="gate" id="gate" hidden>
+  <div class="gate-card">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle class="ring" cx="12" cy="12" r="10.5"/><circle class="ring" cx="12" cy="12" r="6"/><circle class="pit" cx="12" cy="12" r="2.5"/></svg>
+      Fovea
+    </div>
+    <div class="stack" style="gap:.5rem">
+      <p class="gate-pitch">Build longer focus, one session at a time.</p>
+      <p class="hint">For study, work, or anything that needs your full attention. Fovea lengthens your sessions as you hold them, logs what pulls you away, and shows when you focus best. Free, with nothing to install.</p>
+    </div>
+    <div class="stack" id="gatePick" hidden>
+      <h2 class="gate-title">Who is focusing?</h2>
+      <div class="who" id="gateUsers"></div>
+      <div class="stack" id="gatePin" hidden style="gap:.6rem">
+        <label for="gatePinIn">Passcode</label>
+        <div class="row"><input type="password" id="gatePinIn" inputmode="numeric" autocomplete="off" maxlength="8"><button class="btn btn-primary" id="gatePinGo" type="button">Sign in</button></div>
+        <p class="hint" id="gatePinMsg" aria-live="polite"></p>
+        <div><button class="btn btn-quiet" id="gateForgot" type="button">Forgot it? Remove this profile</button></div>
+      </div>
+      <div><button class="btn" id="gateNew" type="button">Add another profile</button></div>
+    </div>
+    <form class="stack" id="gateForm" hidden novalidate>
+      <h2 class="gate-title" id="gateFormTitle">Create your profile</h2>
+      <p class="hint" id="gateFormNote"></p>
+      <div class="field"><label class="label" for="gateName">Your name</label><input type="text" id="gateName" maxlength="24" autocomplete="off"></div>
+      <div class="field"><span class="label" id="signLabel">Choose your sign</span><div class="signs" id="gateSigns" role="group" aria-labelledby="signLabel"></div></div>
+      <div class="field"><label class="label" for="gatePass">Passcode, optional</label><input type="password" id="gatePass" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="4 to 8 digits"></div>
+      <p class="hint" id="gateFormMsg" aria-live="polite"></p>
+      <div class="row">
+        <button class="btn btn-primary btn-big" type="submit">Create profile</button>
+        <button class="btn btn-quiet" id="gateBack" type="button">Back</button>
+        <button class="btn btn-quiet" id="gateSkip" type="button">Skip for now</button>
+      </div>
+    </form>
+  </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
@@ -506,9 +640,20 @@ function clamp(v, a, b){ return Math.min(b, Math.max(a, v)); }
 function shuffle(a){ for (var i = a.length-1; i > 0; i--){ var j = Math.floor(Math.random()*(i+1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
 
 /* ---------- storage: browser first, account sync when available ---------- */
-var LS = {
+/* Profiles: several people can share one device, each with their own history and settings. The first profile created takes over
+   whatever was saved before profiles existed. Everything stays in this browser; a passcode keeps casual hands out, it is not encryption. */
+var RAW = {
   get: function(k, d){ try { var v = localStorage.getItem('fovea.' + k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } },
-  set: function(k, v){ try { localStorage.setItem('fovea.' + k, JSON.stringify(v)); } catch(e){} }
+  set: function(k, v){ try { localStorage.setItem('fovea.' + k, JSON.stringify(v)); } catch(e){} },
+  del: function(k){ try { localStorage.removeItem('fovea.' + k); } catch(e){} }
+};
+var USERS = RAW.get('users', []) || [], ME = null, DATA_KEYS = ['recs','settings','dels','prefs','active','pending','lock','tab'];
+(function(){ var sid = RAW.get('session', null), i; for (i = 0; i < USERS.length; i++) if (USERS[i].id === sid) ME = USERS[i]; })();
+var GATED = USERS.length ? !ME : !RAW.get('guest', false);          // nobody signed in yet
+var PFX = ME && ME.id !== 'first' ? 'u.' + ME.id + '.' : '';
+var LS = {
+  get: function(k, d){ return GATED ? d : RAW.get(PFX + k, d); },
+  set: function(k, v){ if (!GATED) RAW.set(PFX + k, v); }
 };
 var DEFAULTS = { goal:120, sound:true, _t:0 };
 var S = {
@@ -583,7 +728,7 @@ function applySnap(snap){
     else if (d.id.indexOf('log_') === 0 && data.recs && typeof data.recs === 'object'){
       Object.keys(data.recs).forEach(function(id){
         var r = data.recs[id];
-        if (r && typeof r === 'object' && (r.k === 's' || r.k === 'd') && typeof r.at === 'number') server[id] = JSON.parse(JSON.stringify(r));
+        if (r && typeof r === 'object' && (r.k === 's' || r.k === 'd' || r.k === 'g') && typeof r.at === 'number') server[id] = JSON.parse(JSON.stringify(r));
         else tombs.add(id);
       });
     }
@@ -608,7 +753,7 @@ function applySnap(snap){
 async function connect(){
   try {
     var c = window.claude;
-    if (!c || !c.use) return;
+    if (GATED || PFX || !c || !c.use) return;       // account sync is for the first profile; extra profiles stay on this device
     var got = await Promise.all([c.use('db'), c.use('user')]);
     var db = got[0], user = got[1];
     if (!db || !user) return;
@@ -627,10 +772,10 @@ async function connect(){
 }
 
 /* ---------- focus timer ---------- */
-var CATS = ['Study','Work','Reading','Writing','Other'];
+var CATS = ['Study','Work','Reading','Writing','Stillness','Other'];
 var REASONS = ['Phone','Wandering thought','Noise','Someone interrupted','Other'];
 var PRESETS = [15,25,45,60,90];
-var ui = Object.assign({ len:25, mode:'preset', cat:'Study' }, LS.get('prefs', {}) || {});
+var ui = Object.assign({ len:25, mode:'preset', cat:'Study', breathe:true }, LS.get('prefs', {}) || {});
 var active = LS.get('active', null);
 var pending = LS.get('pending', null);
 var afterMsg = null, rating = 0;
@@ -646,6 +791,7 @@ function buildDial(){
   s.append(g, sv('g', { id:'nums' }),
     sv('circle', { id:'arc', 'class':'arc', cx:160, cy:160, r:R, fill:'none', 'stroke-width':14, transform:'rotate(-90 160 160)', 'stroke-dasharray':'0 ' + CIRC.toFixed(1) }),
     sv('g', { id:'marks' }),
+    sv('circle', { id:'breathDisc', 'class':'breath', cx:160, cy:160, r:38 }),
     sv('circle', { id:'knob', 'class':'knob', cx:160, cy:160 - R, r:9 }),
     sv('circle', { id:'ring', 'class':'ring', cx:160, cy:160, r:R, fill:'none', 'stroke-width':58 }));
 }
@@ -660,6 +806,7 @@ function setNums(scale){
 function scaleFor(plan){ return plan <= 60 ? 60 : plan <= 120 ? 120 : 180; }
 function elapsed(){ return (active.pausedAt || Date.now()) - active.start - active.paused; }
 function drawDial(){
+  if (breath){ $('#knob').style.display = 'none'; $('#ring').style.display = 'none'; return; }
   var digits, label, task = '', marks = [], scale = 60, frac = 0, e, rem, lap;
   if (active){
     e = elapsed();
@@ -687,7 +834,7 @@ function drawDial(){
   $('#dialLabel').textContent = label;
   $('#dialTask').textContent = task;
   $('#dial').classList.toggle('brk', !!(active && active.brk));
-  var idle = !active && !pending && !afterMsg, ka = clamp(frac, 0, 1) * 2 * Math.PI, knob = $('#knob');
+  var idle = !active && !pending && !afterMsg && !breath, ka = clamp(frac, 0, 1) * 2 * Math.PI, knob = $('#knob');
   knob.setAttribute('cx', (160 + R*Math.sin(ka)).toFixed(2)); knob.setAttribute('cy', (160 - R*Math.cos(ka)).toFixed(2));
   knob.style.display = idle ? '' : 'none'; $('#ring').style.display = idle ? '' : 'none';
   var key = marks.map(function(m){ return m.toFixed(4); }).join(',');
@@ -874,11 +1021,84 @@ function unlockNow(){
   if (!active) return;
   active.locked = false; LS.set('active', active); exitFull(); toast('Unlocked. You can pause or end the session.'); showState();
 }
-function startSession(brk){
+/* Breathing before a session. Each kind of work gets its own gentle pattern of about two minutes. The pairing is a design choice:
+   slow breathing is known to calm the body, but no research shows a particular pattern suits a particular task. */
+var BREATHS = {
+  box:   { name:'Box breathing', why:'A steady, even rhythm to settle in before study.', cycles:8, steps:[['Breathe in',4,'in'],['Hold',4,'hold'],['Breathe out',4,'out'],['Rest',4,'rest']] },
+  sigh:  { name:'Double inhale, long exhale', why:'Lets go of tension before a busy stretch of work.', cycles:13, steps:[['Breathe in',2.5,'in'],['A little more',1,'top'],['Long breath out',6.5,'out']] },
+  even:  { name:'Slow even breathing', why:'An unhurried rhythm before long, quiet reading.', cycles:12, steps:[['Breathe in',5.5,'in'],['Breathe out',5.5,'out']] },
+  long:  { name:'Longer exhale', why:'Eases the mind before writing, so the words can come.', cycles:13, steps:[['Breathe in',4,'in'],['Breathe out',6,'out']] },
+  still: { name:'Slow release', why:'A long, slow breath out to let everything else go.', cycles:10, steps:[['Breathe in',4,'in'],['Hold',2,'hold'],['Slow breath out',8,'out']] }
+};
+var BREATH_FOR = { Study:'box', Work:'sigh', Reading:'even', Writing:'long', Stillness:'still', Other:'even' };
+/* What the yogic tradition says about the breath for each kind of work, shown as a note beside the exercise. */
+var BREATH_NOTE = {
+  Study:'The Shiva Swarodaya places gentle learning with the left nostril and difficult subjects with the right. The practice that balances the two is Anulom Vilom, breathing in through one nostril and out through the other, then the reverse (Hatha Yoga Pradipika 2.7 to 2.10).',
+  Work:'The Shiva Swarodaya links hard, active work with the right nostril, the sun side (Surya). Breathing in through the right nostril and out through the left is Surya Bhedana (Hatha Yoga Pradipika 2.48).',
+  Reading:'The Shiva Swarodaya links reading and calm, steady activity with the left nostril, the moon side (Chandra). Later tradition calls left-nostril breathing Chandra Bhedana.',
+  Writing:'The Shiva Swarodaya lists writing with the right nostril, the sun side (Surya), along with other work that needs drive.',
+  Stillness:'The Shiva Swarodaya keeps the time when both nostrils flow evenly (Sushumna) for meditation alone. Anulom Vilom, breathing through alternate nostrils, is the traditional way to even them.',
+  Other:'Anulom Vilom, breathing in through one nostril and out through the other, is the traditional all-purpose practice for steadying the breath (Hatha Yoga Pradipika 2.7 to 2.10).'
+};
+var breath = null;
+function breathPlan(cat){
+  var id = BREATH_FOR[cat] || 'even', b = BREATHS[id], level = 0, cycle = 0;
+  var steps = b.steps.map(function(x, i){
+    var to = level, nxt = b.steps[i + 1];
+    if (x[2] === 'in') to = nxt && nxt[2] === 'top' ? 0.8 : 1; else if (x[2] === 'top') to = 1; else if (x[2] === 'out') to = 0;
+    var o = { label:x[0], s:x[1], from:level, to:to }; level = to; cycle += x[1]; return o;
+  });
+  return { id:id, name:b.name, why:b.why, steps:steps, cycle:cycle, total:cycle * b.cycles };
+}
+function renderBreathHint(){
+  var pl = breathPlan(ui.cat);
+  $('#breathOn').checked = ui.breathe !== false;
+  $('#breathHint').textContent = ui.breathe === false ? 'Off. The timer starts as soon as you tap Start.'
+    : 'For ' + ui.cat + ': ' + pl.name.toLowerCase() + '. ' + pl.steps.map(function(x, i){ return (i ? x.label.toLowerCase() : x.label) + ' ' + x.s; }).join(', ') + ' seconds. You can skip it at any time.';
+}
+function softTone(){
+  if (!S.settings.sound || !actx) return;
+  try {
+    var t = actx.currentTime + 0.02, o = actx.createOscillator(), g = actx.createGain();
+    o.frequency.value = 528; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
+    o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + 1.5);
+  } catch(e){}
+}
+function toTop(){ try { window.scrollTo({ top:0, behavior: (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) ? 'auto' : 'smooth' }); } catch(e){ window.scrollTo(0, 0); } }
+function beginBreath(){
+  initAudio(); wake();
+  breath = breathPlan(ui.cat); breath.t0 = Date.now(); breath.still = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  $('#breathName').textContent = breath.name; $('#breathWhy').textContent = breath.why; $('#breathNote').textContent = BREATH_NOTE[ui.cat] || BREATH_NOTE.Other;
+  $('#dial').classList.add('breathing'); $('#breathDisc').style.display = '';
+  showState(); toTop(); breathLoop();
+}
+function endBreath(start, finished){
+  var id = breath ? breath.id : null;
+  if (breath && breath.raf) cancelAnimationFrame(breath.raf);
+  breath = null; $('#dial').classList.remove('breathing'); $('#breathDisc').style.display = 'none';
+  if (start){ if (finished) softTone(); startSession(false, finished ? id : null); }
+  else { unwake(); showState(); }
+}
+function breathLoop(){
+  if (!breath) return;
+  var t = (Date.now() - breath.t0) / 1000, c, i = 0, acc = 0, st, part, level;
+  if (t >= breath.total) return endBreath(true, true);
+  c = t % breath.cycle;
+  while (i < breath.steps.length - 1 && c >= acc + breath.steps[i].s){ acc += breath.steps[i].s; i++; }
+  st = breath.steps[i]; part = clamp((c - acc) / st.s, 0, 1);
+  level = st.from + (st.to - st.from) * (0.5 - 0.5 * Math.cos(Math.PI * part));
+  $('#breathDisc').setAttribute('r', (breath.still ? 70 : 38 + 58 * level).toFixed(1));
+  var secs = String(Math.max(1, Math.ceil(st.s - (c - acc)))), left = clock(Math.ceil(breath.total - t)) + ' of breathing left';
+  if ($('#digits').textContent !== secs) $('#digits').textContent = secs;
+  if ($('#dialLabel').textContent !== st.label) $('#dialLabel').textContent = st.label;
+  if ($('#dialTask').textContent !== left) $('#dialTask').textContent = left;
+  breath.raf = requestAnimationFrame(breathLoop);
+}
+function startSession(brk, br){
   initAudio();
   var plan = brk ? 5 : (ui.mode === 'open' ? null : ui.len), locked = !brk && lock.on && !!plan;
-  active = { start:Date.now(), plan:plan, task: brk ? '' : $('#task').value.trim().slice(0,80), cat:ui.cat, pausedAt:null, paused:0, d:[], brk:!!brk, locked:locked, wasLocked:locked, away:0 };
-  afterMsg = null; LS.set('active', active); wake(); if (locked) enterFull(); showState();
+  active = { start:Date.now(), plan:plan, task: brk ? '' : $('#task').value.trim().slice(0,80), cat:ui.cat, pausedAt:null, paused:0, d:[], brk:!!brk, locked:locked, wasLocked:locked, away:0, br:br || null };
+  afterMsg = null; LS.set('active', active); wake(); if (locked) enterFull(); showState(); toTop();
 }
 function finish(completed){
   var a = active, e = elapsed();
@@ -888,6 +1108,7 @@ function finish(completed){
   if (a.brk){ toast('Break over. Ready when you are.'); showState(); return; }
   if (e < 60000){ toast('Sessions under a minute are not saved.'); showState(); return; }
   pending = { id:newId('s'), k:'s', at:a.start, min:Math.round(e/6000)/10, plan:a.plan, done: !!(a.plan && e >= a.plan*60000), task:a.task, cat:a.cat, d:a.d, rate:0 };
+  if (a.br) pending.br = a.br;
   if (a.wasLocked){ pending.lk = a.locked ? 1 : 2; pending.aw = Math.round((a.away || 0) / 6000) / 10; }
   rating = 0; LS.set('pending', pending); showState();
 }
@@ -901,11 +1122,13 @@ function updateDCount(){
   $('#dCount').textContent = n ? plural(n, 'distraction') + ' logged. Back to it.' : 'No distractions logged.';
 }
 function showState(){
-  $('#setup').hidden = !!(active || pending || afterMsg);
+  $('#setup').hidden = !!(active || pending || afterMsg || breath);
+  $('#breathPanel').hidden = !breath;
   $('#running').hidden = !active;
   $('#review').hidden = !!active || !pending;
   $('#after').hidden = !!active || !!pending || !afterMsg;
   var isLocked = !!(active && active.locked);
+  $('#pitch').hidden = !!(active || breath);
   document.body.classList.toggle('locked', isLocked);
   $('#runRow').hidden = isLocked; $('#unlockBox').hidden = !isLocked;
   if (!isLocked){ $('#unlockPanel').hidden = true; holdStop(); }
@@ -988,7 +1211,7 @@ function suggestion(){
 }
 function renderSuggest(){
   var sg = suggestion(), idle = !active && !pending && !afterMsg, b = $('#useSuggest');
-  $('#suggestText').textContent = sg.text;
+  $('#suggestText').textContent = sg.text; $('#trainNow').textContent = sg.text;
   b.hidden = !idle || (ui.mode !== 'open' && ui.len === sg.len);
   b.textContent = 'Set timer to ' + sg.len + ' min';
   b.dataset.len = sg.len;
@@ -1119,15 +1342,15 @@ function runBreath(area, done){
   area.append(info, bBreath, bTen, bLost);
 }
 var DRILLS = [
-  { id:'schulte', name:'Schulte table', trains:'Visual search speed', unit:'s', unitLabel:'seconds', better:'low', run:runSchulte,
+  { id:'schulte', name:'Schulte table', trains:'Visual search speed', scored:'Scored by seconds to finish.', unit:'s', unitLabel:'seconds', better:'low', run:runSchulte,
     how:'Tap the numbers 1 to 25 in order, as fast as you can. Keep your eyes near the centre of the grid and find each number with your side vision.' },
-  { id:'stroop', name:'Stroop test', trains:'Resisting interference', unit:'ms', unitLabel:'ms per correct answer', better:'low', run:runStroop,
+  { id:'stroop', name:'Stroop test', trains:'Resisting interference', scored:'Scored by average time per correct answer.', unit:'ms', unitLabel:'ms per correct answer', better:'low', run:runStroop,
     how:'A colour word appears in a different ink colour. Tap the colour of the ink and ignore what the word says. 20 rounds.' },
-  { id:'gonogo', name:'Go / No-Go', trains:'Impulse control', unit:'%', unitLabel:'% accuracy', better:'high', run:runGoNoGo,
+  { id:'gonogo', name:'Go / No-Go', trains:'Impulse control', scored:'Scored by accuracy across taps and holds.', unit:'%', unitLabel:'% accuracy', better:'high', run:runGoNoGo,
     how:'Digits flash one at a time. Tap for every digit except 3. When you see a 3, do nothing. 40 digits, about 45 seconds.' },
-  { id:'nback', name:'2-back', trains:'Working memory', unit:'%', unitLabel:'% accuracy', better:'high', run:runNBack,
+  { id:'nback', name:'2-back', trains:'Working memory', scored:'Scored by accuracy across matches and non-matches.', unit:'%', unitLabel:'% accuracy', better:'high', run:runNBack,
     how:'A square lights up in the grid. Tap Match whenever it is in the same place as two steps earlier. 22 steps.' },
-  { id:'breath', name:'Breath counting', trains:'Sustained attention', unit:'%', unitLabel:'% of cycles correct', better:'high', run:runBreath,
+  { id:'breath', name:'Breath counting', trains:'Sustained attention', scored:'Scored by the share of ten-breath cycles counted correctly.', unit:'%', unitLabel:'% of cycles correct', better:'high', run:runBreath,
     how:'Breathe normally for three minutes. Tap Breath on each out-breath from 1 to 9, then tap Ten on the tenth and start again from 1. If you lose count, tap Lost count.' }
 ];
 function scoresOf(d){ return all('d').filter(function(r){ return r.drill === d.id && typeof r.score === 'number'; }).map(function(r){ return r.score; }); }
@@ -1150,7 +1373,7 @@ function renderDrillCards(){
     else scores.append('Not tried yet');
     var trend = el('div', { 'class':'trend' }); trend.append(spark(sc.slice(-12)));
     host.append(el('div', { 'class':'drill' },
-      el('div', null, el('h3', null, d.name), el('p', { 'class':'hint' }, d.trains)),
+      el('div', null, el('h3', null, d.name), el('p', { 'class':'hint' }, d.trains + '. ' + d.scored)),
       scores, trend,
       el('div', { 'class':'go' }, el('button', { 'class':'btn', type:'button', 'aria-label':'Start ' + d.name, onclick:function(){ openDrill(d); } }, 'Start'))));
   });
@@ -1179,14 +1402,15 @@ function drillResult(d, res, msg){
 function closeDrill(){ clearTimers(); $('#drillStage').hidden = true; $('#drillList').hidden = false; $('#trainIntro').hidden = false; $('#stageBody').textContent = ''; renderDrillCards(); }
 
 /* ---------- progress ---------- */
+function isQuality(x){ return (x.done || (!x.plan && x.min >= 20)) && x.d.length <= 2 && (!x.rate || x.rate >= 4); }
 function renderStats(){
-  var ss = all('s'), now = Date.now(), wk = now - 7*86400000, t = todayStats(), min7 = 0, d7 = 0, host = $('#stats');
-  ss.forEach(function(s){ if (s.at >= wk){ min7 += s.min; d7 += s.d.length; } });
+  var ss = all('s'), now = Date.now(), wk = now - 7*86400000, t = todayStats(), min7 = 0, d7 = 0, q7 = 0, host = $('#stats');
+  ss.forEach(function(s){ if (s.at >= wk){ min7 += s.min; d7 += s.d.length; if (isQuality(s)) q7 += s.min; } });
   var rate = min7 >= 1 ? (d7 / (min7/60)).toFixed(1) : '0';
   host.textContent = '';
   [['Today', fmtMin(t.min), 'goal ' + S.settings.goal + ' min'],
    ['Last 7 days', fmtMin(min7), plural(ss.filter(function(s){ return s.at >= wk; }).length, 'session')],
-   ['Day streak', String(streak()), 'days in a row with a session'],
+   ['High quality', fmtMin(q7), 'in clean sessions, last 7 days'],
    ['Distractions', rate, 'per focused hour, last 7 days']].forEach(function(x){
     host.append(el('div', { 'class':'stat' }, el('span', { 'class':'label' }, x[0]), el('span', { 'class':'fig' }, x[1]), el('small', null, x[2])));
   });
@@ -1287,14 +1511,70 @@ function renderHistory(){
     var edit = el('button', { 'class':'btn btn-quiet', type:'button', 'aria-expanded':String(open), onclick:function(){ editId = open ? null : s.id; renderHistory(); } }, open ? 'Close' : 'Edit');
     var li = el('li', { 'class':'h-row' },
       el('div', { 'class':'h-main' }, el('span', { 'class':'h-task' }, s.task || 'Untitled session'), el('span', { 'class':'h-meta' }, when + ' · ' + (s.cat || 'Other'))),
-      el('div', { 'class':'h-nums' }, el('span', null, fmtMin(s.min)), el('span', null, plural(s.d.length, 'distraction')), el('span', null, s.rate ? s.rate + '/5' : 'unrated'), s.lk ? el('span', null, s.lk === 1 ? 'lock kept' : 'unlocked early') : null),
+      el('div', { 'class':'h-nums' }, el('span', null, fmtMin(s.min)), el('span', null, plural(s.d.length, 'distraction')), el('span', null, s.rate ? s.rate + '/5' : 'unrated'), s.lk ? el('span', null, s.lk === 1 ? 'lock kept' : 'unlocked early') : null, s.br ? el('span', null, 'breathed first') : null),
       el('div', { 'class':'h-acts' }, edit, del));
     if (open) li.append(distractionEditor(s));
     host.append(li);
   });
   if (later0) host.append(later0);
 }
-function renderProgress(){ renderStats(); drawDays(); drawHours(); renderCauses(); renderHistory(); }
+/* Daily goal. Every change is logged, so the log sheet can show the goal that applied on each day. Quick taps within a
+   minute count as one change. */
+function setGoal(v){
+  v = clamp(Math.round(v) || 120, 10, 720);
+  var old = S.settings.goal, log = all('g'), last = log[log.length - 1];
+  $('#goal').value = v;
+  if (v === old) return;
+  S.settings.goal = v; saveSettings();
+  if (last && Date.now() - last.at < 60000){
+    if (last.from === v) removeRec(last.id);
+    else { var c = strip(last); c.goal = v; writeRec(c); }
+  } else writeRec({ id:newId('g'), k:'g', at:Date.now(), from:old, goal:v });
+  refresh();
+}
+function goalOn(dayEnd, log){
+  var g = log.length ? log[0].from : S.settings.goal, i;
+  for (i = 0; i < log.length && log[i].at <= dayEnd; i++) g = log[i].goal;
+  return g;
+}
+var sheetAll = false;
+function renderSheet(){
+  var ss = all('s'), log = all('g'), table = $('#sheet'), now = new Date(), days = {}, rows = [], i, d, key, cap = sheetAll ? 120 : 14;
+  ss.forEach(function(x){ var k = dayKey(x.at), o = days[k] || (days[k] = { min:0, n:0, d:0 }); o.min += x.min; o.n++; o.d += x.d.length; });
+  var first = ss.length ? new Date(ss[0].at) : now, firstKey = dayKey(first.getTime());
+  for (i = 0; i < cap; i++){
+    d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i); key = dayKey(d.getTime());
+    if (key < firstKey && i > 0) break;
+    rows.push({ d:d, o:days[key] || { min:0, n:0, d:0 }, goal:goalOn(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime() - 1, log), today:i === 0 });
+  }
+  table.textContent = '';
+  var head = el('tr'); function both(wide, narrow){ return [el('span', { 'class':'w' }, wide), el('span', { 'class':'n' }, narrow)]; }
+  [['Date','Date',''],['Focus','Focus','num'],['Goal','Goal','num'],['Reached','Met',''],['Sessions','Sess.','num'],['Distractions','Distr.','num']].forEach(function(h){
+    var th = el('th', { 'class':h[2] || null, scope:'col' }); both(h[0], h[1]).forEach(function(n){ th.append(n); }); head.append(th);
+  });
+  table.append(el('thead', null, head));
+  var body = el('tbody');
+  rows.forEach(function(r){
+    var met = r.o.min >= r.goal;
+    body.append(el('tr', null,
+      el('td', null, r.today ? 'Today' : r.d.toLocaleDateString(undefined, { weekday:'short', day:'numeric', month:'short' })),
+      el('td', { 'class':'num' }, fmtMin(r.o.min)), el('td', { 'class':'num' }, el('span', { 'class':'w' }, r.goal + ' min'), el('span', { 'class':'n' }, r.goal)),
+      el('td', { 'class': met ? 'met' : null }, met ? 'Yes' : r.today ? 'Not yet' : 'No'),
+      el('td', { 'class':'num' }, r.o.n), el('td', { 'class':'num' }, r.o.d)));
+  });
+  table.append(body);
+  var reached = rows.filter(function(r){ return r.o.min >= r.goal; }).length;
+  $('#sheetNote').textContent = ss.length ? 'One row per day since your first session. Goal reached on ' + reached + ' of ' + plural(rows.length, 'day') + ' shown.' : 'One row per day, starting with today. It fills in as you save sessions.';
+  var more = $('#sheetMore'); more.textContent = '';
+  if (!sheetAll && rows.length === cap && firstKey < dayKey(rows[rows.length - 1].d.getTime())) more.append(el('button', { 'class':'btn', type:'button', onclick:function(){ sheetAll = true; renderSheet(); } }, 'Show older days'));
+  var host = $('#goalChanges'); host.textContent = '';
+  if (!log.length) host.append(el('p', { 'class':'hint' }, 'No changes yet. The goal is ' + S.settings.goal + ' minutes a day.'));
+  log.slice().reverse().slice(0, 20).forEach(function(g){
+    var t = new Date(g.at);
+    host.append(el('div', null, t.toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' }) + ', ' + t.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' }) + ': ' + g.from + ' \u2192 ' + g.goal + ' min'));
+  });
+}
+function renderProgress(){ renderStats(); drawDays(); drawHours(); renderCauses(); renderSheet(); renderHistory(); }
 
 /* ---------- background scene: mountains over still water ---------- */
 function ridge(w, base, amp, period, seed){
@@ -1383,6 +1663,119 @@ function buildBgPicker(){
   });
 }
 
+/* ---------- profiles and sign-in ---------- */
+var SIGNS = {
+  mountain:[['path',{d:'M2.5 19 9 8l3.2 5.2L14.5 10 21.5 19Z'}]],
+  wave:[['path',{d:'M2 13c2.4-3.6 4.9-3.6 7.3 0s4.9 3.6 7.4 0 3.6-3 5.3-2'}],['path',{d:'M2 18.5c2.4-3 4.9-3 7.3 0s4.9 3 7.4 0 3.6-2.4 5.3-1.6'}]],
+  sun:[['circle',{cx:12,cy:12,r:4}],['path',{d:'M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1'}]],
+  moon:[['path',{d:'M20 14.6A8.2 8.2 0 1 1 9.4 4a6.6 6.6 0 0 0 10.6 10.6Z'}]],
+  leaf:[['path',{d:'M5 19C5 10 10 5 19 5c0 9-5 14-14 14Z'}],['path',{d:'M5 19 14 10'}]],
+  flame:[['path',{d:'M12 3c1 4 5.2 6 5.2 10.6a5.2 5.2 0 0 1-10.4 0c0-2.4 2-3.4 2.6-6 1.4 1 2.1-1.6 2.6-4.6Z'}]],
+  lotus:[['path',{d:'M12 5c2.6 3.2 2.6 8.4 0 12.5C9.4 13.4 9.4 8.2 12 5Z'}],['path',{d:'M3.5 11c4.2.2 7.4 2.6 8.5 6.5-4.2-.2-7.4-2.6-8.5-6.5Z'}],['path',{d:'M20.5 11c-4.2.2-7.4 2.6-8.5 6.5 4.2-.2 7.4-2.6 8.5-6.5Z'}]],
+  stones:[['ellipse',{cx:12,cy:18,rx:7.5,ry:2.6}],['ellipse',{cx:12,cy:12.8,rx:5.2,ry:2.3}],['ellipse',{cx:12,cy:8.2,rx:3.2,ry:1.9}]]
+};
+var SIGN_NAMES = { mountain:'Mountain', wave:'Water', sun:'Sun', moon:'Moon', leaf:'Leaf', flame:'Flame', lotus:'Lotus', stones:'Stones' };
+function signSvg(id){
+  var g = sv('svg', { viewBox:'0 0 24 24', 'aria-hidden':'true' });
+  (SIGNS[id] || SIGNS.mountain).forEach(function(part){ g.append(sv(part[0], part[1])); });
+  return g;
+}
+function hashPin(salt, pin){
+  var text = 'fovea|' + salt + '|' + pin;
+  function weak(){ var h = 5381, i; for (i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0; return 'w:' + (h >>> 0).toString(16); }
+  try {
+    if (window.crypto && crypto.subtle && window.TextEncoder) return crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(function(buf){
+      return 's:' + Array.prototype.map.call(new Uint8Array(buf), function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
+    }).catch(weak);
+  } catch(e){}
+  return Promise.resolve(weak());
+}
+function signIn(id){ RAW.set('session', id); location.reload(); }
+function removeUser(id){
+  var pre = id === 'first' ? '' : 'u.' + id + '.';
+  DATA_KEYS.forEach(function(k){ RAW.del(pre + k); });
+  USERS = USERS.filter(function(u){ return u.id !== id; }); RAW.set('users', USERS);
+  if (RAW.get('session', null) === id) RAW.del('session');
+}
+var gateSign = 'mountain', gateUser = null;
+function gateShow(mode){
+  document.body.classList.add('gated'); $('#gate').hidden = false;
+  $('#gatePick').hidden = mode !== 'pick'; $('#gateForm').hidden = mode !== 'new';
+  if (mode === 'pick'){
+    var host = $('#gateUsers'); host.textContent = ''; gateUser = null; $('#gatePin').hidden = true;
+    USERS.forEach(function(u){
+      var sg = el('span', { 'class':'sign' }); sg.append(signSvg(u.sign));
+      var b = el('button', { 'class':'who-btn', type:'button', 'aria-pressed':'false' }, sg, el('span', null, u.name));
+      b.addEventListener('click', function(){
+        if (!u.pin) return signIn(u.id);
+        gateUser = u; Array.prototype.forEach.call(host.children, function(c){ c.setAttribute('aria-pressed', 'false'); }); b.setAttribute('aria-pressed', 'true');
+        $('#gatePin').hidden = false; $('#gatePinIn').value = ''; $('#gatePinMsg').textContent = ''; forgotReset(); $('#gatePinIn').focus();
+      });
+      host.append(b);
+    });
+  } else {
+    var first = !USERS.length, had = first && !!RAW.get('recs', null);
+    $('#gateFormTitle').textContent = first ? 'Create your profile' : 'Add a profile';
+    $('#gateFormNote').textContent = 'Your sessions, scores and settings are kept under your name on this device.' + (had ? ' Sessions already saved here move into this profile.' : '');
+    $('#gateBack').hidden = first && GATED; $('#gateSkip').hidden = !(first && GATED);
+    $('#gateName').value = ''; $('#gatePass').value = ''; $('#gateFormMsg').textContent = '';
+    var signs = $('#gateSigns'); signs.textContent = '';
+    Object.keys(SIGNS).forEach(function(id){
+      var b = el('button', { 'class':'sign-btn', type:'button', 'aria-pressed':String(id === gateSign), 'aria-label':SIGN_NAMES[id], title:SIGN_NAMES[id] }); b.append(signSvg(id));
+      b.addEventListener('click', function(){ gateSign = id; Array.prototype.forEach.call(signs.children, function(c){ c.setAttribute('aria-pressed', 'false'); }); b.setAttribute('aria-pressed', 'true'); });
+      signs.append(b);
+    });
+  }
+  window.scrollTo(0, 0);
+}
+function gateHide(){ document.body.classList.remove('gated'); $('#gate').hidden = true; }
+var forgotArmed = false, forgotT = null;
+function forgotReset(){ forgotArmed = false; clearTimeout(forgotT); $('#gateForgot').textContent = 'Forgot it? Remove this profile'; }
+function renderProfile(){
+  $('#meSign').textContent = '';
+  if (ME){ $('#meSign').append(signSvg(ME.sign)); $('#meName').textContent = ME.name; $('#meNote').textContent = USERS.length > 1 ? 'Sign out to switch to another profile.' : 'Sign out to add a profile for someone else.'; }
+  else { $('#meName').textContent = 'No profile yet'; $('#meNote').textContent = 'Your history is saved on this device. A profile puts your name on it and lets others have their own.'; }
+  $('#meSign').hidden = !ME; $('#signOut').hidden = !ME; $('#delProfile').hidden = !ME; $('#makeProfile').hidden = !!ME;
+}
+function bindProfiles(){
+  $('#gateNew').addEventListener('click', function(){ gateShow('new'); });
+  $('#gateBack').addEventListener('click', function(){ if (GATED) gateShow('pick'); else gateHide(); });
+  $('#gateSkip').addEventListener('click', function(){ RAW.set('guest', true); location.reload(); });
+  function tryPin(){
+    if (!gateUser) return;
+    hashPin(gateUser.id, $('#gatePinIn').value).then(function(h){
+      if (h === gateUser.pin) signIn(gateUser.id);
+      else { $('#gatePinMsg').textContent = 'That passcode does not match.'; $('#gatePinIn').value = ''; }
+    });
+  }
+  $('#gatePinGo').addEventListener('click', tryPin);
+  $('#gatePinIn').addEventListener('keydown', function(e){ if (e.key === 'Enter') tryPin(); });
+  $('#gateForgot').addEventListener('click', function(){
+    if (!gateUser) return;
+    if (!forgotArmed){ forgotArmed = true; $('#gateForgot').textContent = 'Tap again to delete ' + gateUser.name + ' and all their history'; forgotT = setTimeout(forgotReset, 5000); return; }
+    removeUser(gateUser.id); location.reload();
+  });
+  $('#gateForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var name = $('#gateName').value.trim().replace(/\s+/g, ' ').slice(0, 24), pass = $('#gatePass').value.trim(), msg = $('#gateFormMsg');
+    if (!name){ msg.textContent = 'Type a name first.'; $('#gateName').focus(); return; }
+    if (USERS.some(function(u){ return u.name.toLowerCase() === name.toLowerCase(); })){ msg.textContent = 'There is already a profile with that name.'; return; }
+    if (pass && !/^\d{4,8}$/.test(pass)){ msg.textContent = 'A passcode is 4 to 8 digits, or leave it empty.'; return; }
+    var id = USERS.length ? newId('p') : 'first';
+    (pass ? hashPin(id, pass) : Promise.resolve('')).then(function(h){
+      USERS.push({ id:id, name:name, sign:gateSign, pin:h }); RAW.set('users', USERS); signIn(id);
+    });
+  });
+  $('#signOut').addEventListener('click', function(){ RAW.del('session'); location.reload(); });
+  $('#makeProfile').addEventListener('click', function(){ gateShow('new'); });
+  var delArmed = false, delT = null;
+  $('#delProfile').addEventListener('click', function(){
+    if (!ME) return;
+    if (!delArmed){ delArmed = true; $('#delProfile').textContent = 'Tap again to delete your history'; delT = setTimeout(function(){ delArmed = false; $('#delProfile').textContent = 'Delete this profile'; }, 5000); return; }
+    clearTimeout(delT); removeUser(ME.id); location.reload();
+  });
+}
+
 /* ---------- shell ---------- */
 var tab = 'focus', toastT;
 function toast(msg){ var t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function(){ t.hidden = true; }, 3200); }
@@ -1404,7 +1797,7 @@ function refresh(){
 
 function bind(){
   Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(b){ b.addEventListener('click', function(){ setTab(b.dataset.tab, true); }); });
-  chipSet($('#cats'), CATS.map(function(c){ return { v:c, label:c }; }), ui.cat, function(v){ ui.cat = v; LS.set('prefs', ui); });
+  chipSet($('#cats'), CATS.map(function(c){ return { v:c, label:c }; }), ui.cat, function(v){ ui.cat = v; LS.set('prefs', ui); renderBreathHint(); });
   buildLens();
   chipSet($('#reasons'), REASONS.map(function(r){ return { v:r, label:r }; }), undefined, function(r){
     if (!active || active.brk) return;
@@ -1412,7 +1805,10 @@ function bind(){
   }, 'reason');
   chipSet($('#rate'), [1,2,3,4,5].map(function(n){ return { v:n, label:String(n) }; }), 0, function(n){ rating = n; });
   $('#customLen').addEventListener('change', function(e){ ui.len = clamp(parseInt(e.target.value, 10) || 25, 1, 180); e.target.value = ui.len; LS.set('prefs', ui); drawDial(); renderSuggest(); });
-  $('#start').addEventListener('click', function(){ startSession(false); });
+  $('#start').addEventListener('click', function(){ if (ui.breathe !== false) beginBreath(); else startSession(false); });
+  $('#breathOn').addEventListener('change', function(e){ ui.breathe = e.target.checked; LS.set('prefs', ui); renderBreathHint(); });
+  $('#breathSkip').addEventListener('click', function(){ endBreath(true, false); });
+  $('#breathCancel').addEventListener('click', function(){ endBreath(false, false); });
   /* Dragging the ring sets the length, and keeps the length buttons and the minutes box in step. */
   var ring = $('#ring');
   function dialValue(e, first){
@@ -1487,7 +1883,9 @@ function bind(){
     var len = parseInt(e.currentTarget.dataset.len, 10); if (!len) return;
     ui.len = len; ui.mode = PRESETS.indexOf(len) >= 0 ? 'preset' : 'custom'; LS.set('prefs', ui); buildLens(); drawDial(); renderSuggest(); renderLock();
   });
-  $('#goal').addEventListener('change', function(e){ S.settings.goal = clamp(parseInt(e.target.value, 10) || 120, 10, 720); e.target.value = S.settings.goal; saveSettings(); refresh(); });
+  $('#goal').addEventListener('change', function(e){ setGoal(parseInt(e.target.value, 10) || S.settings.goal); });
+  $('#goalDown').addEventListener('click', function(){ setGoal(S.settings.goal - 15); });
+  $('#goalUp').addEventListener('click', function(){ setGoal(S.settings.goal + 15); });
   $('#sound').addEventListener('change', function(e){ S.settings.sound = e.target.checked; saveSettings(); if (e.target.checked){ initAudio(); chime(); } });
   [['#ambFocus','focus'], ['#ambTrain','train'], ['#ambProgress','progress']].forEach(function(p){
     var sel = $(p[0]);
@@ -1515,7 +1913,8 @@ if (active && !active.plan && !active.pausedAt && Date.now() - active.start - ac
 if (active && typeof active.start !== 'number'){ active = null; LS.set('active', null); }
 drawScene(); buildDial(); bind(); syncSettingsUI();
 buildBgPicker(); applyBg(); setInterval(applyBg, 60000);
-renderLock(); noteAway();
+renderLock(); renderBreathHint(); noteAway();
+bindProfiles(); renderProfile(); if (GATED) gateShow(USERS.length ? 'pick' : 'new');
 var want = (location.hash || '').replace('#', '');
 setTab(['focus','train','progress'].indexOf(want) >= 0 ? want : (LS.get('tab', 'focus') || 'focus'));
 refresh(); showState();
