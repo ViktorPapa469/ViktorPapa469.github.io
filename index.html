@@ -1,38 +1,47 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Fovea Focus Trainer</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#ECEAE3"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Fovea"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body><title>Fovea Focus Trainer</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap">
 <style>
 /* Layout: one centred column (max 60rem). The Focus tab splits into the timer dial and a "today" rail from 48rem up; everything else stacks. */
 :root{
-  --bg:#EDF1EF; --surface:#F7F9F8; --raised:#FFFFFF;
-  --ink:#13201E; --muted:#566764; --line:#C9D3CF;
-  --accent:#0B6E69; --accent-ink:#FFFFFF; --accent-soft:#D3E7E3; --bar:#7DB2AC;
-  --amber:#A86400; --bad:#B4412F;
+  /* Ink-wash palette: paper sky, sumi ink text, moss accent, weathered wood for distraction marks.
+     Background scene: misty mountains (determination) standing over still water (calm). */
+  --bg:#ECEAE3; --surface:#F3F1EA; --raised:#FBFAF6;
+  --ink:#23282A; --muted:#595E56; --line:#C6C3B6;
+  --accent:#4F6B4A; --accent-ink:#FFFFFF; --accent-soft:#DAE2D2; --bar:#9DB093;
+  --amber:#96672C; --bad:#A8483A;
+  --mtn1:#E4E2D9; --mtn2:#DCDBD1; --mtn3:#D3D5CB; --water:#DFE5E3; --ripple:#C9D4D3;
   --st-red:#C0392B; --st-blue:#1F5FBF; --st-green:#1E8449; --st-purple:#7D3C98;
   --font-display:"Barlow Condensed","Arial Narrow","Roboto Condensed",system-ui,sans-serif;
   --font-body:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#0E1615; --surface:#141E1D; --raised:#1A2725;
-    --ink:#E3ECE9; --muted:#8DA09B; --line:#2A3A37;
-    --accent:#56C7BB; --accent-ink:#06211F; --accent-soft:#173734; --bar:#2F7F78;
-    --amber:#E8AC4A; --bad:#EE8A78;
+    --bg:#171A19; --surface:#1D2120; --raised:#252A29;
+    --ink:#E4E2DA; --muted:#989C92; --line:#343A37;
+    --accent:#9DB88F; --accent-ink:#14200F; --accent-soft:#27332A; --bar:#5F7A58;
+    --amber:#D2A565; --bad:#E08E7E; --mtn1:#1C201F; --mtn2:#212625; --mtn3:#272D2B; --water:#1B2224; --ripple:#29353A;
     --st-red:#F0776A; --st-blue:#6FA8FF; --st-green:#5FD08A; --st-purple:#C59BE8;
     color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#0E1615; --surface:#141E1D; --raised:#1A2725;
-  --ink:#E3ECE9; --muted:#8DA09B; --line:#2A3A37;
-  --accent:#56C7BB; --accent-ink:#06211F; --accent-soft:#173734; --bar:#2F7F78;
-  --amber:#E8AC4A; --bad:#EE8A78;
+  --bg:#171A19; --surface:#1D2120; --raised:#252A29;
+  --ink:#E4E2DA; --muted:#989C92; --line:#343A37;
+  --accent:#9DB88F; --accent-ink:#14200F; --accent-soft:#27332A; --bar:#5F7A58;
+  --amber:#D2A565; --bad:#E08E7E; --mtn1:#1C201F; --mtn2:#212625; --mtn3:#272D2B; --water:#1B2224; --ripple:#29353A;
   --st-red:#F0776A; --st-blue:#6FA8FF; --st-green:#5FD08A; --st-purple:#C59BE8;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font:400 1rem/1.5 var(--font-body);-webkit-text-size-adjust:100%}
-.wrap{max-width:60rem;margin-inline:auto;padding-inline:clamp(1rem,4vw,2rem);padding-block:1rem 3rem;display:flex;flex-direction:column;gap:1.75rem}
+/* Background scene, drawn by drawScene(): three mountain ridges fading into mist, over still water. */
+.zen{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.zen svg{display:block;width:100%;height:100%}
+.ms1{stop-color:var(--mtn1)} .ms2{stop-color:var(--mtn2)} .ms3{stop-color:var(--mtn3)} .msbg{stop-color:var(--bg)}
+.water{fill:var(--water)}
+.refl{opacity:.6}
+.ripple{stroke:var(--ripple);fill:none;stroke-width:1.5;stroke-linecap:round}
+.wrap{position:relative;z-index:1;max-width:60rem;margin-inline:auto;padding-inline:clamp(1rem,4vw,2rem);padding-block:1rem 3rem;display:flex;flex-direction:column;gap:1.75rem}
 h1,h2,h3,p,dl,dd,ul{margin:0}
 ul{padding:0;list-style:none}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -68,7 +77,9 @@ button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .chip.reason:active{background:var(--amber);color:var(--bg)}
 input[type=text],input[type=number]{font:inherit;color:var(--ink);background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:.6rem .7rem;min-height:2.75rem;width:100%}
 input[type=number]{max-width:7rem}
-input[type=checkbox]{width:1.15rem;height:1.15rem;accent-color:var(--accent)}
+input[type=checkbox]{width:1.15rem;height:1.15rem;accent-color:var(--accent);flex:none}
+input[type=range]{accent-color:var(--accent);width:9rem;max-width:50%;min-height:2rem}
+.setting select{max-width:55%}
 
 /* Focus tab */
 .focus-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:2.25rem}
@@ -170,12 +181,19 @@ input[type=checkbox]{width:1.15rem;height:1.15rem;accent-color:var(--accent)}
 .h-meta{font-size:.8125rem;color:var(--muted)}
 .h-nums{display:flex;gap:1rem;font-size:.9375rem;font-variant-numeric:tabular-nums}
 .h-nums span{white-space:nowrap}
+.h-acts{display:flex;gap:.25rem}
+.h-edit{flex:1 1 100%;display:flex;flex-direction:column;gap:.6rem;padding:.75rem 0 .5rem;min-width:0}
+.d-row{display:flex;align-items:center;gap:.5rem;max-width:30rem}
+.d-row select{flex:1 1 8rem;min-width:0}
+.d-when{flex:none;min-width:5rem;font-size:.9375rem;color:var(--muted);font-variant-numeric:tabular-nums}
+select{font:inherit;color:var(--ink);background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:.5rem .6rem;min-height:2.75rem;max-width:100%}
 
 .foot{border-top:1px solid var(--line);padding-top:1rem;font-size:.8125rem;color:var(--muted);display:flex;flex-direction:column;gap:.25rem}
 .toast{position:fixed;left:50%;bottom:calc(1.25rem + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:.7rem 1rem;border-radius:4px;font-size:.9375rem;max-width:calc(100% - 2rem);text-align:center;z-index:10}
 @media (prefers-reduced-motion:no-preference){.meter-fill{transition:width .4s ease}.nb,.cell{transition:background-color .12s}}
 </style>
 
+<div class="zen" aria-hidden="true"><svg id="scene" preserveAspectRatio="none"></svg></div>
 <div class="wrap">
   <header class="top">
     <h1 class="brand">
@@ -274,9 +292,19 @@ input[type=checkbox]{width:1.15rem;height:1.15rem;accent-color:var(--accent)}
             <div><button class="btn" id="useSuggest" type="button" hidden></button></div>
           </section>
           <section class="block">
+            <h2 class="label">Background sound</h2>
+            <div class="setting"><label for="ambOn">Play background sound</label><input type="checkbox" id="ambOn"></div>
+            <div class="setting"><label for="ambVol">Volume</label><input type="range" id="ambVol" min="0" max="100" step="5"></div>
+            <div class="setting"><label for="ambFocus">On the Focus page</label><select id="ambFocus"></select></div>
+            <div class="setting"><label for="ambTrain">On the Train page</label><select id="ambTrain"></select></div>
+            <div class="setting"><label for="ambProgress">On the Progress page</label><select id="ambProgress"></select></div>
+            <p class="hint">Choose None to keep a page silent. If you hear nothing, check your device's volume and silent mode.</p>
+          </section>
+          <section class="block">
             <h2 class="label">Settings</h2>
             <div class="setting"><label for="goal">Daily goal, in minutes</label><input type="number" id="goal" min="10" max="720" step="10" inputmode="numeric"></div>
             <div class="setting"><label for="sound">Chime when a session ends</label><input type="checkbox" id="sound"></div>
+            <div><button class="btn" id="testSound" type="button">Play the chime</button></div>
           </section>
         </aside>
       </div>
@@ -383,6 +411,14 @@ var S = {
   settings: Object.assign({}, DEFAULTS, LS.get('settings', {}) || {}),
   dels: LS.get('dels', []) || []
 };
+var AMB_NAMES = { off:'None', wind:'Mountain wind', water:'Flowing water', rain:'Rain', bowls:'Singing bowls' };
+function cleanAmb(a){
+  a = (a && typeof a === 'object') ? a : {};
+  function pick(v, d){ return AMB_NAMES.hasOwnProperty(v) ? v : d; }
+  var vol = Number(a.vol);
+  return { on: !!a.on, vol: isFinite(vol) && a.vol != null ? clamp(vol, 0, 1) : 0.5, focus: pick(a.focus, 'wind'), train: pick(a.train, 'water'), progress: pick(a.progress, 'bowls') };
+}
+S.settings.amb = cleanAmb(S.settings.amb);
 function saveRecs(){ LS.set('recs', S.recs); }
 function all(kind){ return Object.keys(S.recs).map(function(k){ return S.recs[k]; }).filter(function(r){ return r && r.k === kind; }).sort(function(a,b){ return a.at - b.at; }); }
 function strip(rec){ var o = {}, k; for (k in rec) if (k !== '_p') o[k] = rec[k]; return o; }
@@ -448,7 +484,7 @@ function applySnap(snap){
   var partial = !!(snap.metadata && snap.metadata.fromCache);
   var pendingDel = new Set(S.dels.map(function(x){ return x.id; }));
   var next = {};
-  Object.keys(server).forEach(function(id){ if (!pendingDel.has(id)) next[id] = server[id]; });
+  Object.keys(server).forEach(function(id){ if (!pendingDel.has(id)) next[id] = (S.recs[id] && S.recs[id]._p) ? S.recs[id] : server[id]; });
   Object.keys(S.recs).forEach(function(id){
     var r = S.recs[id];
     if (next[id] || tombs.has(id) || pendingDel.has(id)) return;
@@ -456,8 +492,8 @@ function applySnap(snap){
   });
   S.recs = next; saveRecs();
   if (cloudSettings && (cloudSettings._t || 0) > (S.settings._t || 0)){
-    S.settings = Object.assign({}, DEFAULTS, { goal: clamp(parseInt(cloudSettings.goal, 10) || 120, 10, 720), sound: cloudSettings.sound !== false, _t: cloudSettings._t });
-    LS.set('settings', S.settings); syncSettingsUI();
+    S.settings = Object.assign({}, DEFAULTS, { goal: clamp(parseInt(cloudSettings.goal, 10) || 120, 10, 720), sound: cloudSettings.sound !== false, amb: cleanAmb(cloudSettings.amb), _t: cloudSettings._t });
+    LS.set('settings', S.settings); syncSettingsUI(); ambApply();
   }
   refresh();
   return cloudSettings;
@@ -552,18 +588,93 @@ function drawDial(){
 var actx = null, wl = null;
 function initAudio(){ try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch(e){} }
 function chime(){
-  if (!S.settings.sound || !actx) return;
+  if (!S.settings.sound) return;
+  try { if (navigator.vibrate) navigator.vibrate([400,150,400,150,600]); } catch(e){}
+  if (!actx) return;
   try {
-    var t = actx.currentTime;
-    [[660,0],[880,0.22],[1320,0.44]].forEach(function(p){
-      var osc = actx.createOscillator(), g = actx.createGain();
-      osc.type = 'sine'; osc.frequency.value = p[0];
-      g.gain.setValueAtTime(0.0001, t + p[1]);
-      g.gain.exponentialRampToValueAtTime(0.25, t + p[1] + 0.03);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + p[1] + 0.9);
-      osc.connect(g); g.connect(actx.destination); osc.start(t + p[1]); osc.stop(t + p[1] + 1);
+    if (actx.state === 'suspended') actx.resume();
+    /* Three rising notes, played three times. Pitched around 1-1.6 kHz, where small phone speakers are loudest. */
+    var t = actx.currentTime + 0.05, comp = actx.createDynamicsCompressor(), master = actx.createGain(), rep;
+    master.gain.value = 0.9; comp.connect(master); master.connect(actx.destination);
+    for (rep = 0; rep < 3; rep++) [988, 1319, 1568].forEach(function(f, i){
+      var at = t + rep * 1.1 + i * 0.22;
+      [[f, 'triangle', 0.7], [f * 2, 'sine', 0.25]].forEach(function(v){
+        var osc = actx.createOscillator(), g = actx.createGain();
+        osc.type = v[1]; osc.frequency.value = v[0];
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.exponentialRampToValueAtTime(v[2], at + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + 0.7);
+        osc.connect(g); g.connect(comp); osc.start(at); osc.stop(at + 0.75);
+      });
     });
   } catch(e){}
+}
+/* ---------- background sound: generated on the device, one soundscape per page ---------- */
+var ambOut = null, ambCur = null, ambKey = 'off', noiseBuf = null;
+function noiseSrc(){
+  if (!noiseBuf){
+    var n = actx.sampleRate * 4, d, i; noiseBuf = actx.createBuffer(1, n, actx.sampleRate); d = noiseBuf.getChannelData(0);
+    for (i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  }
+  var s = actx.createBufferSource(); s.buffer = noiseBuf; s.loop = true; s.start(0, Math.random() * 3.5); return s;
+}
+function filt(type, freq, q){ var f = actx.createBiquadFilter(); f.type = type; f.frequency.value = freq; if (q) f.Q.value = q; return f; }
+function gainNode(v){ var g = actx.createGain(); g.gain.value = v; return g; }
+function lfo(freq, depth, param){ var o = actx.createOscillator(), g = gainNode(depth); o.frequency.value = freq; o.connect(g); g.connect(param); o.start(); return o; }
+function chain(){ for (var i = 0; i < arguments.length - 1; i++) arguments[i].connect(arguments[i + 1]); }
+var SCAPES = {
+  wind: function(out){
+    var src = noiseSrc(), bp = filt('bandpass', 480, 0.7), g = gainNode(0.9);
+    chain(src, filt('lowpass', 1200), bp, g, out);
+    return [src, lfo(0.07, 220, bp.frequency), lfo(0.11, 0.35, g.gain), lfo(0.031, 0.25, g.gain)];
+  },
+  water: function(out){
+    var src = noiseSrc(), bp = filt('bandpass', 1400, 0.9), g = gainNode(0.6);
+    chain(src, filt('highpass', 400), bp, g, out);
+    return [src, lfo(2.7, 0.2, g.gain), lfo(4.3, 0.14, g.gain), lfo(0.19, 500, bp.frequency), lfo(6.1, 180, bp.frequency)];
+  },
+  rain: function(out){
+    var src = noiseSrc(), g = gainNode(0.22), low = noiseSrc();
+    chain(src, filt('highpass', 1800), filt('lowpass', 9000), g, out);
+    chain(low, filt('lowpass', 350), gainNode(0.5), out);
+    return [src, low, lfo(0.09, 0.05, g.gain)];
+  },
+  bowls: function(out){
+    var notes = [329.6, 392, 440, 523.3, 587.3], alive = true, timer = null;
+    function strike(){
+      if (!alive) return;
+      var f = notes[Math.floor(Math.random() * notes.length)], t = actx.currentTime + 0.05;
+      [[f, 0.22], [f + 0.8, 0.14], [f * 2.76, 0.05]].forEach(function(p){
+        var o = actx.createOscillator(), g = actx.createGain();
+        o.frequency.value = p[0];
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(p[1], t + 0.06); g.gain.exponentialRampToValueAtTime(0.0001, t + 9);
+        o.connect(g); g.connect(out); o.start(t); o.stop(t + 9.2);
+      });
+      timer = setTimeout(strike, 5000 + Math.random() * 5000);
+    }
+    strike();
+    return [{ stop:function(){ alive = false; clearTimeout(timer); } }];
+  }
+};
+function ambApply(){
+  var a = S.settings.amb, want = a.on ? (a[tab] || 'off') : 'off';
+  if (!actx) return;
+  try {
+    var t = actx.currentTime;
+    if (!ambOut){ ambOut = actx.createGain(); ambOut.gain.value = 0; ambOut.connect(actx.destination); }
+    ambOut.gain.setTargetAtTime(a.vol * 1.2, t, 0.1);
+    if (want === ambKey) return;
+    if (ambCur){
+      var old = ambCur; ambCur = null;
+      old.g.gain.cancelScheduledValues(t); old.g.gain.setTargetAtTime(0, t, 0.4);
+      setTimeout(function(){ old.nodes.forEach(function(n){ try { n.stop(); } catch(e){} }); try { old.g.disconnect(); } catch(e){} }, 2500);
+    }
+    ambKey = want;
+    if (want === 'off' || !SCAPES[want]) return;
+    if (actx.state === 'suspended') actx.resume();
+    var g = actx.createGain(); g.gain.setValueAtTime(0, t); g.gain.setTargetAtTime(1, t, 0.6); g.connect(ambOut);
+    ambCur = { g:g, nodes:SCAPES[want](g) };
+  } catch(e){ if (window.console) console.warn('Background sound could not start', e); }
 }
 function wake(){ try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function(l){ wl = l; }).catch(function(){}); } catch(e){} }
 function unwake(){ try { if (wl){ wl.release().catch(function(){}); wl = null; } } catch(e){} }
@@ -688,7 +799,12 @@ function renderToday(){
   $('#todayDis').textContent = t.d;
   $('#streak').textContent = streak();
 }
-function syncSettingsUI(){ $('#goal').value = S.settings.goal; $('#sound').checked = !!S.settings.sound; }
+function syncSettingsUI(){
+  var a = S.settings.amb;
+  $('#goal').value = S.settings.goal; $('#sound').checked = !!S.settings.sound;
+  $('#ambOn').checked = a.on; $('#ambVol').value = Math.round(a.vol * 100);
+  $('#ambFocus').value = a.focus; $('#ambTrain').value = a.train; $('#ambProgress').value = a.progress;
+}
 
 /* ---------- drills ---------- */
 var timers = [];
@@ -916,14 +1032,40 @@ function renderCauses(){
   rows = Object.keys(counts).map(function(k){ return [k, counts[k]]; }).sort(function(a,b){ return b[1] - a[1]; });
   host.textContent = '';
   if (!rows.length){ $('#causesNote').textContent = 'Nothing logged in the last 30 days. Tap a reason during a session and it shows up here.'; return; }
-  $('#causesNote').textContent = 'Logged distractions, last 30 days.';
+  $('#causesNote').textContent = 'Logged distractions, last 30 days. To correct one, tap Edit on a session below.';
   mx = rows[0][1];
   rows.forEach(function(r){
     var fill = el('div', { 'class':'fill' }); fill.style.width = (r[1] / mx * 100) + '%';
     host.append(el('div', { 'class':'cause' }, el('span', null, r[0]), el('div', { 'class':'track' }, fill), el('span', { 'class':'n' }, r[1])));
   });
 }
-var histAll = false, later0 = null;
+var histAll = false, later0 = null, editId = null;
+function updateSession(id, fn){
+  var r = S.recs[id]; if (!r) return;
+  var c = JSON.parse(JSON.stringify(strip(r))); fn(c); writeRec(c);
+}
+function distractionEditor(s){
+  var box = el('div', { 'class':'h-edit' });
+  box.append(el('span', { 'class':'label' }, 'What pulled you away in this session'));
+  if (!s.d.length) box.append(el('p', { 'class':'hint' }, 'Nothing logged. Add one below if you remember a distraction.'));
+  s.d.forEach(function(x, i){
+    var sel = el('select', { 'aria-label':'Reason for distraction ' + (i + 1) });
+    (REASONS.indexOf(x.r) >= 0 ? REASONS : REASONS.concat([x.r])).forEach(function(r){
+      var o = el('option', { value:r }, r); if (r === x.r) o.selected = true; sel.append(o);
+    });
+    sel.addEventListener('change', function(){ updateSession(s.id, function(c){ if (c.d[i]) c.d[i].r = sel.value; }); toast('Reason changed.'); });
+    box.append(el('div', { 'class':'d-row' },
+      el('span', { 'class':'d-when' }, x.t != null ? 'At ' + Math.max(1, Math.round(x.t / 60)) + ' min' : 'Added later'), sel,
+      el('button', { 'class':'btn btn-quiet', type:'button', onclick:function(){ updateSession(s.id, function(c){ c.d.splice(i, 1); }); toast('Distraction removed.'); } }, 'Remove')));
+  });
+  var add = el('div', { 'class':'chips' });
+  REASONS.forEach(function(r){
+    add.append(el('button', { 'class':'chip reason', type:'button', onclick:function(){ updateSession(s.id, function(c){ c.d.push({ t:null, r:r }); }); toast('Distraction added.'); } }, '+ ' + r));
+  });
+  box.append(el('span', { 'class':'label' }, 'Add one you forgot'), add,
+    el('div', null, el('button', { 'class':'btn', type:'button', onclick:function(){ editId = null; renderHistory(); } }, 'Done')));
+  return box;
+}
 function renderHistory(){
   var ss = all('s').reverse(), host = $('#history'); host.textContent = '';
   var cap = histAll ? 200 : 8;
@@ -937,14 +1079,54 @@ function renderHistory(){
       if (armed){ clearTimeout(t); removeRec(s.id); toast('Session deleted.'); return; }
       armed = true; del.textContent = 'Tap again to delete'; t = setTimeout(function(){ armed = false; del.textContent = 'Delete'; }, 3500);
     });
-    host.append(el('li', { 'class':'h-row' },
+    var open = editId === s.id;
+    var edit = el('button', { 'class':'btn btn-quiet', type:'button', 'aria-expanded':String(open), onclick:function(){ editId = open ? null : s.id; renderHistory(); } }, open ? 'Close' : 'Edit');
+    var li = el('li', { 'class':'h-row' },
       el('div', { 'class':'h-main' }, el('span', { 'class':'h-task' }, s.task || 'Untitled session'), el('span', { 'class':'h-meta' }, when + ' · ' + (s.cat || 'Other'))),
       el('div', { 'class':'h-nums' }, el('span', null, fmtMin(s.min)), el('span', null, plural(s.d.length, 'distraction')), el('span', null, s.rate ? s.rate + '/5' : 'unrated')),
-      del));
+      el('div', { 'class':'h-acts' }, edit, del));
+    if (open) li.append(distractionEditor(s));
+    host.append(li);
   });
   if (later0) host.append(later0);
 }
 function renderProgress(){ renderStats(); drawDays(); drawHours(); renderCauses(); renderHistory(); }
+
+/* ---------- background scene: mountains over still water ---------- */
+function ridge(w, base, amp, period, seed){
+  var pts = [], x, a, b, c;
+  function tri(v){ return 1 - Math.abs(((v % 1) + 1) % 1 * 2 - 1); }
+  for (x = -20; x <= w + 20; x += 6){
+    a = Math.pow(tri(x / period + seed), 1.25);
+    b = tri(x / (period * 0.37) + seed * 2.7);
+    c = (Math.sin(x / 23 + seed * 9) + 1) / 2;
+    pts.push(x + ',' + (base - amp * (0.68 * a + 0.26 * b + 0.06 * c)).toFixed(1));
+  }
+  return 'M-20,' + base + ' L' + pts.join(' L') + ' L' + (w + 20) + ',' + base + ' Z';
+}
+function drawScene(){
+  var s = $('#scene'), box = s.parentNode, w = box.clientWidth || window.innerWidth, h = box.clientHeight || window.innerHeight;
+  if (!w || !h) return;
+  var wl = Math.round(h * 0.8), defs = sv('defs', {}), seed = 7, i, y, len, x;
+  function rnd(){ seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  s.setAttribute('viewBox', '0 0 ' + w + ' ' + h); s.textContent = '';
+  [1,2,3].forEach(function(n){
+    var g = sv('linearGradient', { id:'mg' + n, x1:0, y1:0, x2:0, y2:1 });
+    g.append(sv('stop', { offset:'0', 'class':'ms' + n }), sv('stop', { offset:'1', 'class':'msbg' }));
+    defs.append(g);
+  });
+  var near = ridge(w, wl, h * 0.13, 230, 0.62);
+  s.append(defs,
+    sv('path', { d:ridge(w, wl, h * 0.30, 520, 0.18), fill:'url(#mg1)' }),
+    sv('path', { d:ridge(w, wl, h * 0.21, 340, 0.43), fill:'url(#mg2)' }),
+    sv('path', { d:near, fill:'url(#mg3)' }),
+    sv('rect', { 'class':'water', x:0, y:wl, width:w, height:h - wl }),
+    sv('path', { 'class':'refl', d:near, fill:'url(#mg3)', transform:'translate(0 ' + (wl * 1.5) + ') scale(1 -0.5)' }));
+  for (i = 0; i < 16; i++){
+    y = wl + 10 + rnd() * Math.max(1, h - wl - 18); len = 30 + rnd() * 90; x = rnd() * Math.max(1, w - len);
+    s.append(sv('line', { 'class':'ripple', x1:x.toFixed(0), x2:(x + len).toFixed(0), y1:y.toFixed(0), y2:y.toFixed(0) }));
+  }
+}
 
 /* ---------- shell ---------- */
 var tab = 'focus', toastT;
@@ -957,6 +1139,7 @@ function setTab(t, byUser){
   LS.set('tab', t);
   if (byUser){ try { history.replaceState(null, '', '#' + t); } catch(e){} }
   if (t === 'progress') renderProgress();
+  ambApply();
 }
 function refresh(){
   renderToday(); renderSuggest();
@@ -999,15 +1182,28 @@ function bind(){
   });
   $('#goal').addEventListener('change', function(e){ S.settings.goal = clamp(parseInt(e.target.value, 10) || 120, 10, 720); e.target.value = S.settings.goal; saveSettings(); refresh(); });
   $('#sound').addEventListener('change', function(e){ S.settings.sound = e.target.checked; saveSettings(); if (e.target.checked){ initAudio(); chime(); } });
+  [['#ambFocus','focus'], ['#ambTrain','train'], ['#ambProgress','progress']].forEach(function(p){
+    var sel = $(p[0]);
+    Object.keys(AMB_NAMES).forEach(function(k){ sel.append(el('option', { value:k }, AMB_NAMES[k])); });
+    sel.addEventListener('change', function(){ S.settings.amb[p[1]] = sel.value; saveSettings(); initAudio(); ambApply(); });
+  });
+  $('#ambOn').addEventListener('change', function(e){ S.settings.amb.on = e.target.checked; saveSettings(); initAudio(); ambApply(); });
+  $('#ambVol').addEventListener('input', function(e){ S.settings.amb.vol = clamp(parseInt(e.target.value, 10) / 100 || 0, 0, 1); ambApply(); });
+  $('#ambVol').addEventListener('change', function(){ saveSettings(); });
+  document.addEventListener('pointerdown', function(){ if (S.settings.amb.on && !actx){ initAudio(); ambApply(); } });
+  $('#testSound').addEventListener('click', function(){
+    if (!S.settings.sound){ toast('The chime is switched off. Tick the box above to turn it on.'); return; }
+    initAudio(); chime();
+  });
   $('#quitDrill').addEventListener('click', closeDrill);
   document.addEventListener('visibilitychange', function(){ if (!document.hidden){ tick(); if (active && !active.pausedAt) wake(); } });
-  var rz; window.addEventListener('resize', function(){ clearTimeout(rz); rz = setTimeout(function(){ if (tab === 'progress'){ drawDays(); drawHours(); } }, 150); });
+  var rz; window.addEventListener('resize', function(){ clearTimeout(rz); rz = setTimeout(function(){ drawScene(); if (tab === 'progress'){ drawDays(); drawHours(); } }, 150); });
 }
 
 /* ---------- boot ---------- */
 if (active && !active.plan && !active.pausedAt && Date.now() - active.start - active.paused > 6*3600000){ active = null; LS.set('active', null); }
 if (active && typeof active.start !== 'number'){ active = null; LS.set('active', null); }
-buildDial(); bind(); syncSettingsUI();
+drawScene(); buildDial(); bind(); syncSettingsUI();
 var want = (location.hash || '').replace('#', '');
 setTab(['focus','train','progress'].indexOf(want) >= 0 ? want : (LS.get('tab', 'focus') || 'focus'));
 refresh(); showState();
@@ -1015,5 +1211,4 @@ setInterval(tick, 250);
 connect();
 })();
 </script>
-
 </body></html>
