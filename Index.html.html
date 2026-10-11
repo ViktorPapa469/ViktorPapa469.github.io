@@ -1,0 +1,1019 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Fovea Focus Trainer</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap">
+<style>
+/* Layout: one centred column (max 60rem). The Focus tab splits into the timer dial and a "today" rail from 48rem up; everything else stacks. */
+:root{
+  --bg:#EDF1EF; --surface:#F7F9F8; --raised:#FFFFFF;
+  --ink:#13201E; --muted:#566764; --line:#C9D3CF;
+  --accent:#0B6E69; --accent-ink:#FFFFFF; --accent-soft:#D3E7E3; --bar:#7DB2AC;
+  --amber:#A86400; --bad:#B4412F;
+  --st-red:#C0392B; --st-blue:#1F5FBF; --st-green:#1E8449; --st-purple:#7D3C98;
+  --font-display:"Barlow Condensed","Arial Narrow","Roboto Condensed",system-ui,sans-serif;
+  --font-body:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1615; --surface:#141E1D; --raised:#1A2725;
+    --ink:#E3ECE9; --muted:#8DA09B; --line:#2A3A37;
+    --accent:#56C7BB; --accent-ink:#06211F; --accent-soft:#173734; --bar:#2F7F78;
+    --amber:#E8AC4A; --bad:#EE8A78;
+    --st-red:#F0776A; --st-blue:#6FA8FF; --st-green:#5FD08A; --st-purple:#C59BE8;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1615; --surface:#141E1D; --raised:#1A2725;
+  --ink:#E3ECE9; --muted:#8DA09B; --line:#2A3A37;
+  --accent:#56C7BB; --accent-ink:#06211F; --accent-soft:#173734; --bar:#2F7F78;
+  --amber:#E8AC4A; --bad:#EE8A78;
+  --st-red:#F0776A; --st-blue:#6FA8FF; --st-green:#5FD08A; --st-purple:#C59BE8;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:400 1rem/1.5 var(--font-body);-webkit-text-size-adjust:100%}
+.wrap{max-width:60rem;margin-inline:auto;padding-inline:clamp(1rem,4vw,2rem);padding-block:1rem 3rem;display:flex;flex-direction:column;gap:1.75rem}
+h1,h2,h3,p,dl,dd,ul{margin:0}
+ul{padding:0;list-style:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.25rem 1.5rem;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:.5rem;font:600 1.5rem/1 var(--font-display);letter-spacing:.16em;text-transform:uppercase;padding-block:.6rem}
+.brand svg{width:1.5rem;height:1.5rem;flex:none}
+.brand .ring{fill:none;stroke:var(--ink);stroke-width:1.5}
+.brand .pit{fill:var(--accent)}
+.tabs{display:flex;gap:.25rem;margin-bottom:-1px}
+.tab{appearance:none;background:none;border:0;border-bottom:3px solid transparent;padding:.7rem .8rem;font:500 1.0625rem/1 var(--font-display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+
+.label{font:500 .8125rem/1.2 var(--font-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.hint{color:var(--muted);font-size:.9375rem}
+.lead{font-size:1.0625rem;max-width:34rem}
+.stack{display:flex;flex-direction:column;gap:1.25rem}
+.field{display:flex;flex-direction:column;gap:.5rem}
+.row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
+.chips{display:flex;flex-wrap:wrap;gap:.45rem}
+
+.btn{appearance:none;font:500 1rem/1.1 var(--font-body);padding:.7rem 1.1rem;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:4px;cursor:pointer;min-height:2.75rem}
+.btn:hover{border-color:var(--muted)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn-primary:hover{border-color:var(--ink)}
+.btn-big{min-height:3.25rem;font-size:1.0625rem}
+.btn-quiet{background:none;border-color:transparent;color:var(--muted);text-decoration:underline;text-underline-offset:3px;padding-inline:.5rem}
+.chip{appearance:none;font:500 .9375rem/1 var(--font-body);padding:.5rem .9rem;min-height:2.5rem;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;cursor:pointer}
+.chip:hover{border-color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.chip.reason{border-color:var(--amber);color:var(--ink)}
+.chip.reason:active{background:var(--amber);color:var(--bg)}
+input[type=text],input[type=number]{font:inherit;color:var(--ink);background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:.6rem .7rem;min-height:2.75rem;width:100%}
+input[type=number]{max-width:7rem}
+input[type=checkbox]{width:1.15rem;height:1.15rem;accent-color:var(--accent)}
+
+/* Focus tab */
+.focus-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:2.25rem}
+@media (min-width:48rem){.focus-grid{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:3rem}}
+.dial-col{display:flex;flex-direction:column;gap:1.5rem;min-width:0}
+.dial{position:relative;width:min(100%,21rem);aspect-ratio:1;max-width:100%;margin-inline:auto}
+.dial svg{display:block;width:100%;height:100%}
+.dial .track{stroke:var(--line);fill:none}
+.dial .arc{stroke:var(--accent);fill:none}
+.dial.brk .arc{stroke:var(--muted)}
+.dial .tick{stroke:var(--line);fill:none}
+.dial .tick.major{stroke:var(--muted)}
+.dial .num{fill:var(--muted);font:500 13px var(--font-display);letter-spacing:.04em}
+.dial .mark{fill:var(--amber);stroke:var(--bg);stroke-width:2}
+.dial-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;text-align:center;padding:22%;pointer-events:none}
+.digits{font:500 clamp(3.25rem,17vw,4.5rem)/1 var(--font-display);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.dial-task{font-size:.875rem;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:1.3em}
+.custom-len{display:flex;align-items:center;gap:.6rem}
+.rate{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.4rem;max-width:22rem}
+.rate .chip{border-radius:4px;font:500 1.25rem/1 var(--font-display);padding-inline:0}
+.rate-ends{display:flex;justify-content:space-between;max-width:22rem;font-size:.8125rem;color:var(--muted)}
+
+.rail{display:flex;flex-direction:column;gap:1.75rem;min-width:0}
+.block{display:flex;flex-direction:column;gap:.75rem;padding-top:1rem;border-top:1px solid var(--line)}
+.fig{font:500 2.5rem/1 var(--font-display);font-variant-numeric:tabular-nums}
+.fig-unit{color:var(--muted);margin-left:.4rem}
+.meter{height:.5rem;background:var(--line);border-radius:999px;overflow:hidden}
+.meter-fill{height:100%;width:0;background:var(--accent);border-radius:999px}
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem}
+.facts dt{font-size:.8125rem;color:var(--muted)}
+.facts dd{font:500 1.5rem/1.2 var(--font-display);font-variant-numeric:tabular-nums}
+.setting{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+
+/* Train tab */
+.drills{border-top:1px solid var(--line)}
+.drill{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1.1fr) 7.5rem auto;gap:.75rem 1.25rem;align-items:center;padding-block:1rem;border-bottom:1px solid var(--line)}
+.drill h3{font:600 1.25rem/1.2 var(--font-display);letter-spacing:.04em}
+.drill .scores{font-size:.9375rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.drill .scores b{color:var(--ink);font-weight:600}
+.drill svg{display:block;width:100%;height:2rem}
+.spark{stroke:var(--bar);fill:none;stroke-width:1.5}
+.spark-end{fill:var(--accent)}
+@media (max-width:44rem){
+  .drill{grid-template-columns:minmax(0,1fr) auto}
+  .drill .trend{display:none}
+  .drill .scores{grid-column:1;grid-row:2}
+  .drill .go{grid-column:2;grid-row:1 / span 2}
+}
+.stage-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:.5rem 1rem;border-bottom:1px solid var(--line);padding-bottom:.75rem}
+.stage-head h2{font:600 1.75rem/1.1 var(--font-display);letter-spacing:.04em}
+.stage-body{display:flex;flex-direction:column;gap:1.25rem;padding-top:1.5rem;align-items:center;text-align:center}
+.stage-body > *{max-width:100%}
+.drill-info{color:var(--muted);font-variant-numeric:tabular-nums;min-height:1.5em}
+.schulte{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;width:min(100%,22rem)}
+.cell{appearance:none;aspect-ratio:1;padding:0;font:500 1.5rem/1 var(--font-display);border:1px solid var(--line);background:var(--raised);color:var(--ink);border-radius:4px;cursor:pointer}
+.cell.hit{background:var(--accent-soft);color:var(--muted)}
+.cell.miss{background:var(--bad);border-color:var(--bad);color:var(--bg)}
+.stroop-word{font:600 clamp(3rem,15vw,5rem)/1.1 var(--font-display);letter-spacing:.06em;min-height:1.1em}
+.stroop-word[data-ink="red"]{color:var(--st-red)}
+.stroop-word[data-ink="blue"]{color:var(--st-blue)}
+.stroop-word[data-ink="green"]{color:var(--st-green)}
+.stroop-word[data-ink="purple"]{color:var(--st-purple)}
+.answer-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;width:min(100%,22rem)}
+.answer-row .btn{min-height:3.5rem;font-size:1.0625rem}
+.big-digit{font:500 clamp(5rem,26vw,8rem)/1 var(--font-display);font-variant-numeric:tabular-nums;min-height:1em}
+.tap-pad{min-height:5rem;font-size:1.25rem;width:min(100%,22rem)}
+.tap-pad.pressed{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.nback{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;width:min(100%,15rem)}
+.nb{aspect-ratio:1;border:1px solid var(--line);background:var(--raised);border-radius:4px}
+.nb.on{background:var(--accent);border-color:var(--accent)}
+.result .fig{font-size:3.5rem}
+
+/* Progress tab */
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem 1.25rem;padding-bottom:1.25rem;border-bottom:1px solid var(--line)}
+@media (max-width:36rem){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{display:flex;flex-direction:column;gap:.35rem;min-width:0}
+.stat .fig{font-size:2.25rem}
+.stat small{color:var(--muted);font-size:.8125rem}
+.section{display:flex;flex-direction:column;gap:.75rem}
+.section h2{font:600 1.25rem/1.2 var(--font-display);letter-spacing:.04em;text-wrap:balance}
+.chart svg{display:block;width:100%;height:auto}
+.ax{stroke:var(--line);fill:none}
+.axl{fill:var(--muted);font:500 11px var(--font-body);font-variant-numeric:tabular-nums}
+.axl.strong{fill:var(--ink);font-weight:600}
+.bar{fill:var(--bar)}
+.bar.now{fill:var(--accent)}
+.goal-line{stroke:var(--ink);stroke-dasharray:4 4;fill:none}
+.goal-l{fill:var(--ink);font:600 11px var(--font-body)}
+.empty-l{fill:var(--muted);font:400 13px var(--font-body)}
+.two{display:grid;grid-template-columns:minmax(0,1fr);gap:2rem}
+@media (min-width:48rem){.two{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:3rem}}
+.cause{display:grid;grid-template-columns:9.5rem minmax(0,1fr) 2rem;gap:.75rem;align-items:center;font-size:.9375rem}
+.cause .track{height:.6rem;background:var(--line);border-radius:2px;overflow:hidden}
+.cause .fill{height:100%;background:var(--amber)}
+.cause .n{text-align:right;font-variant-numeric:tabular-nums}
+.h-row{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem 1rem;padding-block:.7rem;border-bottom:1px solid var(--line)}
+.h-main{flex:1 1 14rem;min-width:0;display:flex;flex-direction:column}
+.h-task{font-weight:500;overflow-wrap:anywhere}
+.h-meta{font-size:.8125rem;color:var(--muted)}
+.h-nums{display:flex;gap:1rem;font-size:.9375rem;font-variant-numeric:tabular-nums}
+.h-nums span{white-space:nowrap}
+
+.foot{border-top:1px solid var(--line);padding-top:1rem;font-size:.8125rem;color:var(--muted);display:flex;flex-direction:column;gap:.25rem}
+.toast{position:fixed;left:50%;bottom:calc(1.25rem + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:.7rem 1rem;border-radius:4px;font-size:.9375rem;max-width:calc(100% - 2rem);text-align:center;z-index:10}
+@media (prefers-reduced-motion:no-preference){.meter-fill{transition:width .4s ease}.nb,.cell{transition:background-color .12s}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1 class="brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle class="ring" cx="12" cy="12" r="10.5"/><circle class="ring" cx="12" cy="12" r="6"/><circle class="pit" cx="12" cy="12" r="2.5"/></svg>
+      Fovea
+    </h1>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button class="tab" type="button" role="tab" id="tab-focus" data-tab="focus" aria-controls="panel-focus" aria-selected="true">Focus</button>
+      <button class="tab" type="button" role="tab" id="tab-train" data-tab="train" aria-controls="panel-train" aria-selected="false">Train</button>
+      <button class="tab" type="button" role="tab" id="tab-progress" data-tab="progress" aria-controls="panel-progress" aria-selected="false">Progress</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- FOCUS -->
+    <section id="panel-focus" role="tabpanel" aria-labelledby="tab-focus">
+      <div class="focus-grid">
+        <div class="dial-col">
+          <div class="dial" id="dial">
+            <svg id="dialSvg" viewBox="0 0 320 320" role="img" aria-label="Timer dial. The arc shows minutes remaining."></svg>
+            <div class="dial-center">
+              <div class="digits" id="digits" aria-live="off">25:00</div>
+              <div class="label" id="dialLabel">Ready</div>
+              <div class="dial-task" id="dialTask"></div>
+            </div>
+          </div>
+
+          <div id="setup" class="stack">
+            <div class="field">
+              <label class="label" for="task">What are you working on?</label>
+              <input type="text" id="task" maxlength="80" placeholder="e.g. Chapter 4 problem set" autocomplete="off">
+            </div>
+            <div class="field">
+              <span class="label" id="catLabel">Category</span>
+              <div class="chips" id="cats" role="group" aria-labelledby="catLabel"></div>
+            </div>
+            <div class="field">
+              <span class="label" id="lenLabel">Length</span>
+              <div class="chips" id="lens" role="group" aria-labelledby="lenLabel"></div>
+              <div class="custom-len" id="customWrap" hidden>
+                <label for="customLen">Minutes</label>
+                <input type="number" id="customLen" min="1" max="180" step="1" inputmode="numeric">
+              </div>
+            </div>
+            <button class="btn btn-primary btn-big" id="start" type="button">Start focus session</button>
+          </div>
+
+          <div id="running" class="stack" hidden>
+            <div class="row">
+              <button class="btn" id="pause" type="button">Pause</button>
+              <button class="btn" id="end" type="button">End session</button>
+            </div>
+            <div class="field" id="logBox">
+              <span class="label" id="logLabel">Got distracted? Tap what pulled you away</span>
+              <div class="chips" id="reasons" role="group" aria-labelledby="logLabel"></div>
+              <p class="hint" id="dCount" aria-live="polite">No distractions logged.</p>
+            </div>
+          </div>
+
+          <div id="review" class="stack" hidden>
+            <p class="lead" id="reviewText"></p>
+            <div class="field">
+              <span class="label" id="rateLabel">How focused were you?</span>
+              <div class="rate" id="rate" role="group" aria-labelledby="rateLabel"></div>
+              <div class="rate-ends"><span>Scattered</span><span>Locked in</span></div>
+            </div>
+            <div class="row">
+              <button class="btn btn-primary" id="save" type="button">Save session</button>
+              <button class="btn btn-quiet" id="discard" type="button">Discard</button>
+            </div>
+          </div>
+
+          <div id="after" class="stack" hidden>
+            <p class="lead" id="afterText"></p>
+            <div class="row">
+              <button class="btn btn-primary" id="brk" type="button">Take a 5-minute break</button>
+              <button class="btn" id="again" type="button">Start another session</button>
+            </div>
+          </div>
+        </div>
+
+        <aside class="rail" aria-label="Today and settings">
+          <section class="block">
+            <h2 class="label">Today</h2>
+            <div><span class="fig" id="todayMin">0</span><span class="fig-unit">of <span id="goalOut">120</span> min</span></div>
+            <div class="meter" id="goalMeter" role="progressbar" aria-label="Progress to daily goal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="meter-fill" id="goalFill"></div></div>
+            <dl class="facts">
+              <div><dt>Sessions</dt><dd id="todaySess">0</dd></div>
+              <div><dt>Distractions</dt><dd id="todayDis">0</dd></div>
+              <div><dt>Day streak</dt><dd id="streak">0</dd></div>
+            </dl>
+          </section>
+          <section class="block">
+            <h2 class="label">Next length to train</h2>
+            <p id="suggestText"></p>
+            <div><button class="btn" id="useSuggest" type="button" hidden></button></div>
+          </section>
+          <section class="block">
+            <h2 class="label">Settings</h2>
+            <div class="setting"><label for="goal">Daily goal, in minutes</label><input type="number" id="goal" min="10" max="720" step="10" inputmode="numeric"></div>
+            <div class="setting"><label for="sound">Chime when a session ends</label><input type="checkbox" id="sound"></div>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <!-- TRAIN -->
+    <section id="panel-train" role="tabpanel" aria-labelledby="tab-train" hidden>
+      <div class="stack">
+        <p class="lead" id="trainIntro">Short drills that work one attention skill at a time. Two or three a day is plenty. Scores improve with practice, so read them as a warm-up and a trend, not as proof of better focus elsewhere.</p>
+        <div class="drills" id="drillList"></div>
+        <div id="drillStage" hidden>
+          <div class="stage-head">
+            <div><h2 id="stageName"></h2><p class="hint" id="stageTrains"></p></div>
+            <button class="btn btn-quiet" id="quitDrill" type="button">Back to drills</button>
+          </div>
+          <div class="stage-body" id="stageBody"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROGRESS -->
+    <section id="panel-progress" role="tabpanel" aria-labelledby="tab-progress" hidden>
+      <div class="stack" style="gap:2rem">
+        <div class="stats" id="stats"></div>
+        <div class="section">
+          <h2>Focus minutes per day</h2>
+          <div class="chart" id="chartDays"></div>
+        </div>
+        <div class="two">
+          <div class="section">
+            <h2>When you focus</h2>
+            <p class="hint" id="hoursNote"></p>
+            <div class="chart" id="chartHours"></div>
+          </div>
+          <div class="section">
+            <h2>What pulls you away</h2>
+            <p class="hint" id="causesNote"></p>
+            <div class="stack" id="causes" style="gap:.6rem"></div>
+          </div>
+        </div>
+        <div class="section">
+          <h2>Session history</h2>
+          <p class="hint" id="historyNote"></p>
+          <ul id="history"></ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span id="sync">Your history is saved in this browser.</span>
+    <span>The timer runs on clock time, so it stays accurate if your screen sleeps. Keep this page open to hear the chime.</span>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------- small helpers ---------- */
+var $ = function(s, r){ return (r || document).querySelector(s); };
+function el(tag, attrs){
+  var n = document.createElement(tag), k, v, i, c;
+  if (attrs) for (k in attrs){
+    v = attrs[k];
+    if (v == null || v === false) continue;
+    if (k === 'class') n.className = v;
+    else if (k.slice(0,2) === 'on') n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v === true ? '' : v);
+  }
+  for (i = 2; i < arguments.length; i++){
+    c = arguments[i];
+    if (c == null) continue;
+    n.append(c.nodeType ? c : document.createTextNode(String(c)));
+  }
+  return n;
+}
+var NS = 'http://www.w3.org/2000/svg';
+function sv(tag, attrs, text){
+  var n = document.createElementNS(NS, tag), k;
+  for (k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  return n;
+}
+function pad(n){ return String(n).padStart(2, '0'); }
+function dayKey(ts){ var d = new Date(ts); return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()); }
+function monthKey(ts){ return dayKey(ts).slice(0,7); }
+function clock(sec){ sec = Math.max(0, sec); return pad(Math.floor(sec/60)) + ':' + pad(sec % 60); }
+function fmtMin(m){ m = Math.round(m); if (m < 60) return m + ' min'; var h = Math.floor(m/60), r = m % 60; return h + ' h' + (r ? ' ' + r + ' min' : ''); }
+function plural(n, w){ return n + ' ' + w + (n === 1 ? '' : 's'); }
+function newId(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function clamp(v, a, b){ return Math.min(b, Math.max(a, v)); }
+function shuffle(a){ for (var i = a.length-1; i > 0; i--){ var j = Math.floor(Math.random()*(i+1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+
+/* ---------- storage: browser first, account sync when available ---------- */
+var LS = {
+  get: function(k, d){ try { var v = localStorage.getItem('fovea.' + k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } },
+  set: function(k, v){ try { localStorage.setItem('fovea.' + k, JSON.stringify(v)); } catch(e){} }
+};
+var DEFAULTS = { goal:120, sound:true, _t:0 };
+var S = {
+  recs: LS.get('recs', {}) || {},
+  settings: Object.assign({}, DEFAULTS, LS.get('settings', {}) || {}),
+  dels: LS.get('dels', []) || []
+};
+function saveRecs(){ LS.set('recs', S.recs); }
+function all(kind){ return Object.keys(S.recs).map(function(k){ return S.recs[k]; }).filter(function(r){ return r && r.k === kind; }).sort(function(a,b){ return a.at - b.at; }); }
+function strip(rec){ var o = {}, k; for (k in rec) if (k !== '_p') o[k] = rec[k]; return o; }
+
+var col = null, known = new Set(), chains = {}, recent = new Set();
+function setSync(state){
+  var t = { cloud:'Your history is saved to your Claude account and follows you across devices.',
+            local:'Your history is saved in this browser.',
+            partial:'Some recent changes are saved in this browser only. They will sync when the connection returns.' };
+  $('#sync').textContent = t[state] || t.local;
+}
+function queue(docId, fn){ var p = (chains[docId] || Promise.resolve()).then(fn, fn); chains[docId] = p.catch(function(){}); return p; }
+function mergeDoc(docId, body){
+  return queue(docId, async function(){
+    var c = col; if (!c) throw new Error('offline');
+    var ref = c.doc(docId);
+    if (!known.has(docId)){ var s = await ref.get(); if (s.exists) known.add(docId); }
+    if (known.has(docId)) await ref.update(body);
+    else { await ref.set(body); known.add(docId); }
+  });
+}
+function push(rec){
+  if (!col) return;
+  var body = { recs:{} }; body.recs[rec.id] = strip(rec);
+  recent.add(rec.id); setTimeout(function(){ recent.delete(rec.id); }, 90000);
+  mergeDoc('log_' + monthKey(rec.at), body).then(function(){
+    var r = S.recs[rec.id]; if (r && r._p){ delete r._p; saveRecs(); }
+  }).catch(function(){ setSync('partial'); });
+}
+function pushDelete(id, at){
+  if (!col){ S.dels.push({ id:id, at:at }); LS.set('dels', S.dels); return; }
+  var body = { recs:{} }; body.recs[id] = null;
+  mergeDoc('log_' + monthKey(at), body).catch(function(){ S.dels.push({ id:id, at:at }); LS.set('dels', S.dels); setSync('partial'); });
+}
+function writeRec(rec){ rec._p = 1; S.recs[rec.id] = rec; saveRecs(); push(rec); refresh(); }
+function removeRec(id){
+  var rec = S.recs[id]; if (!rec) return;
+  delete S.recs[id]; saveRecs();
+  if (!rec._p) pushDelete(id, rec.at);
+  refresh();
+}
+function saveSettings(){
+  S.settings._t = Date.now(); LS.set('settings', S.settings);
+  if (col) pushSettings();
+}
+function pushSettings(){
+  var body = Object.assign({}, S.settings);
+  queue('settings', function(){ var c = col; if (!c) throw new Error('offline'); return c.doc('settings').set(body); }).catch(function(){ setSync('partial'); });
+}
+function applySnap(snap){
+  var server = {}, tombs = new Set(), cloudSettings = null;
+  snap.docs.forEach(function(d){
+    var data = d.data() || {}; known.add(d.id);
+    if (d.id === 'settings') cloudSettings = data;
+    else if (d.id.indexOf('log_') === 0 && data.recs && typeof data.recs === 'object'){
+      Object.keys(data.recs).forEach(function(id){
+        var r = data.recs[id];
+        if (r && typeof r === 'object' && (r.k === 's' || r.k === 'd') && typeof r.at === 'number') server[id] = JSON.parse(JSON.stringify(r));
+        else tombs.add(id);
+      });
+    }
+  });
+  var partial = !!(snap.metadata && snap.metadata.fromCache);
+  var pendingDel = new Set(S.dels.map(function(x){ return x.id; }));
+  var next = {};
+  Object.keys(server).forEach(function(id){ if (!pendingDel.has(id)) next[id] = server[id]; });
+  Object.keys(S.recs).forEach(function(id){
+    var r = S.recs[id];
+    if (next[id] || tombs.has(id) || pendingDel.has(id)) return;
+    if (r._p || partial || recent.has(id)) next[id] = r;
+  });
+  S.recs = next; saveRecs();
+  if (cloudSettings && (cloudSettings._t || 0) > (S.settings._t || 0)){
+    S.settings = Object.assign({}, DEFAULTS, { goal: clamp(parseInt(cloudSettings.goal, 10) || 120, 10, 720), sound: cloudSettings.sound !== false, _t: cloudSettings._t });
+    LS.set('settings', S.settings); syncSettingsUI();
+  }
+  refresh();
+  return cloudSettings;
+}
+async function connect(){
+  try {
+    var c = window.claude;
+    if (!c || !c.use) return;
+    var got = await Promise.all([c.use('db'), c.use('user')]);
+    var db = got[0], user = got[1];
+    if (!db || !user) return;
+    var uid = await user.id();
+    if (!uid) return;
+    col = db.collection('data/users/' + uid);
+    var snap = await col.get();
+    var cloudSettings = applySnap(snap);
+    setSync('cloud');
+    Object.keys(S.recs).forEach(function(id){ if (S.recs[id]._p) push(S.recs[id]); });
+    var dels = S.dels; S.dels = []; LS.set('dels', S.dels);
+    dels.forEach(function(x){ pushDelete(x.id, x.at); });
+    if (S.settings._t && (!cloudSettings || (cloudSettings._t || 0) < S.settings._t)) pushSettings();
+    col.onSnapshot(applySnap, function(){ col = null; setSync('local'); });
+  } catch(e){ col = null; setSync('local'); }
+}
+
+/* ---------- focus timer ---------- */
+var CATS = ['Study','Work','Reading','Writing','Other'];
+var REASONS = ['Phone','Wandering thought','Noise','Someone interrupted','Other'];
+var PRESETS = [15,25,45,60,90];
+var ui = Object.assign({ len:25, mode:'preset', cat:'Study' }, LS.get('prefs', {}) || {});
+var active = LS.get('active', null);
+var pending = LS.get('pending', null);
+var afterMsg = null, rating = 0;
+var R = 110, CIRC = 2 * Math.PI * R, dialScale = 0, markKey = '';
+
+function buildDial(){
+  var s = $('#dialSvg'), g = sv('g', {}), i, a, major, r1;
+  s.append(sv('circle', { 'class':'track', cx:160, cy:160, r:R, fill:'none', 'stroke-width':14 }));
+  for (i = 0; i < 60; i++){
+    a = i * 6 * Math.PI / 180; major = i % 5 === 0; r1 = major ? 123 : 128;
+    g.append(sv('line', { 'class':'tick' + (major ? ' major' : ''), x1:(160 + r1*Math.sin(a)).toFixed(2), y1:(160 - r1*Math.cos(a)).toFixed(2), x2:(160 + 136*Math.sin(a)).toFixed(2), y2:(160 - 136*Math.cos(a)).toFixed(2), 'stroke-width': major ? 2 : 1, fill:'none' }));
+  }
+  s.append(g, sv('g', { id:'nums' }),
+    sv('circle', { id:'arc', 'class':'arc', cx:160, cy:160, r:R, fill:'none', 'stroke-width':14, transform:'rotate(-90 160 160)', 'stroke-dasharray':'0 ' + CIRC.toFixed(1) }),
+    sv('g', { id:'marks' }));
+}
+function setNums(scale){
+  if (scale === dialScale) return; dialScale = scale;
+  var g = $('#nums'), i, a; g.textContent = '';
+  for (i = 0; i < 12; i++){
+    a = i * 30 * Math.PI / 180;
+    g.append(sv('text', { 'class':'num', x:(160 + 148*Math.sin(a)).toFixed(2), y:(160 - 148*Math.cos(a)).toFixed(2), 'text-anchor':'middle', 'dominant-baseline':'central' }, String(i * scale / 12)));
+  }
+}
+function scaleFor(plan){ return plan <= 60 ? 60 : plan <= 120 ? 120 : 180; }
+function elapsed(){ return (active.pausedAt || Date.now()) - active.start - active.paused; }
+function drawDial(){
+  var digits, label, task = '', marks = [], scale = 60, frac = 0, e, rem, lap;
+  if (active){
+    e = elapsed();
+    if (active.plan){
+      scale = scaleFor(active.plan); rem = Math.max(0, active.plan*60000 - e);
+      frac = rem / (scale*60000); digits = clock(Math.ceil(rem/1000));
+      marks = active.d.map(function(x){ return (active.plan*60 - x.t) / (scale*60); });
+    } else {
+      lap = Math.floor(e / 3600000);
+      frac = (e % 3600000) / 3600000; digits = clock(Math.floor(e/1000));
+      marks = active.d.filter(function(x){ return x.t >= lap*3600; }).map(function(x){ return (x.t % 3600) / 3600; });
+    }
+    label = active.brk ? 'Break' : active.pausedAt ? 'Paused' : 'Focusing'; task = active.task || '';
+  } else if (pending){
+    scale = pending.plan ? scaleFor(pending.plan) : 60;
+    digits = clock(Math.round(pending.min*60)); label = 'Session ended'; task = pending.task || '';
+  } else if (ui.mode === 'open'){
+    digits = '00:00'; label = 'Open-ended';
+  } else {
+    scale = scaleFor(ui.len); frac = ui.len / scale; digits = clock(ui.len*60); label = 'Ready';
+  }
+  setNums(scale);
+  $('#arc').setAttribute('stroke-dasharray', (clamp(frac,0,1)*CIRC).toFixed(1) + ' ' + CIRC.toFixed(1));
+  $('#digits').textContent = digits;
+  $('#dialLabel').textContent = label;
+  $('#dialTask').textContent = task;
+  $('#dial').classList.toggle('brk', !!(active && active.brk));
+  var key = marks.map(function(m){ return m.toFixed(4); }).join(',');
+  if (key !== markKey){
+    markKey = key; var g = $('#marks'); g.textContent = '';
+    marks.forEach(function(m){ var a = m * 2 * Math.PI; g.append(sv('circle', { 'class':'mark', cx:(160 + R*Math.sin(a)).toFixed(2), cy:(160 - R*Math.cos(a)).toFixed(2), r:5 })); });
+  }
+}
+
+var actx = null, wl = null;
+function initAudio(){ try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch(e){} }
+function chime(){
+  if (!S.settings.sound || !actx) return;
+  try {
+    var t = actx.currentTime;
+    [[660,0],[880,0.22],[1320,0.44]].forEach(function(p){
+      var osc = actx.createOscillator(), g = actx.createGain();
+      osc.type = 'sine'; osc.frequency.value = p[0];
+      g.gain.setValueAtTime(0.0001, t + p[1]);
+      g.gain.exponentialRampToValueAtTime(0.25, t + p[1] + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + p[1] + 0.9);
+      osc.connect(g); g.connect(actx.destination); osc.start(t + p[1]); osc.stop(t + p[1] + 1);
+    });
+  } catch(e){}
+}
+function wake(){ try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function(l){ wl = l; }).catch(function(){}); } catch(e){} }
+function unwake(){ try { if (wl){ wl.release().catch(function(){}); wl = null; } } catch(e){} }
+
+function startSession(brk){
+  initAudio();
+  var plan = brk ? 5 : (ui.mode === 'open' ? null : ui.len);
+  active = { start:Date.now(), plan:plan, task: brk ? '' : $('#task').value.trim().slice(0,80), cat:ui.cat, pausedAt:null, paused:0, d:[], brk:!!brk };
+  afterMsg = null; LS.set('active', active); wake(); showState();
+}
+function finish(completed){
+  var a = active, e = elapsed();
+  if (a.plan) e = Math.min(e, a.plan*60000);
+  active = null; LS.set('active', null); unwake();
+  if (completed) chime();
+  if (a.brk){ toast('Break over. Ready when you are.'); showState(); return; }
+  if (e < 60000){ toast('Sessions under a minute are not saved.'); showState(); return; }
+  pending = { id:newId('s'), k:'s', at:a.start, min:Math.round(e/6000)/10, plan:a.plan, done: !!(a.plan && e >= a.plan*60000), task:a.task, cat:a.cat, d:a.d, rate:0 };
+  rating = 0; LS.set('pending', pending); showState();
+}
+function tick(){
+  if (!active || active.pausedAt) return;
+  if (active.plan && elapsed() >= active.plan*60000) return finish(true);
+  drawDial();
+}
+function updateDCount(){
+  var n = active ? active.d.length : 0;
+  $('#dCount').textContent = n ? plural(n, 'distraction') + ' logged. Back to it.' : 'No distractions logged.';
+}
+function showState(){
+  $('#setup').hidden = !!(active || pending || afterMsg);
+  $('#running').hidden = !active;
+  $('#review').hidden = !!active || !pending;
+  $('#after').hidden = !!active || !!pending || !afterMsg;
+  if (active){
+    $('#pause').textContent = active.pausedAt ? 'Resume' : 'Pause';
+    $('#end').textContent = active.brk ? 'End break' : 'End session';
+    $('#logBox').hidden = !!active.brk;
+    updateDCount();
+  } else if (pending){
+    var t = fmtMin(pending.min) + ' of focus';
+    if (pending.plan && !pending.done) t += ', ended before the planned ' + pending.plan + ' min';
+    $('#reviewText').textContent = t + '. ' + (pending.d.length ? plural(pending.d.length, 'distraction') + ' logged.' : 'No distractions logged.');
+    Array.prototype.forEach.call($('#rate').children, function(b, i){ b.setAttribute('aria-pressed', String(i + 1 === rating)); });
+  } else if (afterMsg){
+    $('#afterText').textContent = afterMsg;
+  }
+  drawDial(); renderSuggest();
+}
+
+function chipSet(host, items, current, onPick, cls){
+  host.textContent = '';
+  items.forEach(function(it){
+    var b = el('button', { 'class':'chip' + (cls ? ' ' + cls : ''), type:'button', 'aria-pressed': current === undefined ? null : String(current === it.v) }, it.label);
+    b.addEventListener('click', function(){
+      if (current !== undefined){ Array.prototype.forEach.call(host.children, function(c){ c.setAttribute('aria-pressed','false'); }); b.setAttribute('aria-pressed','true'); }
+      onPick(it.v);
+    });
+    host.append(b);
+  });
+}
+function buildLens(){
+  var cur = ui.mode === 'open' ? 'open' : ui.mode === 'custom' ? 'custom' : ui.len;
+  var items = PRESETS.map(function(n){ return { v:n, label:n + ' min' }; }).concat([{ v:'custom', label:'Custom' }, { v:'open', label:'Open-ended' }]);
+  chipSet($('#lens'), items, cur, function(v){
+    if (v === 'open') ui.mode = 'open';
+    else if (v === 'custom'){ ui.mode = 'custom'; $('#customLen').value = ui.len; }
+    else { ui.mode = 'preset'; ui.len = v; }
+    $('#customWrap').hidden = ui.mode !== 'custom';
+    LS.set('prefs', ui); drawDial(); renderSuggest();
+  });
+  $('#customWrap').hidden = ui.mode !== 'custom';
+  $('#customLen').value = ui.len;
+}
+
+/* ---------- derived numbers ---------- */
+function todayStats(){
+  var k = dayKey(Date.now()), min = 0, n = 0, d = 0;
+  all('s').forEach(function(s){ if (dayKey(s.at) === k){ min += s.min; n++; d += s.d.length; } });
+  return { min:min, n:n, d:d };
+}
+function streak(){
+  var days = new Set(all('s').map(function(s){ return dayKey(s.at); })), now = new Date(), n = 0, i = 0, d;
+  if (!days.has(dayKey(now.getTime()))) i = 1;
+  for (;; i++){
+    d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    if (days.has(dayKey(d.getTime()))) n++; else break;
+  }
+  return n;
+}
+function suggestion(){
+  var ss = all('s').filter(function(s){ return s.plan; });
+  if (!ss.length) return { len:25, text:'Start with 25 minutes. Once you hold a length three times in a row with two or fewer distractions, Fovea suggests a longer one.' };
+  var cur = ss[ss.length-1].plan, last2 = ss.slice(-2), clean = 0, i, s, len;
+  function isClean(x){ return x.done && x.plan >= cur && x.d.length <= 2 && (!x.rate || x.rate >= 4); }
+  function isRough(x){ return !x.done || x.d.length >= 5 || (x.rate && x.rate <= 2); }
+  if (last2.length === 2 && last2.every(isRough) && cur > 10){
+    len = Math.max(10, cur - 5);
+    return { len:len, text:'The last two sessions were hard going. Drop to ' + len + ' minutes and rebuild from there.' };
+  }
+  for (i = ss.length-1; i >= 0 && clean < 3; i--){ s = ss[i]; if (isClean(s)) clean++; else break; }
+  if (clean >= 3 && cur < 120){
+    len = Math.min(120, cur + 5);
+    return { len:len, text:'You held ' + cur + ' minutes three times in a row with two or fewer distractions. Try ' + len + '.' };
+  }
+  return { len:cur, text:'Stay at ' + cur + ' minutes. ' + clean + ' of 3 clean sessions in a row so far.' };
+}
+function renderSuggest(){
+  var sg = suggestion(), idle = !active && !pending && !afterMsg, b = $('#useSuggest');
+  $('#suggestText').textContent = sg.text;
+  b.hidden = !idle || (ui.mode !== 'open' && ui.len === sg.len);
+  b.textContent = 'Set timer to ' + sg.len + ' min';
+  b.dataset.len = sg.len;
+}
+function renderToday(){
+  var t = todayStats(), goal = S.settings.goal, pct = clamp(Math.round(t.min / goal * 100), 0, 100);
+  $('#todayMin').textContent = Math.round(t.min);
+  $('#goalOut').textContent = goal;
+  $('#goalFill').style.width = pct + '%';
+  $('#goalMeter').setAttribute('aria-valuenow', pct);
+  $('#todaySess').textContent = t.n;
+  $('#todayDis').textContent = t.d;
+  $('#streak').textContent = streak();
+}
+function syncSettingsUI(){ $('#goal').value = S.settings.goal; $('#sound').checked = !!S.settings.sound; }
+
+/* ---------- drills ---------- */
+var timers = [];
+function later(fn, ms){ var id = setTimeout(fn, ms); timers.push(id); return id; }
+function every(fn, ms){ var id = setInterval(fn, ms); timers.push(id); return id; }
+function clearTimers(){ timers.forEach(function(id){ clearTimeout(id); clearInterval(id); }); timers = []; }
+
+function runSchulte(area, done){
+  var nums = shuffle(Array.from({ length:25 }, function(_, i){ return i + 1; })), next = 1, t0 = performance.now(), errs = 0;
+  var info = el('p', { 'class':'drill-info' }, 'Find 1'), grid = el('div', { 'class':'schulte' });
+  nums.forEach(function(n){
+    var b = el('button', { 'class':'cell', type:'button' }, n);
+    b.addEventListener('click', function(){
+      if (n === next){
+        b.classList.add('hit'); b.disabled = true; next++;
+        if (next > 25) done({ score: Math.round((performance.now() - t0) / 100) / 10, detail: plural(errs, 'wrong tap') });
+        else info.textContent = 'Find ' + next;
+      } else { errs++; b.classList.add('miss'); later(function(){ b.classList.remove('miss'); }, 250); }
+    });
+    grid.append(b);
+  });
+  area.append(info, grid);
+}
+var INKS = [['RED','red'],['BLUE','blue'],['GREEN','green'],['PURPLE','purple']];
+function runStroop(area, done){
+  var N = 20, i = 0, ok = 0, rts = [], shown = 0, ink = null, open = false;
+  var info = el('p', { 'class':'drill-info' }), word = el('div', { 'class':'stroop-word', 'aria-live':'off' }), row = el('div', { 'class':'answer-row' });
+  INKS.forEach(function(c){
+    row.append(el('button', { 'class':'btn', type:'button', onclick:function(){ answer(c[1]); } }, c[0].charAt(0) + c[0].slice(1).toLowerCase()));
+  });
+  function show(){
+    if (i >= N){
+      if (!ok) return done(null, 'No correct answers, so nothing was saved.');
+      return done({ score: Math.round(rts.reduce(function(a,b){ return a + b; }, 0) / rts.length), detail: ok + ' of ' + N + ' correct' });
+    }
+    var w = Math.floor(Math.random()*4), c = w;
+    if (Math.random() < 0.75) while (c === w) c = Math.floor(Math.random()*4);
+    ink = INKS[c][1]; word.textContent = INKS[w][0]; word.dataset.ink = ink;
+    info.textContent = (i + 1) + ' of ' + N; shown = performance.now(); open = true;
+  }
+  function answer(key){
+    if (!open) return; open = false;
+    if (key === ink){ ok++; rts.push(performance.now() - shown); info.textContent = 'Correct'; }
+    else info.textContent = 'Wrong, the ink was ' + ink;
+    word.textContent = ''; i++; later(show, key === ink ? 350 : 800);
+  }
+  area.append(info, word, row); later(show, 600);
+}
+function balanced(hit, targets, hold, lures){ return Math.round(((targets ? hit/targets : 1) + (lures ? hold/lures : 1)) / 2 * 100); }
+function runGoNoGo(area, done){
+  var N = 40, seq = [], i = -1, tapped = false, hits = 0, slips = 0, misses = 0, holds = 0, k;
+  var pool = [1,2,4,5,6,7,8,9];
+  for (k = 0; k < 8; k++) seq.push(3);
+  for (k = 0; k < 32; k++) seq.push(pool[Math.floor(Math.random()*8)]);
+  shuffle(seq);
+  var info = el('p', { 'class':'drill-info' }, 'Get ready'), digit = el('div', { 'class':'big-digit' });
+  var pad2 = el('button', { 'class':'btn tap-pad', type:'button' }, 'Tap');
+  pad2.addEventListener('click', function(){ if (i < 0 || i >= N || tapped) return; tapped = true; pad2.classList.add('pressed'); });
+  function step(){
+    if (i >= 0){ if (seq[i] === 3){ if (tapped) slips++; else holds++; } else { if (tapped) hits++; else misses++; } }
+    i++; pad2.classList.remove('pressed');
+    if (i >= N) return done({ score: balanced(hits, 32, holds, 8), detail: plural(slips, 'slip') + ' on 3, ' + misses + ' missed' });
+    tapped = false; digit.textContent = seq[i]; info.textContent = (i + 1) + ' of ' + N;
+    later(function(){ digit.textContent = ''; }, 650); later(step, 1050);
+  }
+  area.append(info, digit, pad2); later(step, 900);
+}
+function runNBack(area, done){
+  var N = 22, seq, k, p, targets, i = -1, tapped = false, hits = 0, fa = 0, miss = 0, cr = 0;
+  do {
+    seq = []; targets = 0;
+    for (k = 0; k < N; k++){
+      if (k >= 2 && Math.random() < 0.3){ seq.push(seq[k-2]); targets++; }
+      else { do { p = Math.floor(Math.random()*9); } while (k >= 2 && p === seq[k-2]); seq.push(p); }
+    }
+  } while (targets < 5 || targets > 8);
+  var info = el('p', { 'class':'drill-info' }, 'Get ready'), grid = el('div', { 'class':'nback' }), cells = [];
+  for (k = 0; k < 9; k++){ cells.push(el('div', { 'class':'nb' })); grid.append(cells[k]); }
+  var btn = el('button', { 'class':'btn tap-pad', type:'button' }, 'Match');
+  btn.addEventListener('click', function(){ if (i < 2 || i >= N || tapped) return; tapped = true; btn.classList.add('pressed'); });
+  function step(){
+    if (i >= 2){ if (seq[i] === seq[i-2]){ if (tapped) hits++; else miss++; } else { if (tapped) fa++; else cr++; } }
+    i++; btn.classList.remove('pressed');
+    if (i >= N) return done({ score: balanced(hits, hits + miss, cr, cr + fa), detail: hits + ' of ' + (hits + miss) + ' matches caught, ' + plural(fa, 'false alarm') });
+    tapped = false; cells[seq[i]].classList.add('on'); info.textContent = (i + 1) + ' of ' + N;
+    later(function(){ cells[seq[i]].classList.remove('on'); }, 900); later(step, 1700);
+  }
+  area.append(info, grid, btn); later(step, 900);
+}
+function runBreath(area, done){
+  var DUR = 180000, t0 = Date.now(), count = 0, cycles = 0, good = 0;
+  var info = el('p', { 'class':'drill-info' }, '3:00 left');
+  var bBreath = el('button', { 'class':'btn tap-pad', type:'button' }, 'Breath');
+  var bTen = el('button', { 'class':'btn btn-primary tap-pad', type:'button' }, 'Ten');
+  var bLost = el('button', { 'class':'btn btn-quiet', type:'button' }, 'Lost count');
+  function flash(b){ b.classList.add('pressed'); later(function(){ b.classList.remove('pressed'); }, 150); }
+  bBreath.addEventListener('click', function(){ count++; flash(bBreath); });
+  bTen.addEventListener('click', function(){ cycles++; if (count === 9) good++; count = 0; });
+  bLost.addEventListener('click', function(){ if (count > 0) cycles++; count = 0; });
+  every(function(){
+    var rem = DUR - (Date.now() - t0);
+    if (rem <= 0){
+      if (!cycles) return done(null, 'No full cycle was counted, so nothing was saved.');
+      return done({ score: Math.round(good / cycles * 100), detail: good + ' of ' + plural(cycles, 'cycle') + ' counted correctly' });
+    }
+    var s = Math.ceil(rem / 1000); info.textContent = Math.floor(s/60) + ':' + pad(s % 60) + ' left';
+  }, 500);
+  area.append(info, bBreath, bTen, bLost);
+}
+var DRILLS = [
+  { id:'schulte', name:'Schulte table', trains:'Visual search speed', unit:'s', unitLabel:'seconds', better:'low', run:runSchulte,
+    how:'Tap the numbers 1 to 25 in order, as fast as you can. Keep your eyes near the centre of the grid and find each number with your side vision.' },
+  { id:'stroop', name:'Stroop test', trains:'Resisting interference', unit:'ms', unitLabel:'ms per correct answer', better:'low', run:runStroop,
+    how:'A colour word appears in a different ink colour. Tap the colour of the ink and ignore what the word says. 20 rounds.' },
+  { id:'gonogo', name:'Go / No-Go', trains:'Impulse control', unit:'%', unitLabel:'% accuracy', better:'high', run:runGoNoGo,
+    how:'Digits flash one at a time. Tap for every digit except 3. When you see a 3, do nothing. 40 digits, about 45 seconds.' },
+  { id:'nback', name:'2-back', trains:'Working memory', unit:'%', unitLabel:'% accuracy', better:'high', run:runNBack,
+    how:'A square lights up in the grid. Tap Match whenever it is in the same place as two steps earlier. 22 steps.' },
+  { id:'breath', name:'Breath counting', trains:'Sustained attention', unit:'%', unitLabel:'% of cycles correct', better:'high', run:runBreath,
+    how:'Breathe normally for three minutes. Tap Breath on each out-breath from 1 to 9, then tap Ten on the tenth and start again from 1. If you lose count, tap Lost count.' }
+];
+function scoresOf(d){ return all('d').filter(function(r){ return r.drill === d.id && typeof r.score === 'number'; }).map(function(r){ return r.score; }); }
+function bestOf(d){ var s = scoresOf(d); if (!s.length) return null; return d.better === 'low' ? Math.min.apply(null, s) : Math.max.apply(null, s); }
+function fmtScore(d, v){ return d.unit === 's' ? v.toFixed(1) + ' s' : d.unit === 'ms' ? v + ' ms' : v + '%'; }
+function spark(vals){
+  var w = 120, h = 32, p = 5, s = sv('svg', { viewBox:'0 0 ' + w + ' ' + h, 'aria-hidden':'true' });
+  if (!vals.length) return s;
+  var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), span = hi - lo || 1;
+  var pts = vals.map(function(v, i){ return [vals.length === 1 ? w - p : p + i * (w - 2*p) / (vals.length - 1), h - p - (v - lo) / span * (h - 2*p)]; });
+  if (pts.length > 1) s.append(sv('polyline', { 'class':'spark', fill:'none', points: pts.map(function(q){ return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ') }));
+  var e = pts[pts.length-1]; s.append(sv('circle', { 'class':'spark-end', cx:e[0].toFixed(1), cy:e[1].toFixed(1), r:3 }));
+  return s;
+}
+function renderDrillCards(){
+  var host = $('#drillList'); host.textContent = '';
+  DRILLS.forEach(function(d){
+    var sc = scoresOf(d), best = bestOf(d), scores = el('p', { 'class':'scores' });
+    if (sc.length) scores.append('Last ', el('b', null, fmtScore(d, sc[sc.length-1])), ' · Best ', el('b', null, fmtScore(d, best)), ' · ' + (d.better === 'low' ? 'lower is better' : 'higher is better'));
+    else scores.append('Not tried yet');
+    var trend = el('div', { 'class':'trend' }); trend.append(spark(sc.slice(-12)));
+    host.append(el('div', { 'class':'drill' },
+      el('div', null, el('h3', null, d.name), el('p', { 'class':'hint' }, d.trains)),
+      scores, trend,
+      el('div', { 'class':'go' }, el('button', { 'class':'btn', type:'button', 'aria-label':'Start ' + d.name, onclick:function(){ openDrill(d); } }, 'Start'))));
+  });
+}
+function openDrill(d){
+  $('#drillList').hidden = true; $('#trainIntro').hidden = true; $('#drillStage').hidden = false;
+  $('#stageName').textContent = d.name; $('#stageTrains').textContent = d.trains;
+  clearTimers(); var b = $('#stageBody'); b.textContent = '';
+  b.append(el('p', { 'class':'lead' }, d.how), el('button', { 'class':'btn btn-primary btn-big', type:'button', onclick:function(){ play(d); } }, 'Start'));
+}
+function play(d){ clearTimers(); initAudio(); var b = $('#stageBody'); b.textContent = ''; d.run(b, function(res, msg){ drillResult(d, res, msg); }); }
+function drillResult(d, res, msg){
+  clearTimers(); var prev = bestOf(d), b = $('#stageBody'), cmp; b.textContent = '';
+  if (res){
+    if (prev == null) cmp = 'First score recorded.';
+    else if (d.better === 'low' ? res.score < prev : res.score > prev) cmp = 'New best. Your previous best was ' + fmtScore(d, prev) + '.';
+    else cmp = 'Your best is ' + fmtScore(d, prev) + '.';
+    b.append(el('div', { 'class':'result' }, el('span', { 'class':'fig' }, d.unit === 's' ? res.score.toFixed(1) : res.score), el('span', { 'class':'fig-unit' }, d.unitLabel)),
+      el('p', null, res.detail + '.'), el('p', { 'class':'hint' }, cmp));
+    writeRec({ id:newId('d'), k:'d', at:Date.now(), drill:d.id, score:res.score, detail:res.detail });
+  } else b.append(el('p', { 'class':'lead' }, msg || 'Nothing was saved.'));
+  b.append(el('div', { 'class':'row' },
+    el('button', { 'class':'btn btn-primary', type:'button', onclick:function(){ play(d); } }, 'Go again'),
+    el('button', { 'class':'btn', type:'button', onclick:closeDrill }, 'Back to drills')));
+}
+function closeDrill(){ clearTimers(); $('#drillStage').hidden = true; $('#drillList').hidden = false; $('#trainIntro').hidden = false; $('#stageBody').textContent = ''; renderDrillCards(); }
+
+/* ---------- progress ---------- */
+function renderStats(){
+  var ss = all('s'), now = Date.now(), wk = now - 7*86400000, t = todayStats(), min7 = 0, d7 = 0, host = $('#stats');
+  ss.forEach(function(s){ if (s.at >= wk){ min7 += s.min; d7 += s.d.length; } });
+  var rate = min7 >= 1 ? (d7 / (min7/60)).toFixed(1) : '0';
+  host.textContent = '';
+  [['Today', fmtMin(t.min), 'goal ' + S.settings.goal + ' min'],
+   ['Last 7 days', fmtMin(min7), plural(ss.filter(function(s){ return s.at >= wk; }).length, 'session')],
+   ['Day streak', String(streak()), 'days in a row with a session'],
+   ['Distractions', rate, 'per focused hour, last 7 days']].forEach(function(x){
+    host.append(el('div', { 'class':'stat' }, el('span', { 'class':'label' }, x[0]), el('span', { 'class':'fig' }, x[1]), el('small', null, x[2])));
+  });
+}
+function drawDays(){
+  var box = $('#chartDays'), w = Math.max(280, box.clientWidth || 640), h = 200, m = { l:34, r:8, t:14, b:24 };
+  var days = [], idx = {}, now = new Date(), i, d;
+  for (i = 13; i >= 0; i--){ d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i); days.push({ d:d, key:dayKey(d.getTime()), min:0 }); }
+  days.forEach(function(x){ idx[x.key] = x; });
+  all('s').forEach(function(s){ var x = idx[dayKey(s.at)]; if (x) x.min += s.min; });
+  var goal = S.settings.goal, maxV = Math.max.apply(null, [goal].concat(days.map(function(x){ return x.min; })));
+  var yMax = Math.max(60, Math.ceil(maxV * 1.1 / 60) * 60), pw = w - m.l - m.r, ph = h - m.t - m.b, band = pw / 14;
+  function y(v){ return m.t + ph - v / yMax * ph; }
+  var s = sv('svg', { viewBox:'0 0 ' + w + ' ' + h, role:'img', 'aria-label':'Focus minutes per day for the last 14 days' });
+  [0, yMax/2, yMax].forEach(function(v){
+    s.append(sv('line', { 'class':'ax', x1:m.l, x2:w - m.r, y1:y(v), y2:y(v), fill:'none' }),
+      sv('text', { 'class':'axl', x:m.l - 6, y:y(v), 'text-anchor':'end', 'dominant-baseline':'central' }, String(v)));
+  });
+  var any = false;
+  days.forEach(function(x, j){
+    if (x.min > 0){ any = true; var by = y(x.min); s.append(sv('rect', { 'class':'bar' + (j === 13 ? ' now' : ''), x:(m.l + j*band + band*0.2).toFixed(1), y:by.toFixed(1), width:(band*0.6).toFixed(1), height:Math.max(1, m.t + ph - by).toFixed(1) })); }
+    if (band >= 30 || (13 - j) % 2 === 0) s.append(sv('text', { 'class':'axl' + (j === 13 ? ' strong' : ''), x:(m.l + j*band + band/2).toFixed(1), y:h - 7, 'text-anchor':'middle' }, j === 13 && band >= 38 ? 'Today' : String(x.d.getDate())));
+  });
+  var gy = y(goal);
+  s.append(sv('line', { 'class':'goal-line', x1:m.l, x2:w - m.r, y1:gy, y2:gy, fill:'none' }), sv('text', { 'class':'goal-l', x:m.l + 4, y:gy - 6 }, 'Goal ' + goal + ' min'));
+  if (!any) s.append(sv('text', { 'class':'empty-l', x:m.l + pw/2, y:m.t + ph*0.62, 'text-anchor':'middle' }, 'Your first session will appear here.'));
+  box.textContent = ''; box.append(s);
+}
+function hourLabel(h){ var a = h % 12 || 12; return a + (h < 12 ? ' am' : ' pm'); }
+function drawHours(){
+  var box = $('#chartHours'), w = Math.max(260, box.clientWidth || 480), h = 130, m = { l:4, r:4, t:10, b:22 };
+  var hrs = new Array(24).fill(0), since = Date.now() - 30*86400000, i;
+  all('s').forEach(function(s){ if (s.at >= since) hrs[new Date(s.at).getHours()] += s.min; });
+  var mx = Math.max.apply(null, hrs), top = hrs.indexOf(mx), pw = w - m.l - m.r, ph = h - m.t - m.b, band = pw / 24;
+  var s = sv('svg', { viewBox:'0 0 ' + w + ' ' + h, role:'img', 'aria-label':'Focus minutes by the hour each session started, last 30 days' });
+  s.append(sv('line', { 'class':'ax', x1:m.l, x2:w - m.r, y1:m.t + ph, y2:m.t + ph, fill:'none' }));
+  for (i = 0; i < 24; i++){
+    if (hrs[i] > 0){ var bh = Math.max(2, hrs[i] / mx * ph); s.append(sv('rect', { 'class':'bar' + (i === top ? ' now' : ''), x:(m.l + i*band + band*0.15).toFixed(1), y:(m.t + ph - bh).toFixed(1), width:(band*0.7).toFixed(1), height:bh.toFixed(1) })); }
+    if (i % 6 === 0) s.append(sv('text', { 'class':'axl', x:(m.l + i*band + band*0.15).toFixed(1), y:h - 6, 'text-anchor':'start' }, hourLabel(i)));
+  }
+  box.textContent = ''; box.append(s);
+  $('#hoursNote').textContent = mx > 0 ? 'Most focus so far starts between ' + hourLabel(top) + ' and ' + hourLabel((top + 1) % 24) + ' (' + fmtMin(mx) + ' in the last 30 days).' : 'Minutes by the hour each session started. Fills in after your first session.';
+}
+function renderCauses(){
+  var since = Date.now() - 30*86400000, counts = {}, host = $('#causes'), rows, mx;
+  all('s').forEach(function(s){ if (s.at >= since) s.d.forEach(function(x){ counts[x.r] = (counts[x.r] || 0) + 1; }); });
+  rows = Object.keys(counts).map(function(k){ return [k, counts[k]]; }).sort(function(a,b){ return b[1] - a[1]; });
+  host.textContent = '';
+  if (!rows.length){ $('#causesNote').textContent = 'Nothing logged in the last 30 days. Tap a reason during a session and it shows up here.'; return; }
+  $('#causesNote').textContent = 'Logged distractions, last 30 days.';
+  mx = rows[0][1];
+  rows.forEach(function(r){
+    var fill = el('div', { 'class':'fill' }); fill.style.width = (r[1] / mx * 100) + '%';
+    host.append(el('div', { 'class':'cause' }, el('span', null, r[0]), el('div', { 'class':'track' }, fill), el('span', { 'class':'n' }, r[1])));
+  });
+}
+var histAll = false, later0 = null;
+function renderHistory(){
+  var ss = all('s').reverse(), host = $('#history'); host.textContent = '';
+  var cap = histAll ? 200 : 8;
+  $('#historyNote').textContent = ss.length ? (ss.length > cap ? 'Showing the latest ' + cap + ' of ' + ss.length + ' sessions.' : plural(ss.length, 'session') + ' saved.') : 'No sessions saved yet. Finish one on the Focus tab and it is listed here.';
+  if (ss.length > cap && !histAll) later0 = el('li', { 'class':'h-row' }, el('button', { 'class':'btn', type:'button', onclick:function(){ histAll = true; renderHistory(); } }, 'Show older sessions'));
+  else later0 = null;
+  ss.slice(0, cap).forEach(function(s){
+    var d = new Date(s.at), when = d.toLocaleDateString(undefined, { weekday:'short', day:'numeric', month:'short' }) + ', ' + d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+    var del = el('button', { 'class':'btn btn-quiet', type:'button' }, 'Delete'), armed = false, t;
+    del.addEventListener('click', function(){
+      if (armed){ clearTimeout(t); removeRec(s.id); toast('Session deleted.'); return; }
+      armed = true; del.textContent = 'Tap again to delete'; t = setTimeout(function(){ armed = false; del.textContent = 'Delete'; }, 3500);
+    });
+    host.append(el('li', { 'class':'h-row' },
+      el('div', { 'class':'h-main' }, el('span', { 'class':'h-task' }, s.task || 'Untitled session'), el('span', { 'class':'h-meta' }, when + ' · ' + (s.cat || 'Other'))),
+      el('div', { 'class':'h-nums' }, el('span', null, fmtMin(s.min)), el('span', null, plural(s.d.length, 'distraction')), el('span', null, s.rate ? s.rate + '/5' : 'unrated')),
+      del));
+  });
+  if (later0) host.append(later0);
+}
+function renderProgress(){ renderStats(); drawDays(); drawHours(); renderCauses(); renderHistory(); }
+
+/* ---------- shell ---------- */
+var tab = 'focus', toastT;
+function toast(msg){ var t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function(){ t.hidden = true; }, 3200); }
+function setTab(t, byUser){
+  if (tab === 'train' && t !== 'train' && !$('#drillStage').hidden) closeDrill();
+  tab = t;
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(b){ b.setAttribute('aria-selected', String(b.dataset.tab === t)); });
+  ['focus','train','progress'].forEach(function(p){ $('#panel-' + p).hidden = p !== t; });
+  LS.set('tab', t);
+  if (byUser){ try { history.replaceState(null, '', '#' + t); } catch(e){} }
+  if (t === 'progress') renderProgress();
+}
+function refresh(){
+  renderToday(); renderSuggest();
+  if ($('#drillStage').hidden) renderDrillCards();
+  if (tab === 'progress') renderProgress();
+}
+
+function bind(){
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(b){ b.addEventListener('click', function(){ setTab(b.dataset.tab, true); }); });
+  chipSet($('#cats'), CATS.map(function(c){ return { v:c, label:c }; }), ui.cat, function(v){ ui.cat = v; LS.set('prefs', ui); });
+  buildLens();
+  chipSet($('#reasons'), REASONS.map(function(r){ return { v:r, label:r }; }), undefined, function(r){
+    if (!active || active.brk) return;
+    active.d.push({ t: Math.round(elapsed()/1000), r:r }); LS.set('active', active); updateDCount(); drawDial();
+  }, 'reason');
+  chipSet($('#rate'), [1,2,3,4,5].map(function(n){ return { v:n, label:String(n) }; }), 0, function(n){ rating = n; });
+  $('#customLen').addEventListener('change', function(e){ ui.len = clamp(parseInt(e.target.value, 10) || 25, 1, 180); e.target.value = ui.len; LS.set('prefs', ui); drawDial(); renderSuggest(); });
+  $('#start').addEventListener('click', function(){ startSession(false); });
+  $('#pause').addEventListener('click', function(){
+    if (!active) return;
+    if (active.pausedAt){ active.paused += Date.now() - active.pausedAt; active.pausedAt = null; wake(); }
+    else { active.pausedAt = Date.now(); unwake(); }
+    LS.set('active', active); showState();
+  });
+  $('#end').addEventListener('click', function(){ if (active) finish(false); });
+  $('#save').addEventListener('click', function(){
+    if (!pending) return;
+    var rec = pending; rec.rate = rating; pending = null; LS.set('pending', null);
+    writeRec(rec);
+    var t = todayStats();
+    afterMsg = 'Saved. ' + fmtMin(t.min) + ' of focus today' + (t.min >= S.settings.goal ? ', which reaches your daily goal.' : '.');
+    showState();
+  });
+  $('#discard').addEventListener('click', function(){ pending = null; LS.set('pending', null); toast('Session discarded.'); showState(); });
+  $('#brk').addEventListener('click', function(){ startSession(true); });
+  $('#again').addEventListener('click', function(){ afterMsg = null; showState(); });
+  $('#useSuggest').addEventListener('click', function(e){
+    var len = parseInt(e.currentTarget.dataset.len, 10); if (!len) return;
+    ui.len = len; ui.mode = PRESETS.indexOf(len) >= 0 ? 'preset' : 'custom'; LS.set('prefs', ui); buildLens(); drawDial(); renderSuggest();
+  });
+  $('#goal').addEventListener('change', function(e){ S.settings.goal = clamp(parseInt(e.target.value, 10) || 120, 10, 720); e.target.value = S.settings.goal; saveSettings(); refresh(); });
+  $('#sound').addEventListener('change', function(e){ S.settings.sound = e.target.checked; saveSettings(); if (e.target.checked){ initAudio(); chime(); } });
+  $('#quitDrill').addEventListener('click', closeDrill);
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden){ tick(); if (active && !active.pausedAt) wake(); } });
+  var rz; window.addEventListener('resize', function(){ clearTimeout(rz); rz = setTimeout(function(){ if (tab === 'progress'){ drawDays(); drawHours(); } }, 150); });
+}
+
+/* ---------- boot ---------- */
+if (active && !active.plan && !active.pausedAt && Date.now() - active.start - active.paused > 6*3600000){ active = null; LS.set('active', null); }
+if (active && typeof active.start !== 'number'){ active = null; LS.set('active', null); }
+buildDial(); bind(); syncSettingsUI();
+var want = (location.hash || '').replace('#', '');
+setTab(['focus','train','progress'].indexOf(want) >= 0 ? want : (LS.get('tab', 'focus') || 'focus'));
+refresh(); showState();
+setInterval(tick, 250);
+connect();
+})();
+</script>
+
+</body></html>
