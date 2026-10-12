@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#ECEAE3"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Fovea"><link rel="manifest" href="manifest.json"><link rel="icon" type="image/jpeg" href="IMG_20261012_091011_094.jpg"><link rel="apple-touch-icon" href="IMG_20261012_091022_014.jpg"><script>addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__bip=e;});</script><script>if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost"))addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})});</script><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body><title>Fovea Focus Trainer</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#ECEAE3"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Fovea"><link rel="manifest" href="manifest.json"><link rel="icon" type="image/png" href="icon-192.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"><script>addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__bip=e;});</script><script>if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost"))addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})});</script><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body><title>Fovea Focus Trainer</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap">
 <style>
 /* Layout: one centred column (max 60rem). The Focus tab splits into the timer dial and a "today" rail from 48rem up; everything else stacks. */
@@ -2436,15 +2436,41 @@ function renderInstall(){
   $('#gateInstall').hidden = !show;
   $('#installBox').hidden = !show; $('#installedNote').hidden = !isStandalone();
 }
-function installNow(how){
-  if (installEvt){
-    var ev = installEvt; ev.prompt();
-    (ev.userChoice || Promise.resolve({})).then(function(c){ if (c && c.outcome === 'accepted'){ installEvt = window.__bip = null; renderInstall(); } });
-    return;
-  }
-  var p = $(how); if (p){ p.textContent = installSteps(); p.hidden = false; }
+var installWaiting = null;
+function setInstallLabel(text){ ['#installGo','#gateInstallBtn','#installBtn'].forEach(function(id){ var s = $(id) && $(id).querySelector('span'); if (s) s.textContent = text; }); }
+function promptInstall(){
+  var ev = installEvt; if (!ev) return false;
+  ['#installHow','#gateInstallHow','#installHowMenu'].forEach(function(id){ var p = $(id); if (p) p.hidden = true; });
+  try { ev.prompt(); } catch(e){ return false; }
+  (ev.userChoice || Promise.resolve({})).then(function(c){
+    installEvt = window.__bip = null; setInstallLabel('Install Fovea app');
+    if (c && c.outcome === 'accepted') toast('Installing Fovea. It will appear on your Home screen.');
+    renderInstall();
+  });
+  return true;
 }
-window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); installEvt = e; renderInstall(); });
+function installNow(how){
+  installEvt = installEvt || window.__bip || null;
+  if (promptInstall()) return;
+  /* Chrome hands over its installer a moment after the page loads. If it is not here yet, wait briefly for it. */
+  if (installWaiting) return;
+  setInstallLabel('Getting installer ready…');
+  var waited = 0;
+  installWaiting = setInterval(function(){
+    waited += 250; installEvt = installEvt || window.__bip || null;
+    if (installEvt){
+      clearInterval(installWaiting); installWaiting = null;
+      setInstallLabel('Tap again to install');
+      return;
+    }
+    if (waited >= 4000){
+      clearInterval(installWaiting); installWaiting = null;
+      setInstallLabel('Install Fovea app');
+      var p = $(how); if (p){ p.textContent = installSteps(); p.hidden = false; }
+    }
+  }, 250);
+}
+window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); installEvt = e; if (!installWaiting) setInstallLabel('Install Fovea app'); renderInstall(); });
 window.addEventListener('appinstalled', function(){ installEvt = window.__bip = null; renderInstall(); toast('Fovea is installed. Open it from your Home screen.'); });
 
 /* ---------- boot ---------- */
