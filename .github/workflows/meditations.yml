@@ -40,11 +40,11 @@ jobs:
         run: |
           mkdir -p $HOME/fovea/kokoro $HOME/fovea/sounds/things
           cd $HOME/fovea
-          curl -sSL -o kokoro/kokoro-v1.0.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
-          curl -sSL -o kokoro/voices-v1.0.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
-          curl -sSL -o piper.tgz https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz
+          curl -fsSL --retry 3 -o kokoro/kokoro-v1.0.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
+          curl -fsSL --retry 3 -o kokoro/voices-v1.0.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
+          curl -fsSL --retry 3 -o piper.tgz https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz
           tar xzf piper.tgz
-          curl -sSL -o sounds/things/singing-bowl.mp3 https://raw.githubusercontent.com/remvze/moodist/main/public/sounds/things/singing-bowl.mp3
+          curl -fsSL --retry 3 -o sounds/things/singing-bowl.mp3 https://raw.githubusercontent.com/remvze/moodist/main/public/sounds/things/singing-bowl.mp3
           ls -la kokoro piper | head
       - name: Render this part
         env:
@@ -55,13 +55,23 @@ jobs:
         run: |
           case "${{ matrix.voice }}" in asha|michael) bg=forest;; nira) bg=temple;; emma) bg=river;; george) bg=grassland;; esac
           start=$(( (${{ matrix.part }} - 1) * 13 + 1 )); end=$(( start + 12 ))
-          mkdir -p out/${{ matrix.voice }}
+          mkdir -p out/${{ matrix.voice }} logs
+          exec > >(tee -a logs/render-${{ matrix.voice }}-${{ matrix.part }}.log) 2>&1
+          python3 -c "import onnxruntime, numpy, scipy; print('python ok')"
+          ls -la $FOVEA_KOKORO $FOVEA_PIPER | head -20
           for n in $(seq $start $end); do
             nn=$(printf %02d $n)
             if [ -f tools/meditation/timing/${{ matrix.voice }}/w$nn.json ]; then echo "week $n already published"; continue; fi
             python3 tools/meditation/build2.py --voice ${{ matrix.voice }} --bg $bg --only $n --app-only --outdir out
           done
           ls -la out/${{ matrix.voice }} || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: log-${{ matrix.voice }}-${{ matrix.part }}
+          path: logs
+          if-no-files-found: ignore
+          retention-days: 3
       - uses: actions/upload-artifact@v4
         with:
           name: render-${{ matrix.voice }}-${{ matrix.part }}
@@ -83,8 +93,24 @@ jobs:
           path: rendered
           pattern: render-*
           merge-multiple: true
-      - name: Copy into the site and push
+      - uses: actions/download-artifact@v4
+        with:
+          path: logs
+          pattern: log-*
+          merge-multiple: true
+      - name: Save the render logs to the ci-logs-med branch
         run: |
+          mkdir -p /tmp/medlogs && cp -r logs/. /tmp/medlogs/ 2>/dev/null || true
+          git config user.name "Fovea build"
+          git config user.email "build@users.noreply.github.com"
+          git worktree add --orphan -b ci-logs-med-tmp /tmp/wt 2>/dev/null || (git checkout --orphan ci-logs-med-tmp && git rm -rf --cached . > /dev/null)
+          cd /tmp/wt 2>/dev/null || true
+          cp /tmp/medlogs/* . 2>/dev/null || echo "no logs" > none.txt
+          git add -A . && git commit -q -m "render logs, run ${{ github.run_number }}" && git push -f -q origin HEAD:ci-logs-med || true
+      - name: Copy into the site and push
+        working-directory: ${{ github.workspace }}
+        run: |
+          git checkout -q main 2>/dev/null || true
           ls -R rendered | head -50 || true
           mkdir -p rendered
           python3 tools/meditation/publish_ci.py rendered
