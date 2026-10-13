@@ -1,0 +1,33 @@
+plugins { id 'com.android.application' }
+
+def runNo = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int
+
+android {
+    namespace 'io.github.viktorpapa469.fovea'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'io.github.viktorpapa469.fovea'
+        minSdk 24
+        targetSdk 35
+        versionCode runNo
+        versionName "1.0.${runNo}"
+    }
+    signingConfigs {
+        release {
+            storeFile file('../fovea-release.jks')
+            storePassword System.getenv('FOVEA_STORE_PASS') ?: 'foveatest2026'
+            keyAlias 'fovea'
+            keyPassword System.getenv('FOVEA_KEY_PASS') ?: 'foveatest2026'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
