@@ -406,6 +406,10 @@ body.howto-on{overflow:hidden}
 .deck-cover-big{cursor:default}
 /* welcome tour */
 .breath-acts{justify-content:center}
+/* breathing: the count sits in the exact centre of the circle, the words below it */
+.dial.breathing .digits{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center}
+.dial.breathing #dialLabel{position:absolute;left:14%;right:14%;top:calc(50% + 2.05rem);text-align:center}
+.dial.breathing .dial-task{position:absolute;left:20%;right:20%;top:calc(50% + 3.35rem);text-align:center;font-size:.8rem}
 .tour{padding-top:calc(env(safe-area-inset-top,0px) + 1rem)}
 .tour-wrap{max-width:30rem;margin:0 auto;display:flex;flex-direction:column;gap:1rem}
 .tour-top{display:flex;align-items:center;justify-content:space-between}
