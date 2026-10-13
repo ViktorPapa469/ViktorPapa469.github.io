@@ -23,5 +23,5 @@ jobs:
       - run: python .github/scripts/send_reminders.py
         env:
           FB_PROJECT: fovea-25d37
-          FB_KEY: ${{ vars.FB_KEY }}
+          FB_KEY: AIzaSyAjuDlySp9coYIyI4KVFd0o7t2sqV3n5Ew   # the app's public web key (also in index.html)
           VAPID_PRIVATE: ${{ secrets.VAPID_PRIVATE }}
