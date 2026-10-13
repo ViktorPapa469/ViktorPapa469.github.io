@@ -12,7 +12,7 @@
   --amber:#F4C27C; --bad:#FF9D8C;
   --mtn1:#2B3A35; --mtn2:#24322D; --mtn3:#1E2A26; --water:#1C2726; --ripple:#33463F;
   --st-red:#FF8A7E; --st-blue:#86B6FF; --st-green:#7EE0A2; --st-purple:#D3A8F2;
-  --gt:17,24,21; --arc:#FFFFFF; --ga:.28; --gb:6px; --gib:8px; --gis:none; --gs:.1; --gl:.22; --gshadow:0 1px 2px rgba(var(--sh),.35); --glass:rgba(var(--gt),var(--ga)); --glass-line:rgba(var(--hl),var(--gl)); --glass-blur:blur(var(--gb)) saturate(1.15);
+  --gt:22,38,30; --glow:220,236,226; --arc:#FFFFFF; --ga:.5; --gb:16px; --gib:12px; --gis:none; --gs:.1; --gl:.22; --gshadow:0 1px 2px rgba(var(--sh),.35); --glass:rgba(var(--gt),var(--ga)); --glass-line:rgba(var(--hl),var(--gl)); --glass-blur:blur(var(--gb)) saturate(1.1);
   --font-display:"Poppins","Inter",system-ui,-apple-system,sans-serif;
   --font-body:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;
   color-scheme:dark;
@@ -398,11 +398,10 @@ body.howto-on{overflow:hidden}
 .gate .deck-track{max-width:26rem}
 .deck-cover-big{cursor:default}
 /* toggle switch */
-input.switch{-webkit-appearance:none;appearance:none;width:3.1rem;height:1.8rem;border-radius:999px;background:rgba(var(--hl),.22);border:1px solid rgba(var(--hl),.35);position:relative;cursor:pointer;flex:none;transition:background .2s;margin:0}
-input.switch::after{content:"";position:absolute;top:.17rem;left:.2rem;width:1.35rem;height:1.35rem;border-radius:50%;background:var(--acc);box-shadow:0 1px 3px rgba(var(--sh),.35);transition:transform .2s}
-input.switch:checked{background:var(--arc);border-color:var(--arc)}
-input.switch:checked::after{transform:translateX(1.25rem);background:var(--acc-ink)}
-input.switch:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.setting > input[type=checkbox],input.switch{-webkit-appearance:none;appearance:none;width:3.1rem;height:1.85rem;border-radius:999px;flex:none;margin:0;cursor:pointer;accent-color:auto;background-color:rgba(var(--hl),.2);background-image:radial-gradient(circle closest-side,#FFFFFF 0 86%,rgba(255,255,255,0) 100%);background-repeat:no-repeat;background-size:1.55rem 1.55rem;background-position:.12rem 50%;border:1px solid rgba(var(--hl),.38);box-shadow:inset 0 1px 2px rgba(var(--sh),.25);transition:background-color .2s,background-position .2s,border-color .2s}
+.setting > input[type=checkbox]:checked,input.switch:checked{background-color:var(--acc);border-color:var(--acc);background-position:calc(100% - .12rem) 50%;background-image:radial-gradient(circle closest-side,var(--acc-ink) 0 86%,rgba(0,0,0,0) 100%)}
+.setting > input[type=checkbox]:focus-visible,input.switch:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.setting > input[type=checkbox]:disabled,input.switch:disabled{opacity:.45;cursor:not-allowed}
 /* today's tasks */
 #tasksCard{gap:.85rem;margin-top:1rem}
 .tasks-head{display:flex;justify-content:space-between;align-items:baseline;gap:.75rem;flex-wrap:wrap}
@@ -616,7 +615,7 @@ h1,h2,h3{text-wrap:balance}
 .fig{font-weight:400}
 /* glass panels */
 #setup,#tasksCard,#trainIntro,#drillStage,.rail .block,.stats,.progress-card,#panel-progress .section,#panel-progress > .stack > .hint,.practice,.drills,.mcard,.dcard,.deck-card,.nudge,.install-bar,.gate-card,#review,#after,#breathPanel,.stage,.howto-card,.wk-change,.report{
-  background:linear-gradient(180deg,rgba(var(--hl),var(--gs)) 0%,rgba(var(--hl),0) 55%),var(--glass);border:1px solid var(--glass-line);border-radius:18px;-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);text-shadow:var(--gshadow);box-shadow:inset 0 1px 0 rgba(var(--hl),calc(var(--gs) * 2))}
+  background:linear-gradient(140deg,rgba(var(--glow),calc(var(--gs) * 1.6)) 0%,rgba(var(--glow),0) 48%),linear-gradient(0deg,rgba(var(--sh),calc(var(--gs) * 1.4)) 0%,rgba(var(--sh),0) 42%),var(--glass);border:1px solid var(--glass-line);border-radius:18px;-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);text-shadow:var(--gshadow);box-shadow:inset 0 1px 0 rgba(255,255,255,calc(var(--gs) * 3.2)),inset 0 -1px 0 rgba(var(--sh),calc(var(--gs) * 2)),0 10px 28px rgba(var(--sh),calc(var(--gs) * 2.4))}
 #setup,#tasksCard,#trainIntro,#drillStage,.rail .block,.stats,#panel-progress .section,.practice,.mcard,.deck-card,#review,#after,#breathPanel,.gate-card,.howto-card{padding:1.1rem 1.15rem}
 .brand .mark{border-radius:50%;width:2.6rem;height:2.6rem;box-shadow:0 2px 10px rgba(var(--sh),.3)}
 #panel-progress > .stack > .hint{padding:.8rem 1rem}
@@ -644,7 +643,7 @@ h1,h2,h3{text-wrap:balance}
 input[type=text],input[type=number],input[type=password],input[type=email],input[type=time],select,textarea{background:rgba(var(--hl),.13);border:1px solid rgba(var(--hl),.3);color:var(--ink);border-radius:12px;-webkit-backdrop-filter:blur(var(--gib));backdrop-filter:blur(var(--gib));text-shadow:none}
 input::placeholder,textarea::placeholder{color:rgba(var(--hl),.7)}
 select option,select optgroup{color:#1B241F;background:#FFFFFF}
-input[type=checkbox]{accent-color:#7FB28A;width:1.3rem;height:1.3rem}
+input[type=checkbox]{accent-color:var(--acc);width:1.3rem;height:1.3rem}
 input[type=range]{accent-color:var(--acc)}
 input[type=time]{font:500 1rem var(--font-body);padding:.35rem .6rem;min-width:7.5rem;color-scheme:dark}
 input[type=time]:disabled{opacity:.5}
@@ -3135,12 +3134,12 @@ function applyGlass(v){
   /* 0 = frosted glass: the photo is still discernible through a light, blurred layer.
      100 = clear: no tint or blur, the text floats over the photo on its own shadow. */
   v = clamp(parseInt(v, 10) || 0, 0, 100); var t = v / 100, u = 1 - t, r = document.documentElement.style;
-  r.setProperty('--ga', (0.28 * u).toFixed(3));
-  r.setProperty('--gb', (6 * u).toFixed(1) + 'px');
-  r.setProperty('--gib', (8 * u).toFixed(1) + 'px');
+  r.setProperty('--ga', (0.5 * u).toFixed(3));
+  r.setProperty('--gb', (16 * u).toFixed(1) + 'px');
+  r.setProperty('--gib', (12 * u).toFixed(1) + 'px');
   r.setProperty('--gis', t ? '0 1px 2px rgba(0,0,0,' + (0.55 * t).toFixed(2) + ')' : 'none');
   r.setProperty('--gs', (0.1 * u).toFixed(3));
-  r.setProperty('--gl', (0.08 + 0.14 * u).toFixed(3));
+  r.setProperty('--gl', (0.08 + 0.2 * u).toFixed(3));
   r.setProperty('--gshadow', '0 1px 2px rgba(0,0,0,' + (0.35 + 0.5 * t).toFixed(2) + '),0 0 ' + (6 * t).toFixed(1) + 'px rgba(0,0,0,' + (0.65 * t).toFixed(2) + '),0 0 ' + (16 * t).toFixed(1) + 'px rgba(0,0,0,' + (0.4 * t).toFixed(2) + ')');
   return v;
 }
@@ -4337,19 +4336,19 @@ function renderCal(){
 
 /* ---------- colour themes and timer styles (kept on this device) ---------- */
 /* Colour themes: each sets the page colour, the glass tint, the text and its shadow, highlights, buttons and the timer. */
-var THEMES = {   // calm, rich pairs: a deep glass tint with a soft pastel for text, buttons and the timer
-  blue:   { n:'Blue & cream',   bg:'#0E1A2B', gt:'22,40,68',  ink:'#FBF6EA', hl:'246,238,220', acc:'#F1E4C8', ai:'#1B2B45', sh:'6,14,30' },
-  green:  { n:'Green & silver', bg:'#13201A', gt:'30,56,42',  ink:'#F3F6F4', hl:'226,232,229', acc:'#D8DFDB', ai:'#1E3428', sh:'4,16,10' },
-  maroon: { n:'Maroon & gold',  bg:'#200C12', gt:'74,22,36',  ink:'#FBF1E4', hl:'246,226,196', acc:'#E6C47A', ai:'#3E0E1C', sh:'28,4,10' },
-  teal:   { n:'Teal & sand',    bg:'#0C1E1E', gt:'20,62,64',  ink:'#FAF4EA', hl:'240,226,204', acc:'#E7D2AE', ai:'#123A3A', sh:'2,18,18' },
-  plum:   { n:'Plum & rose',    bg:'#1E1222', gt:'62,32,70',  ink:'#FCF2F4', hl:'246,224,228', acc:'#EBC1C4', ai:'#3A1A40', sh:'20,6,24' }
+var THEMES = {   // smoked glass in a deep, low-saturation tint; a pale light of the same family catching the top edge; one soft pastel for text and buttons
+  blue:   { n:'Blue & cream',   bg:'#0D1626', gt:'16,26,44', glow:'255,236,200', ink:'#FFF8EC', hl:'250,240,222', acc:'#F3E3C3', ai:'#16233B', sh:'4,10,24' },
+  green:  { n:'Green & silver', bg:'#101A15', gt:'22,38,30', glow:'220,236,226', ink:'#F4F8F5', hl:'230,238,234', acc:'#DCE5E0', ai:'#1B3326', sh:'2,12,6' },
+  maroon: { n:'Maroon & gold',  bg:'#1A0910', gt:'46,14,24', glow:'255,214,150', ink:'#FFF4E6', hl:'250,232,206', acc:'#E9C987', ai:'#3A0E1A', sh:'22,2,8' },
+  teal:   { n:'Teal & sand',    bg:'#091818', gt:'12,40,42', glow:'240,222,190', ink:'#FBF5EA', hl:'242,232,214', acc:'#E8D6B5', ai:'#0F3434', sh:'0,14,14' },
+  plum:   { n:'Plum & rose',    bg:'#170E1C', gt:'38,20,46', glow:'255,210,220', ink:'#FFF3F5', hl:'248,230,234', acc:'#EFC7CC', ai:'#351A3D', sh:'16,4,20' }
 };
 var THEME_OLD = { moss:'green', ocean:'blue', dusk:'plum', ember:'maroon', ink:'teal' };   // names used before 13 Oct 2026
 var TSTYLES = { free:'Free ring', dial:'Dial', ring:'Ring', dots:'Dots', bare:'Timer', classic:'Classic' };
 function themeNow(){ var t = LS.get('theme', null) || {}, c = THEME_OLD[t.c] || t.c; return { c:THEMES[c] ? c : 'green', s:TSTYLES[t.s] ? t.s : 'free' }; }
 function applyTheme(){
   var t = themeNow(), r = document.documentElement.style, th = THEMES[t.c];
-  r.setProperty('--bg', th.bg); r.setProperty('--gt', th.gt); r.setProperty('--ink', th.ink); r.setProperty('--hl', th.hl);
+  r.setProperty('--bg', th.bg); r.setProperty('--gt', th.gt); r.setProperty('--glow', th.glow); r.setProperty('--ink', th.ink); r.setProperty('--hl', th.hl);
   r.setProperty('--acc', th.acc); r.setProperty('--acc-ink', th.ai); r.setProperty('--sh', th.sh); r.setProperty('--arc', th.acc);
   var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', th.bg);
   Object.keys(TSTYLES).forEach(function(k){ document.body.classList.remove('ts-' + k); }); document.body.classList.add('ts-' + t.s);
