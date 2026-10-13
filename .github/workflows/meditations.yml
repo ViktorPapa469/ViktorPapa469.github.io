@@ -43,7 +43,7 @@ jobs:
           curl -fsSL --retry 3 -o kokoro/kokoro-v1.0.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
           curl -fsSL --retry 3 -o kokoro/voices-v1.0.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
           curl -fsSL --retry 3 -o piper.tgz https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz
-          tar xzf piper.tgz
+          tar xzf piper.tgz && chmod +x piper/espeak-ng
           curl -fsSL --retry 3 -o sounds/things/singing-bowl.mp3 https://raw.githubusercontent.com/remvze/moodist/main/public/sounds/things/singing-bowl.mp3
           ls -la kokoro piper | head
       - name: Render this part
