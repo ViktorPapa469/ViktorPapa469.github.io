@@ -377,10 +377,21 @@ body.howto-on{overflow:hidden}
 .fl-arrow path{fill:none;stroke:var(--acc);stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
 /* decks */
 .deck{position:relative;min-width:0}
-.deck-track{display:flex;gap:1rem;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none;align-items:flex-start;position:relative;transition:height .35s ease;-webkit-overflow-scrolling:touch}
-.deck-track::-webkit-scrollbar{display:none}
+.deck-track{position:relative;display:block;transition:height .38s cubic-bezier(.2,.8,.2,1);--dh:auto}
 .deck-form{display:contents}
-.deck-card{flex:0 0 100%;min-width:0;scroll-snap-align:start;scroll-snap-stop:always;display:flex;flex-direction:column;gap:.9rem}
+.deck-card{min-width:0;display:flex;flex-direction:column;gap:.9rem;position:absolute;top:0;left:0;right:0;touch-action:pan-y;transform-origin:50% 0;transition:transform .42s cubic-bezier(.2,.8,.2,1),opacity .34s ease,visibility 0s linear .42s;will-change:transform}
+/* stacked cards: the one on top, two peeking behind, the ones already read slid off to the left */
+.deck-card.is-top{position:relative;z-index:5;transition:transform .42s cubic-bezier(.2,.8,.2,1),opacity .34s ease,visibility 0s}
+.deck-card.st-1,.deck-card.st-2,.deck-card.st-far,.deck-card.st-gone{height:var(--dh);overflow:hidden;pointer-events:none}
+.deck-card.st-1{z-index:4;transform:translateY(.7rem) scale(.95);opacity:.62;transition-delay:0s}
+.deck-card.st-2{z-index:3;transform:translateY(1.35rem) scale(.9);opacity:.3;transition-delay:0s}
+.deck-card.st-1 > *,.deck-card.st-2 > *{visibility:hidden}
+.deck-card.st-far{z-index:2;transform:translateY(1.35rem) scale(.88);opacity:0;visibility:hidden}
+.deck-card.st-gone{z-index:6;transform:translateX(-112%) rotate(-7deg);opacity:0;visibility:hidden}
+.deck-card.is-drag,.no-anim,.no-anim > .deck-card,.no-anim > .deck-form > .deck-card{transition:none}
+@media (prefers-reduced-motion:reduce){.deck-card,.deck-card.is-top{transition:opacity .2s}}
+/* sliders get their own strip, so dragging one never moves the card */
+.deck-card input[type=range]{touch-action:none}
 .deck-card[data-locked]{display:none}
 .deck-cover{flex-direction:row;align-items:center;gap:1rem;cursor:pointer;min-height:6.25rem;-webkit-tap-highlight-color:transparent}
 .deck-cover:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
@@ -4648,14 +4659,7 @@ function deckSetup(elm){
   var d = { el:elm, track:elm.querySelector('.deck-track'), i:0, raf:0 };
   elm._deck = d;
   d.dots = el('div', { 'class':'deck-dots', role:'tablist', 'aria-label':T('Cards in this group') }); elm.append(d.dots);
-  d.track.addEventListener('scroll', function(){
-    if (d.raf) return;
-    d.raf = requestAnimationFrame(function(){
-      d.raf = 0; var list = deckList(d), x = d.track.scrollLeft, best = 0, bd = 1e9;
-      list.forEach(function(c, k){ var dd = Math.abs(c.offsetLeft - x); if (dd < bd){ bd = dd; best = k; } });
-      if (best !== d.i){ d.i = best; deckUI(d); }
-    });
-  }, { passive:true });
+  deckSwipe(d);
   var cov = elm.querySelector('[data-cover]');
   if (cov){
     cov.addEventListener('click', function(){ deckGo(d, 1); });
@@ -4704,20 +4708,71 @@ function deckBuild(d){
   deckUI(d);
 }
 function deckHeight(d){
-  var c = deckList(d)[d.i]; if (!c) return;
-  var h = c.offsetHeight; if (h) d.track.style.height = h + 'px';
+  var list = deckList(d), c = list[d.i]; if (!c) return;
+  var h = c.offsetHeight; if (!h) return;
+  var behind = list.length - 1 - d.i, peek = behind >= 2 ? 22 : behind === 1 ? 11 : 0;   // room for the cards peeking underneath
+  d.track.style.setProperty('--dh', h + 'px'); d.track.style.height = (h + peek) + 'px';
+}
+function deckStack(d){
+  var list = deckList(d);
+  Array.prototype.forEach.call(d.track.querySelectorAll('.deck-card'), function(c){
+    var k = list.indexOf(c);
+    c.classList.remove('is-top', 'st-1', 'st-2', 'st-far', 'st-gone');
+    if (k < 0) return;
+    c.classList.add(k === d.i ? 'is-top' : k < d.i ? 'st-gone' : k === d.i + 1 ? 'st-1' : k === d.i + 2 ? 'st-2' : 'st-far');
+    if (k === d.i){ c.removeAttribute('aria-hidden'); c.inert = false; } else { c.setAttribute('aria-hidden', 'true'); c.inert = true; }
+  });
+}
+/* One swipe moves one card: past about a fifth of the width (or a quick flick) the next card comes up, otherwise the card settles back.
+   A swipe never starts on a slider, a text field or a list, so those keep working on their own. */
+function deckSwipe(d){
+  var st = null;
+  function noSwipe(t){ return !!(t && t.closest && t.closest('input,textarea,select,[contenteditable],.no-swipe,.dial,canvas')); }
+  d.track.addEventListener('pointerdown', function(e){
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    var top = deckList(d)[d.i]; if (!top || !top.contains(e.target) || noSwipe(e.target)) return;
+    st = { x:e.clientX, y:e.clientY, t:Date.now(), id:e.pointerId, card:top, on:false, dx:0 };
+  });
+  d.track.addEventListener('pointermove', function(e){
+    if (!st || e.pointerId !== st.id) return;
+    var dx = e.clientX - st.x, dy = e.clientY - st.y;
+    if (!st.on){
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)){ st = null; return; }   // the page is scrolling up or down
+      if (Math.abs(dx) < 10) return;
+      st.on = true; st.card.classList.add('is-drag'); try { d.track.setPointerCapture(e.pointerId); } catch(x){}
+    }
+    var list = deckList(d), edge = (dx > 0 && d.i === 0) || (dx < 0 && d.i >= list.length - 1);
+    st.dx = edge ? dx * 0.25 : dx;
+    st.card.style.transform = 'translateX(' + st.dx + 'px) rotate(' + (st.dx * 0.02).toFixed(2) + 'deg)';
+  });
+  function end(e){
+    if (!st || (e && e.pointerId !== st.id)) return;
+    var s0 = st; st = null;
+    if (!s0.on) return;
+    s0.card.classList.remove('is-drag'); s0.card.style.transform = '';
+    var w = d.track.offsetWidth || 320, v = Math.abs(s0.dx) / Math.max(1, Date.now() - s0.t), list = deckList(d);
+    var go = Math.abs(s0.dx) > w * 0.2 || (v > 0.45 && Math.abs(s0.dx) > 24);
+    if (go && s0.dx < 0 && d.i < list.length - 1) deckNext(d, d.i);
+    else if (go && s0.dx > 0 && d.i > 0) deckGo(d, d.i - 1);
+    else deckStack(d);
+    var stop = function(ev){ ev.stopPropagation(); ev.preventDefault(); };   // a swipe is not a tap
+    s0.card.addEventListener('click', stop, true); setTimeout(function(){ s0.card.removeEventListener('click', stop, true); }, 350);
+  }
+  d.track.addEventListener('pointerup', end);
+  d.track.addEventListener('pointercancel', function(e){ if (st && st.on){ st.card.classList.remove('is-drag'); st.card.style.transform = ''; deckStack(d); } st = null; });
 }
 function deckUI(d){
   Array.prototype.forEach.call(d.dots.children, function(b, k){ b.setAttribute('aria-selected', String(k === d.i)); });
-  deckHeight(d);
+  deckStack(d); deckHeight(d);
   if (d.el.id === 'dkClimb'){ var on = (deckList(d)[d.i] || {}).id === 'climbBox'; if (on && !d.climbOn) setTimeout(function(){ if (climbOnScreen()) renderClimb(); }, 380); d.climbOn = on; }
 }
 function deckGo(d, k, instant){
   if (!d) return;
   var list = deckList(d); if (!list.length) return;
   k = Math.max(0, Math.min(list.length - 1, k)); d.i = k;
-  try { d.track.scrollTo({ left:list[k].offsetLeft, behavior: instant || reducedMotion() ? 'auto' : 'smooth' }); } catch(e){ d.track.scrollLeft = list[k].offsetLeft; }
+  if (instant) d.track.classList.add('no-anim');
   deckUI(d);
+  if (instant) requestAnimationFrame(function(){ d.track.classList.remove('no-anim'); });
 }
 function deckNext(d, k){
   var list = deckList(d), c = list[k];
