@@ -405,6 +405,7 @@ body.howto-on{overflow:hidden}
 .gate .deck-track{max-width:26rem}
 .deck-cover-big{cursor:default}
 /* welcome tour */
+.breath-acts{justify-content:center}
 .tour{padding-top:calc(env(safe-area-inset-top,0px) + 1rem)}
 .tour-wrap{max-width:30rem;margin:0 auto;display:flex;flex-direction:column;gap:1rem}
 .tour-top{display:flex;align-items:center;justify-content:space-between}
@@ -957,6 +958,15 @@ body.fs-on .wrap{visibility:hidden}
           </section>
 
           <div id="breathPanel" class="stack" hidden>
+            <div class="row breath-acts" id="breathActs0">
+              <button class="btn btn-primary btn-big" id="breathBegin" type="button">Begin breathing</button>
+              <button class="btn" id="breathSkip0" type="button">Skip to the session</button>
+              <button class="btn btn-quiet" id="breathCancel0" type="button">Cancel</button>
+            </div>
+            <div class="row breath-acts" id="breathActs1" hidden>
+              <button class="btn btn-primary" id="breathSkip" type="button">Skip to the session</button>
+              <button class="btn btn-quiet" id="breathCancel" type="button">Cancel</button>
+            </div>
             <div>
               <h2 class="section-h" id="breathName"></h2>
               <p class="hint" id="breathWhy"></p>
@@ -971,18 +981,9 @@ body.fs-on .wrap{visibility:hidden}
                 <p class="hint" id="breathNote"></p>
                 <p class="hint">This is tradition, not a tested claim. To try it, gently close the other nostril with a finger while you follow the circle. Skip it if your nose is blocked.</p>
               </div>
-              <div class="row">
-                <button class="btn btn-primary btn-big" id="breathBegin" type="button">Begin breathing</button>
-                <button class="btn" id="breathSkip0" type="button">Skip to the session</button>
-                <button class="btn btn-quiet" id="breathCancel0" type="button">Cancel</button>
-              </div>
             </div>
             <div class="stack" id="breathRun" style="gap:1rem" hidden>
               <p class="hint">Follow the circle: it grows as you breathe in and shrinks as you breathe out. Breathe gently. If you feel light-headed, stop and breathe normally.</p>
-              <div class="row">
-                <button class="btn btn-primary" id="breathSkip" type="button">Skip to the session</button>
-                <button class="btn btn-quiet" id="breathCancel" type="button">Cancel</button>
-              </div>
             </div>
           </div>
 
@@ -2283,7 +2284,7 @@ function beginBreath(){
   breath = breathPlan(ui.cat); breath.intro = true; breath.still = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   $('#breathName').textContent = T(breath.name) + ' \u00b7 ' + fmtSecs(breath.total); $('#breathWhy').textContent = T(breath.why); $('#breathNote').textContent = T(BREATH_NOTE[ui.cat] || BREATH_NOTE.Other);
   var how = $('#breathHow'); how.textContent = ''; breathHowSteps(breath).forEach(function(t){ how.append(el('li', null, t)); });
-  $('#breathIntro').hidden = false; $('#breathRun').hidden = true;
+  $('#breathIntro').hidden = false; $('#breathRun').hidden = true; $('#breathActs0').hidden = false; $('#breathActs1').hidden = true;
   $('#dial').classList.add('breathing'); $('#breathDisc').style.display = 'none'; $('#breathDisc').setAttribute('r', '38');
   showState(); toTop();
   $('#digits').textContent = clock(breath.total); $('#dialLabel').textContent = T('Breathing first'); $('#dialTask').textContent = T('Read how, then tap Begin');
@@ -2291,7 +2292,7 @@ function beginBreath(){
 function startBreathing(){
   if (!breath || !breath.intro) return;
   breath.intro = false; breath.t0 = Date.now() + 3000;
-  $('#breathIntro').hidden = true; $('#breathRun').hidden = false; $('#breathDisc').style.display = '';
+  $('#breathIntro').hidden = true; $('#breathRun').hidden = false; $('#breathActs0').hidden = true; $('#breathActs1').hidden = false; $('#breathDisc').style.display = '';
   breathLoop();
 }
 function endBreath(start, finished){
