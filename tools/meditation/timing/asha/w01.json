@@ -1,0 +1,30 @@
+{
+ "week": 1,
+ "title": "Arriving",
+ "aspect": "Presence",
+ "line": "You can only begin from where you are.",
+ "invite": "Several times a day, before you start something, pause for one breath and notice where you are.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 172.0
+  },
+  {
+   "name": "Breath",
+   "at": 246.3
+  },
+  {
+   "name": "Practice",
+   "at": 448.2
+  },
+  {
+   "name": "Closing",
+   "at": 1215.6
+  }
+ ]
+}
