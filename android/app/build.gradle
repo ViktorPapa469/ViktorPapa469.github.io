@@ -14,10 +14,12 @@ android {
     }
     signingConfigs {
         release {
-            storeFile file('../fovea-release.jks')
-            storePassword System.getenv('FOVEA_STORE_PASS') ?: 'foveatest2026'
-            keyAlias 'fovea'
-            keyPassword System.getenv('FOVEA_KEY_PASS') ?: 'foveatest2026'
+            // The private upload key. The repository holds only an encrypted copy (fovea-upload.jks.enc); the build
+            // decrypts it with the GitHub secret FOVEA_SIGNING_PASSWORD, which is also the key's password.
+            storeFile file('../fovea-upload.jks')
+            storePassword System.getenv('FOVEA_SIGNING_PASSWORD')
+            keyAlias 'fovea-upload'
+            keyPassword System.getenv('FOVEA_SIGNING_PASSWORD')
         }
     }
     buildTypes {
