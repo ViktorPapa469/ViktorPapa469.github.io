@@ -110,6 +110,7 @@ jobs:
       - name: Copy into the site and push
         working-directory: ${{ github.workspace }}
         run: |
+          pip install -q numpy scipy onnxruntime
           git checkout -q main 2>/dev/null || true
           ls -R rendered | head -50 || true
           mkdir -p rendered
