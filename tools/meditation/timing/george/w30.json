@@ -1,0 +1,30 @@
+{
+ "week": 30,
+ "title": "Uncertainty",
+ "aspect": "Not knowing",
+ "line": "We do not need to see the whole path to take the next step.",
+ "invite": "When you catch yourself trying to predict the future this week, come back to one question: what do I need to do today?",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 198.3
+  },
+  {
+   "name": "Breath",
+   "at": 277.6
+  },
+  {
+   "name": "Practice",
+   "at": 480.8
+  },
+  {
+   "name": "Closing",
+   "at": 1224.7
+  }
+ ]
+}

@@ -1,0 +1,30 @@
+{
+ "week": 16,
+ "title": "The Space Between Words",
+ "aspect": "Deep listening",
+ "line": "To be truly heard is one of the greatest gifts.",
+ "invite": "In conversations this week, wait one breath after someone finishes before you reply.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 184.1
+  },
+  {
+   "name": "Breath",
+   "at": 274.9
+  },
+  {
+   "name": "Practice",
+   "at": 468.1
+  },
+  {
+   "name": "Closing",
+   "at": 1203.5
+  }
+ ]
+}

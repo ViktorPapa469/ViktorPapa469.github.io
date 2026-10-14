@@ -1,0 +1,30 @@
+{
+ "week": 43,
+ "title": "Simplicity",
+ "aspect": "Less, but better",
+ "line": "When we carry less, we can feel more.",
+ "invite": "This week, let go of one thing each day: an object you don't need, a commitment you can drop, a habit that clutters your time.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 178.2
+  },
+  {
+   "name": "Breath",
+   "at": 265.2
+  },
+  {
+   "name": "Practice",
+   "at": 466.3
+  },
+  {
+   "name": "Closing",
+   "at": 1217.3
+  }
+ ]
+}

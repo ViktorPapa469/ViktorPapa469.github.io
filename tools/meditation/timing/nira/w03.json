@@ -1,0 +1,30 @@
+{
+ "week": 3,
+ "title": "The Breath as Home",
+ "aspect": "Steadiness",
+ "line": "Wherever you go, the breath comes with you.",
+ "invite": "When you feel scattered this week, place a hand on your belly and take three slow breaths before you carry on.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 177.2
+  },
+  {
+   "name": "Breath",
+   "at": 257.2
+  },
+  {
+   "name": "Practice",
+   "at": 462.9
+  },
+  {
+   "name": "Closing",
+   "at": 1217.3
+  }
+ ]
+}

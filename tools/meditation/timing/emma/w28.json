@@ -1,0 +1,30 @@
+{
+ "week": 28,
+ "title": "Courage",
+ "aspect": "Meeting fear",
+ "line": "Courage is not the absence of fear. It is kindness walking beside it.",
+ "invite": "This week, do one small thing that scares you a little, and let fear come along for the ride.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 178.2
+  },
+  {
+   "name": "Breath",
+   "at": 255.4
+  },
+  {
+   "name": "Practice",
+   "at": 447.9
+  },
+  {
+   "name": "Closing",
+   "at": 1211.1
+  }
+ ]
+}

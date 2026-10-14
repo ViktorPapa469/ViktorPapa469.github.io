@@ -1,0 +1,30 @@
+{
+ "week": 25,
+ "title": "Asking for Help",
+ "aspect": "Humility",
+ "line": "Needing others is not weakness. It is how we were made.",
+ "invite": "This week, ask for help with one thing you would normally struggle with alone.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 182.6
+  },
+  {
+   "name": "Breath",
+   "at": 269.4
+  },
+  {
+   "name": "Practice",
+   "at": 469.1
+  },
+  {
+   "name": "Closing",
+   "at": 1208.7
+  }
+ ]
+}

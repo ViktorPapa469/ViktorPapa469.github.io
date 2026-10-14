@@ -1,0 +1,30 @@
+{
+ "week": 23,
+ "title": "Belonging",
+ "aspect": "Connection",
+ "line": "You do not have to earn your place in the world.",
+ "invite": "This week, reach out to one person you have lost touch with, just to say you were thinking of them.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 169.2
+  },
+  {
+   "name": "Breath",
+   "at": 250.3
+  },
+  {
+   "name": "Practice",
+   "at": 472.7
+  },
+  {
+   "name": "Closing",
+   "at": 1221.0
+  }
+ ]
+}

@@ -1,0 +1,30 @@
+{
+ "week": 13,
+ "title": "Beginning Again",
+ "aspect": "Resilience",
+ "line": "Every moment is a fresh place to start.",
+ "invite": "Whenever you slip this week, a broken habit, a lost temper, a wasted hour, say quietly: begin again. Then do the next small thing.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 173.5
+  },
+  {
+   "name": "Breath",
+   "at": 254.4
+  },
+  {
+   "name": "Practice",
+   "at": 438.0
+  },
+  {
+   "name": "Closing",
+   "at": 1212.2
+  }
+ ]
+}

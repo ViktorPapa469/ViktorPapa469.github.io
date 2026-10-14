@@ -1,0 +1,30 @@
+{
+ "week": 7,
+ "title": "Enough",
+ "aspect": "Contentment",
+ "line": "What if this, right now, were enough?",
+ "invite": "Each evening, name three things from the day that were enough just as they were.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 169.6
+  },
+  {
+   "name": "Breath",
+   "at": 248.5
+  },
+  {
+   "name": "Practice",
+   "at": 444.9
+  },
+  {
+   "name": "Closing",
+   "at": 1221.0
+  }
+ ]
+}
