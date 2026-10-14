@@ -18,7 +18,7 @@ def records():
     url = os.environ.get('FS_BASE', 'https://firestore.googleapis.com/v1') + '/projects/%s/databases/(default)/documents/reminders' % PROJECT
     tok = None
     while True:
-        r = requests.get(url, params={'pageSize': 300, 'key': KEY, **({'pageToken': tok} if tok else {})}, timeout=30); r.raise_for_status(); j = r.json()
+        r = requests.get(url, headers={'Referer': 'https://viktorpapa469.github.io/'}, params={'pageSize': 300, 'key': KEY, **({'pageToken': tok} if tok else {})}, timeout=30); r.raise_for_status(); j = r.json()
         for d in j.get('documents', []):
             f = {k: list(v.values())[0] for k, v in d.get('fields', {}).items()}
             yield d['name'].rsplit('/', 1)[-1], f
