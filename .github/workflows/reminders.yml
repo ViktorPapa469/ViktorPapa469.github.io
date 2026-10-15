@@ -34,7 +34,7 @@ jobs:
           tail -n 30 /tmp/rem.log 2>/dev/null | sed -E 's/[A-Za-z0-9_-]{60,}/[…]/g' > /tmp/now.txt || echo "no log" > /tmp/now.txt
           git fetch -q origin ci-logs-rem 2>/dev/null && git show origin/ci-logs-rem:result.txt > /tmp/old.txt 2>/dev/null || true
           if [ -f /tmp/old.txt ] && diff -q <(tail -n +2 /tmp/old.txt) /tmp/now.txt >/dev/null; then echo "same as last time"; exit 0; fi
-          git config user.name "Fovea build"; git config user.email "build@users.noreply.github.com"
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -q --orphan rem-log && git rm -rq --cached . && rm -rf ./* .github 2>/dev/null || true
           { echo "run ${{ github.run_number }} ${{ job.status }} $(date -u)"; cat /tmp/now.txt; } > result.txt
           git add result.txt && git commit -qm "reminders: ${{ job.status }}" && git push -qf origin rem-log:ci-logs-rem

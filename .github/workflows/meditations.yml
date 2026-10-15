@@ -101,8 +101,8 @@ jobs:
       - name: Save the render logs to the ci-logs-med branch
         run: |
           mkdir -p /tmp/medlogs && cp -r logs/. /tmp/medlogs/ 2>/dev/null || true
-          git config user.name "Fovea build"
-          git config user.email "build@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git worktree add --orphan -b ci-logs-med-tmp /tmp/wt 2>/dev/null || (git checkout --orphan ci-logs-med-tmp && git rm -rf --cached . > /dev/null)
           cd /tmp/wt 2>/dev/null || true
           cp /tmp/medlogs/* . 2>/dev/null || echo "no logs" > none.txt
@@ -115,8 +115,8 @@ jobs:
           ls -R rendered | head -50 || true
           mkdir -p rendered
           python3 tools/meditation/publish_ci.py rendered
-          git config user.name "Fovea build"
-          git config user.email "build@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add med tools/meditation/timing index.html
           if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
           git commit -m "Weekly meditations: new audio from the cloud render (run ${{ github.run_number }})"

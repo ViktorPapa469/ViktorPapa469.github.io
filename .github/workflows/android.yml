@@ -65,8 +65,8 @@ jobs:
       - name: Save the build log
         if: always()
         run: |
-          git config user.name "Fovea build"
-          git config user.email "build@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cp build.log /tmp/build.log 2>/dev/null || echo "no log" > /tmp/build.log
           echo "run ${{ github.run_number }} ${{ job.status }} $(date -u)" > /tmp/status.txt
           git fetch origin ci-logs || true
