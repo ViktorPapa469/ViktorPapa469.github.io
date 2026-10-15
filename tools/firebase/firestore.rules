@@ -33,6 +33,11 @@ service cloud.firestore {
       allow get: if me(uid);
     }
 
+    // Fovea accounts: each signed-in person reads and writes only their own saved progress.
+    match /sync/{uid}/{rest=**} {
+      allow read, write: if me(uid);
+    }
+
     // Everything else stays closed.
     match /{path=**} {
       allow read, write: if false;
