@@ -541,23 +541,17 @@ html[lang="hi"] .intro-tag,html[lang="zh"] .intro-tag,html[lang="ja"] .intro-tag
 .med-phase{font:500 1.15rem/1.3 var(--font-display);min-height:1.4em}
 .med-bar{height:.4rem;border-radius:999px;background:rgba(var(--hl),.18);overflow:hidden}
 .med-bar i{display:block;height:100%;width:0;background:var(--acc);border-radius:inherit;transition:width .25s linear}
-.med-ring{position:relative;width:min(78vw,17rem);aspect-ratio:1;margin:.4rem auto .2rem;touch-action:none;-webkit-user-select:none;user-select:none;outline:none;border-radius:50%}
-.med-ring:focus-visible{box-shadow:0 0 0 3px rgba(var(--hl),.35)}
+.med-ring{position:relative;width:min(80vw,18rem);aspect-ratio:1;margin:.2rem auto 0;touch-action:none;-webkit-user-select:none;user-select:none;outline:none;border-radius:50%}
+.med-ring:focus-visible{box-shadow:0 0 0 2px rgba(125,249,255,.35)}
 .med-ring svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
-.mr-track{fill:none;stroke:rgba(var(--hl),.16);stroke-width:6;stroke-linecap:round}
-.mr-ink{fill:none;stroke:var(--acc);stroke-width:8;stroke-linecap:round;stroke-dasharray:0 2000;filter:drop-shadow(0 0 4px rgba(var(--hl),.35))}
-.mr-ink2{fill:none;stroke:var(--acc);stroke-width:3;stroke-linecap:round;opacity:.45;stroke-dasharray:0 2000}
-.mr-pool{fill:var(--acc);opacity:.85}
-.mr-marks circle{fill:rgba(var(--hl),.55)}
-.mr-halo{fill:rgba(var(--hl),.14);transition:r .2s}
-.mr-dot{fill:#fff;stroke:var(--acc);stroke-width:3}
-.med-ring:not(.ready) .mr-thumb{opacity:.35}
+.lr-strands{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 10px rgba(76,141,255,.75)) drop-shadow(0 0 22px rgba(155,107,255,.45))}
+.lr-strands path{mix-blend-mode:screen}
+.lr-dot{fill:#fff;filter:drop-shadow(0 0 4px #fff) drop-shadow(0 0 10px #7DF9FF)}
+.lr-halo{fill:rgba(125,249,255,.22);filter:blur(4px);transition:r .2s}
+.med-ring:not(.ready){opacity:.55}
 .med-ring.ready{cursor:grab}
 .med-ring.drag{cursor:grabbing}
-.med-ring.drag .mr-halo{r:18px;fill:rgba(var(--hl),.24)}
-.mr-mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;pointer-events:none}
-.mr-t{font:300 2.6rem/1 var(--font-display);font-variant-numeric:tabular-nums}
-.mr-of{color:var(--muted);font-size:.9rem}
+.med-ring.drag .lr-halo{r:22px;fill:rgba(125,249,255,.35)}
 .med-phase{text-align:center}
 .med-time{color:var(--muted);font-variant-numeric:tabular-nums;font-size:.9rem}
 .med-ctl{align-items:center}
@@ -5328,46 +5322,54 @@ function medOpen(n){
     }
   } catch(e){}
 }
-/* The meditation's progress as a hand-drawn ensō: the brush stroke grows as the meditation plays, small dots mark the
-   five parts, and the dot at the tip can be dragged round the circle (or moved with the arrow keys) to go back or forward. */
+/* The meditation's progress as a ring of light: a few glowing strands that drift slowly, and a bright dot with a soft
+   bump in the strands that travels round as the meditation plays. No numbers. Drag or tap the ring (or use the arrow keys)
+   to go back or forward. */
 function medRing(f){
-  var S = 260, C = S / 2, R = 100, N = 160, A0 = -Math.PI / 2 + 0.16, SPAN = Math.PI * 2 - 0.34, rnd = seeded('enso-ring'), ph = [rnd() * 6, rnd() * 6, rnd() * 6];
-  function at(fr){ var a = A0 + SPAN * fr, r = R + 3.4 * Math.sin(a * 3 + ph[0]) + 2.2 * Math.sin(a * 5 + ph[1]) + 1.4 * Math.sin(a * 9 + ph[2]); return [C + r * Math.cos(a), C + r * Math.sin(a)]; }
-  var pts = [], i; for (i = 0; i <= N; i++) pts.push(at(i / N).map(function(v){ return +v.toFixed(2); }));
-  var d = smoothD(pts);
-  var s = sv('svg', { viewBox:'0 0 ' + S + ' ' + S, 'aria-hidden':'true' });
-  var track = sv('path', { 'class':'mr-track', d:d }), ink = sv('path', { 'class':'mr-ink', d:d }), ink2 = sv('path', { 'class':'mr-ink2', d:d, transform:'translate(1.4,-1.1)' });
-  var pool = sv('circle', { 'class':'mr-pool', cx:pts[0][0], cy:pts[0][1], r:5.2 });
-  var marks = sv('g', { 'class':'mr-marks' });
-  (f.p || []).forEach(function(x){ if (x[1] > 1){ var q = at(Math.min(1, x[1] / f.s)); marks.append(sv('circle', { cx:q[0].toFixed(1), cy:q[1].toFixed(1), r:2.6 })); } });
-  var thumb = sv('g', { 'class':'mr-thumb' }); thumb.append(sv('circle', { r:13, 'class':'mr-halo' }), sv('circle', { r:7.5, 'class':'mr-dot' }));
-  s.append(track, marks, ink2, ink, pool, thumb);
-  var big = el('span', { 'class':'mr-t' }, '0:00'), small = el('span', { 'class':'mr-of' }, T('of {t}', { t:mmss(f.s) }));
-  var wrap = el('div', { 'class':'med-ring', role:'slider', tabindex:'0', 'aria-label':T('Meditation position'), 'aria-valuemin':'0', 'aria-valuemax':String(f.s), 'aria-valuenow':'0', 'aria-valuetext':'0:00' },
-    s, el('div', { 'class':'mr-mid', 'aria-hidden':'true' }, big, small));
-  var o = { el:wrap, dragging:false, t:0 }, len = 0;
+  var S = 260, C = S / 2, R = 92, N = 96, A0 = -Math.PI / 2, TAU = Math.PI * 2, rnd = seeded('light-ring');
+  var COLS = ['#7DF9FF', '#4C8DFF', '#9B6BFF', '#FF6EC7', '#FFFFFF'], WID = [3.2, 2.6, 2.2, 1.6, 1.4], OP = [.85, .9, .75, .6, .9];
+  var strands = COLS.map(function(c, k){ return { c:c, w:WID[k], o:OP[k], ph:[rnd() * 6, rnd() * 6, rnd() * 6], sp:[(rnd() - .5) * .5, (rnd() - .5) * .7, (rnd() - .5) * .9], amp:[1.5 + rnd() * 2.5, 1 + rnd() * 1.8, .5 + rnd() * 1], off:(rnd() - .5) * 7 }; });
+  var s = sv('svg', { viewBox:'0 0 ' + S + ' ' + S, 'aria-hidden':'true' }), g = sv('g', { 'class':'lr-strands' });
+  strands.forEach(function(st){ st.el = sv('path', { fill:'none', stroke:st.c, 'stroke-width':st.w, 'stroke-opacity':st.o, 'stroke-linecap':'round' }); g.append(st.el); });
+  var halo = sv('circle', { 'class':'lr-halo', r:16 }), dot = sv('circle', { 'class':'lr-dot', r:5.5 });
+  s.append(g, halo, dot);
+  var wrap = el('div', { 'class':'med-ring', role:'slider', tabindex:'0', 'aria-label':T('Meditation position'), 'aria-valuemin':'0', 'aria-valuemax':String(f.s), 'aria-valuenow':'0', 'aria-valuetext':'0:00' }, s);
+  var o = { el:wrap, dragging:false, t:0 }, still = reducedMotion(), t0 = performance.now(), bumpA = A0, bumpTarget = A0;
   function mmss(x){ x = Math.max(0, Math.round(x)); return Math.floor(x / 60) + ':' + String(x % 60).padStart(2, '0'); }
-  function draw(t){
-    if (!len) { try { len = ink.getTotalLength(); } catch(e){ return; } if (!len) return; }
-    var fr = Math.max(0, Math.min(1, t / f.s)), L = len * fr;
-    [ink, ink2].forEach(function(pth){ pth.style.strokeDasharray = L.toFixed(1) + ' ' + (len + 20).toFixed(1); });
-    var q = at(fr); thumb.setAttribute('transform', 'translate(' + q[0].toFixed(1) + ',' + q[1].toFixed(1) + ')');
-    big.textContent = mmss(t);
-    wrap.setAttribute('aria-valuenow', String(Math.round(t))); wrap.setAttribute('aria-valuetext', T('{a} of {b}', { a:mmss(t), b:mmss(f.s) }));
+  function angDist(x, y){ var d = Math.abs(x - y) % TAU; return d > Math.PI ? TAU - d : d; }
+  function frame(now){
+    var tt = still ? 0 : (now - t0) / 1000;
+    bumpA += (function(){ var d = bumpTarget - bumpA; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; })() * (still ? 1 : 0.18);
+    strands.forEach(function(st){
+      var dd = '', i;
+      for (i = 0; i <= N; i++){
+        var a = A0 + TAU * i / N, ad = angDist(a, bumpA);
+        var r = R + st.off + st.amp[0] * Math.sin(a * 2 + st.ph[0] + tt * st.sp[0]) + st.amp[1] * Math.sin(a * 3 + st.ph[1] + tt * st.sp[1]) + st.amp[2] * Math.sin(a * 5 + st.ph[2] + tt * st.sp[2]) + 7 * Math.exp(-(ad * ad) / 0.2);
+        dd += (i ? ' L' : 'M') + (C + r * Math.cos(a)).toFixed(1) + ',' + (C + r * Math.sin(a)).toFixed(1);
+      }
+      st.el.setAttribute('d', dd + ' Z');
+    });
+    var rd = R + 7; dot.setAttribute('cx', (C + rd * Math.cos(bumpA)).toFixed(1)); dot.setAttribute('cy', (C + rd * Math.sin(bumpA)).toFixed(1));
+    halo.setAttribute('cx', dot.getAttribute('cx')); halo.setAttribute('cy', dot.getAttribute('cy'));
+    if (!still && document.body.contains(wrap)) requestAnimationFrame(frame);
   }
-  o.set = function(t){ o.t = t; draw(t); };
+  o.set = function(t){
+    o.t = t; bumpTarget = A0 + TAU * Math.max(0, Math.min(0.9999, t / f.s));
+    wrap.setAttribute('aria-valuenow', String(Math.round(t))); wrap.setAttribute('aria-valuetext', T('{a} of {b}', { a:mmss(t), b:mmss(f.s) }));
+    if (still) frame(0);
+  };
   function timeAt(ev){
     var r = s.getBoundingClientRect(), x = (ev.clientX - r.left) / r.width * S - C, y = (ev.clientY - r.top) / r.height * S - C;
-    var a = Math.atan2(y, x), rel = a - A0; while (rel < 0) rel += Math.PI * 2; while (rel >= Math.PI * 2) rel -= Math.PI * 2;
-    var fr = rel <= SPAN ? rel / SPAN : (rel - SPAN < (Math.PI * 2 - SPAN) / 2 ? 1 : 0);
-    if (o.dragging && Math.abs(fr - o.t / f.s) > 0.5) fr = o.t / f.s > 0.5 ? 1 : 0;   // no jumping across the gap at the top
+    var rel = Math.atan2(y, x) - A0; while (rel < 0) rel += TAU; while (rel >= TAU) rel -= TAU;
+    var fr = rel / TAU;
+    if (o.dragging && Math.abs(fr - o.t / f.s) > 0.5) fr = o.t / f.s > 0.5 ? 0.9999 : 0;   // no jumping across the top
     return fr * f.s;
   }
   function seek(t){ if (!med.va) return; t = Math.max(0, Math.min(f.s - 1, t)); try { med.va.currentTime = t; } catch(e){} o.set(t); medTick(); medUI(); }
   wrap.addEventListener('pointerdown', function(ev){
     if (!wrap.classList.contains('ready')) return;
     var r = s.getBoundingClientRect(), x = (ev.clientX - r.left) / r.width * S - C, y = (ev.clientY - r.top) / r.height * S - C, dist = Math.sqrt(x * x + y * y);
-    if (dist < R - 42 || dist > R + 40) return;          // only the ring itself, not its middle
+    if (dist < R - 45 || dist > R + 45) return;          // only the ring itself, not its middle
     ev.preventDefault(); o.set(timeAt(ev)); o.dragging = true; wrap.classList.add('drag'); try { wrap.setPointerCapture(ev.pointerId); } catch(e){}
   });
   wrap.addEventListener('pointermove', function(ev){ if (o.dragging){ ev.preventDefault(); o.set(timeAt(ev)); } });
@@ -5380,7 +5382,7 @@ function medRing(f){
     else if (k === 'PageUp') n = t + 60; else if (k === 'PageDown') n = t - 60; else if (k === 'Home') n = 0; else if (k === 'End') n = f.s - 1;
     if (n != null){ ev.preventDefault(); seek(n); }
   });
-  requestAnimationFrame(function(){ draw(0); });
+  requestAnimationFrame(frame);
   return o;
 }
 function medToggle(){
