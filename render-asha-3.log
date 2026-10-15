@@ -1,0 +1,38 @@
+[0;93m2026-10-15 04:34:44.574647549 [W:onnxruntime:Default, device_discovery.cc:95 GetPciBusId] Skipping pci_bus_id for PCI path at "/sys/devices/LNXSYSTM:00/LNXSYBUS:00/ACPI0004:00/MSFT1000:00/5620e0c7-8062-4dce-aeb7-520c7ef76171" because filename "5620e0c7-8062-4dce-aeb7-520c7ef76171" did not match expected pattern of [0-9a-f]+:[0-9a-f]+:[0-9a-f]+[.][0-9a-f]+[m
+python ok
+/home/runner/fovea/kokoro:
+total 345468
+drwxr-xr-x 2 runner runner      4096 Oct 15 04:34 .
+drwxr-xr-x 5 runner runner      4096 Oct 15 04:34 ..
+-rw-r--r-- 1 runner runner 325532387 Oct 15 04:34 kokoro-v1.0.onnx
+-rw-r--r-- 1 runner runner  28214398 Oct 15 04:34 voices-v1.0.bin
+
+/home/runner/fovea/piper:
+total 33784
+drwxr-xr-x 4 runner runner     4096 Nov 14  2023 .
+drwxr-xr-x 5 runner runner     4096 Oct 15 04:34 ..
+-rwxr-xr-x 1 runner runner    32776 Nov 14  2023 espeak-ng
+drwxr-xr-x 4 runner runner     4096 Nov 14  2023 espeak-ng-data
+lrwxrwxrwx 1 runner runner       17 Nov 14  2023 libespeak-ng.so -> libespeak-ng.so.1
+lrwxrwxrwx 1 runner runner       24 Nov 14  2023 libespeak-ng.so.1 -> libespeak-ng.so.1.52.0.1
+-rw-r--r-- 1 runner runner   580648 Nov 14  2023 libespeak-ng.so.1.52.0.1
+lrwxrwxrwx 1 runner runner       24 Nov 14  2023 libonnxruntime.so -> libonnxruntime.so.1.14.1
+-rw-r--r-- 1 runner runner 16324080 Nov 14  2023 libonnxruntime.so.1.14.1
+lrwxrwxrwx 1 runner runner       23 Nov 14  2023 libpiper_phonemize.so -> libpiper_phonemize.so.1
+lrwxrwxrwx 1 runner runner       27 Nov 14  2023 libpiper_phonemize.so.1 -> libpiper_phonemize.so.1.2.0
+week 27 already published
+week 28 already published
+week 29 already published
+week 30 already published
+week 31 already published
+week 32 already published
+week 33 already published
+week 34 already published
+week 35 already published
+week 36 already published
+week 37 already published
+week 38 already published
+week 39 already published
+total 8
+drwxr-xr-x 2 runner runner 4096 Oct 15 04:34 .
+drwxr-xr-x 3 runner runner 4096 Oct 15 04:34 ..
