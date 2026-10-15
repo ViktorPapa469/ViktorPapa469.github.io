@@ -546,6 +546,7 @@ html[lang="hi"] .intro-tag,html[lang="zh"] .intro-tag,html[lang="ja"] .intro-tag
 .med-ring svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .lr-strands{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 10px rgba(76,141,255,.75)) drop-shadow(0 0 22px rgba(155,107,255,.45))}
 .lr-strands path{mix-blend-mode:screen}
+.lr-aura{fill:none;stroke:#5A8CFF;stroke-width:40;stroke-opacity:.16}
 .lr-dot{fill:#fff;filter:drop-shadow(0 0 4px #fff) drop-shadow(0 0 10px #7DF9FF)}
 .lr-halo{fill:rgba(125,249,255,.22);filter:blur(4px);transition:r .2s}
 .med-ring:not(.ready){opacity:.55}
@@ -5468,17 +5469,21 @@ function medOpen(n){
    and a bright dot that travels round as the meditation plays. No numbers. Drag or tap the ring (or use the arrow keys)
    to go back or forward. */
 function medRing(f){
-  var S = 260, C = S / 2, R = 92, N = 120, A0 = -Math.PI / 2, TAU = Math.PI * 2, rnd = seeded('light-ring');
-  var PAL = ['#7DF9FF', '#4C8DFF', '#9B6BFF', '#FF6EC7', '#FFFFFF', '#5FD4FF', '#7A7DFF', '#C77DFF', '#9BEFFF', '#FF9AD5', '#4C8DFF', '#FFFFFF'];
+  var S = 260, C = S / 2, R = 90, N = 120, A0 = -Math.PI / 2, TAU = Math.PI * 2, rnd = seeded('light-ring');
+  var BASE = ['#7DF9FF', '#4C8DFF', '#9B6BFF', '#FF6EC7', '#FFFFFF', '#5FD4FF', '#7A7DFF', '#C77DFF', '#9BEFFF', '#FF9AD5'], PAL = BASE.concat(BASE, BASE.slice(0, 4));
+  var HALF = 15;   // half the band's width: strands weave across it and cross each other
   var strands = PAL.map(function(c, k){
-    return { c:c, w:1 + rnd() * 2.2, o:.45 + rnd() * .5, off:(k / (PAL.length - 1) - .5) * 15 + (rnd() - .5) * 3,
-      ph:[rnd() * 6, rnd() * 6, rnd() * 6, rnd() * 6], sp:[(.25 + rnd() * .9) * (rnd() < .5 ? -1 : 1), (.3 + rnd() * 1.1) * (rnd() < .5 ? -1 : 1), (.4 + rnd() * 1.4) * (rnd() < .5 ? -1 : 1)],
-      rot:(rnd() - .5) * .5, amp:[2 + rnd() * 3, 1.2 + rnd() * 2.2, .6 + rnd() * 1.3], jit:.15 + rnd() * .35, jf:.07 + rnd() * .2 };
+    var fast = rnd() < .35 ? 1.9 : 1;
+    return { c:c, w:.8 + rnd() * 1.8, o:.35 + rnd() * .5, base:(rnd() - .5) * HALF * .6, swing:HALF * (.45 + rnd() * .55), m:1 + Math.floor(rnd() * 4),
+      ph:[rnd() * 6, rnd() * 6, rnd() * 6, rnd() * 6, rnd() * 6], sp:[(.3 + rnd() * .9) * fast * (rnd() < .5 ? -1 : 1), (.3 + rnd() * 1.1) * fast * (rnd() < .5 ? -1 : 1), (.4 + rnd() * 1.4) * fast * (rnd() < .5 ? -1 : 1)],
+      ws:(.25 + rnd() * .8) * fast * (rnd() < .5 ? -1 : 1), rot:(rnd() - .5) * .6 * fast, amp:[1.5 + rnd() * 2.5, 1 + rnd() * 1.8, .5 + rnd() * 1.1], jit:.15 + rnd() * .35, jf:.07 + rnd() * .2 };
   });
   var s = sv('svg', { viewBox:'0 0 ' + S + ' ' + S, 'aria-hidden':'true' }), g = sv('g', { 'class':'lr-strands' });
+  var defs = sv('defs'), fl = sv('filter', { id:'lrGlow', x:'-30%', y:'-30%', width:'160%', height:'160%' }); fl.append(sv('feGaussianBlur', { stdDeviation:'9' })); defs.append(fl);
+  var aura = sv('circle', { 'class':'lr-aura', cx:C, cy:C, r:R, filter:'url(#lrGlow)' });
   strands.forEach(function(st){ st.el = sv('path', { fill:'none', stroke:st.c, 'stroke-width':st.w.toFixed(2), 'stroke-opacity':st.o.toFixed(2), 'stroke-linecap':'round' }); g.append(st.el); });
   var halo = sv('circle', { 'class':'lr-halo', r:16 }), dot = sv('circle', { 'class':'lr-dot', r:5.5 });
-  s.append(g, halo, dot);
+  s.append(defs, aura, g, halo, dot);
   var wrap = el('div', { 'class':'med-ring', role:'slider', tabindex:'0', 'aria-label':T('Meditation position'), 'aria-valuemin':'0', 'aria-valuemax':String(f.s), 'aria-valuenow':'0', 'aria-valuetext':'0:00' }, s);
   var o = { el:wrap, dragging:false, t:0 }, still = reducedMotion(), t0 = performance.now(), dotA = A0, dotTarget = A0;
   function mmss(x){ x = Math.max(0, Math.round(x)); return Math.floor(x / 60) + ':' + String(x % 60).padStart(2, '0'); }
@@ -5489,8 +5494,8 @@ function medRing(f){
       var dd = '', i, wob = st.jit * Math.sin(tt * st.jf + st.ph[3]), rot = st.rot * tt + 0.4 * Math.sin(tt * st.jf * 0.7 + k);
       for (i = 0; i <= N; i++){
         var a = A0 + TAU * i / N, b = a + rot;
-        var r = R + st.off * (1 + 0.25 * Math.sin(tt * 0.31 + k)) + st.amp[0] * Math.sin(b * 2 + st.ph[0] + tt * st.sp[0] * (1 + wob))
-          + st.amp[1] * Math.sin(b * 3 + st.ph[1] + tt * st.sp[1]) + st.amp[2] * Math.sin(b * 5 + st.ph[2] + tt * st.sp[2] * (1 - wob));
+        var r = R + st.base + st.swing * Math.sin(b * st.m + st.ph[4] + tt * st.ws)
+          + st.amp[0] * Math.sin(b * 2 + st.ph[0] + tt * st.sp[0] * (1 + wob)) + st.amp[1] * Math.sin(b * 3 + st.ph[1] + tt * st.sp[1]) + st.amp[2] * Math.sin(b * 5 + st.ph[2] + tt * st.sp[2] * (1 - wob));
         dd += (i ? ' L' : 'M') + (C + r * Math.cos(a)).toFixed(1) + ',' + (C + r * Math.sin(a)).toFixed(1);
       }
       st.el.setAttribute('d', dd + ' Z');
