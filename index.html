@@ -4903,7 +4903,7 @@ function facesStart(){
 /* ---------- daily reminders: a push message at the chosen morning and evening times, with a random line from FOVEA_QUOTES ----------
    The website's helper (sw.js) shows the notification. A scheduled job on GitHub sends the pushes; each device keeps one record,
    reminders/{id}, with its push address, time zone and times. */
-var VAPID_PUB = 'BFtXf-6njHK06dSvTRTqkxjyJzTdIi2TsRODzy-FRjFLYxLackZRQMQc0GjKkv26WwKYTmc6SbqFs8MXwNEnKMs';
+var VAPID_PUB = 'BHQOqFb3wH3PKsfhYO-8V2FXzjjvAHIY5FHzRFTBCbX7zrBl1qUF0aDUQAVCmktDlgcNI9EClocjpr4-8jFVCSM';
 function remGet(){ return Object.assign({ on:false, am:'07:00', pm:'21:30', ep:'', at:0, tz:'' }, LS.get('rem', {}) || {}); }
 function remSet(o){ LS.set('rem', Object.assign(remGet(), o)); }
 function remCan(){ return onSite() && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && VAPID_PUB.indexOf('__') !== 0; }
@@ -4920,7 +4920,13 @@ function remSave(sub){
 }
 function remSub(){
   return navigator.serviceWorker.ready.then(function(reg){
-    return reg.pushManager.getSubscription().then(function(s){ return s || reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:b64u(VAPID_PUB) }); });
+    function fresh(){ return reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:b64u(VAPID_PUB) }); }
+    return reg.pushManager.getSubscription().then(function(s){
+      if (!s) return fresh();
+      var k = s.options && s.options.applicationServerKey, a = k ? new Uint8Array(k) : null, b = b64u(VAPID_PUB), same = !!a && a.length === b.length;
+      for (var i = 0; same && i < b.length; i++) if (a[i] !== b[i]) same = false;
+      return same ? s : s.unsubscribe().then(fresh, fresh);   // made with an older reminder key: start again with the current one
+    });
   });
 }
 function remOn(){
