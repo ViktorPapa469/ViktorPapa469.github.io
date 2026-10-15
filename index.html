@@ -5464,39 +5464,44 @@ function medOpen(n){
     }
   } catch(e){}
 }
-/* The meditation's progress as a ring of light: a few glowing strands that drift slowly, and a bright dot with a soft
-   bump in the strands that travels round as the meditation plays. No numbers. Drag or tap the ring (or use the arrow keys)
+/* The meditation's progress as a ring of light: a band of glowing strands that drift on their own at wandering paces,
+   and a bright dot that travels round as the meditation plays. No numbers. Drag or tap the ring (or use the arrow keys)
    to go back or forward. */
 function medRing(f){
-  var S = 260, C = S / 2, R = 92, N = 96, A0 = -Math.PI / 2, TAU = Math.PI * 2, rnd = seeded('light-ring');
-  var COLS = ['#7DF9FF', '#4C8DFF', '#9B6BFF', '#FF6EC7', '#FFFFFF'], WID = [3.2, 2.6, 2.2, 1.6, 1.4], OP = [.85, .9, .75, .6, .9];
-  var strands = COLS.map(function(c, k){ return { c:c, w:WID[k], o:OP[k], ph:[rnd() * 6, rnd() * 6, rnd() * 6], sp:[(rnd() - .5) * .5, (rnd() - .5) * .7, (rnd() - .5) * .9], amp:[1.5 + rnd() * 2.5, 1 + rnd() * 1.8, .5 + rnd() * 1], off:(rnd() - .5) * 7 }; });
+  var S = 260, C = S / 2, R = 92, N = 120, A0 = -Math.PI / 2, TAU = Math.PI * 2, rnd = seeded('light-ring');
+  var PAL = ['#7DF9FF', '#4C8DFF', '#9B6BFF', '#FF6EC7', '#FFFFFF', '#5FD4FF', '#7A7DFF', '#C77DFF', '#9BEFFF', '#FF9AD5', '#4C8DFF', '#FFFFFF'];
+  var strands = PAL.map(function(c, k){
+    return { c:c, w:1 + rnd() * 2.2, o:.45 + rnd() * .5, off:(k / (PAL.length - 1) - .5) * 15 + (rnd() - .5) * 3,
+      ph:[rnd() * 6, rnd() * 6, rnd() * 6, rnd() * 6], sp:[(.25 + rnd() * .9) * (rnd() < .5 ? -1 : 1), (.3 + rnd() * 1.1) * (rnd() < .5 ? -1 : 1), (.4 + rnd() * 1.4) * (rnd() < .5 ? -1 : 1)],
+      rot:(rnd() - .5) * .5, amp:[2 + rnd() * 3, 1.2 + rnd() * 2.2, .6 + rnd() * 1.3], jit:.15 + rnd() * .35, jf:.07 + rnd() * .2 };
+  });
   var s = sv('svg', { viewBox:'0 0 ' + S + ' ' + S, 'aria-hidden':'true' }), g = sv('g', { 'class':'lr-strands' });
-  strands.forEach(function(st){ st.el = sv('path', { fill:'none', stroke:st.c, 'stroke-width':st.w, 'stroke-opacity':st.o, 'stroke-linecap':'round' }); g.append(st.el); });
+  strands.forEach(function(st){ st.el = sv('path', { fill:'none', stroke:st.c, 'stroke-width':st.w.toFixed(2), 'stroke-opacity':st.o.toFixed(2), 'stroke-linecap':'round' }); g.append(st.el); });
   var halo = sv('circle', { 'class':'lr-halo', r:16 }), dot = sv('circle', { 'class':'lr-dot', r:5.5 });
   s.append(g, halo, dot);
   var wrap = el('div', { 'class':'med-ring', role:'slider', tabindex:'0', 'aria-label':T('Meditation position'), 'aria-valuemin':'0', 'aria-valuemax':String(f.s), 'aria-valuenow':'0', 'aria-valuetext':'0:00' }, s);
-  var o = { el:wrap, dragging:false, t:0 }, still = reducedMotion(), t0 = performance.now(), bumpA = A0, bumpTarget = A0;
+  var o = { el:wrap, dragging:false, t:0 }, still = reducedMotion(), t0 = performance.now(), dotA = A0, dotTarget = A0;
   function mmss(x){ x = Math.max(0, Math.round(x)); return Math.floor(x / 60) + ':' + String(x % 60).padStart(2, '0'); }
-  function angDist(x, y){ var d = Math.abs(x - y) % TAU; return d > Math.PI ? TAU - d : d; }
   function frame(now){
     var tt = still ? 0 : (now - t0) / 1000;
-    bumpA += (function(){ var d = bumpTarget - bumpA; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; })() * (still ? 1 : 0.18);
-    strands.forEach(function(st){
-      var dd = '', i;
+    // the strands drift on their own, each at its own wandering pace; only the dot follows the meditation
+    strands.forEach(function(st, k){
+      var dd = '', i, wob = st.jit * Math.sin(tt * st.jf + st.ph[3]), rot = st.rot * tt + 0.4 * Math.sin(tt * st.jf * 0.7 + k);
       for (i = 0; i <= N; i++){
-        var a = A0 + TAU * i / N, ad = angDist(a, bumpA);
-        var r = R + st.off + st.amp[0] * Math.sin(a * 2 + st.ph[0] + tt * st.sp[0]) + st.amp[1] * Math.sin(a * 3 + st.ph[1] + tt * st.sp[1]) + st.amp[2] * Math.sin(a * 5 + st.ph[2] + tt * st.sp[2]) + 7 * Math.exp(-(ad * ad) / 0.2);
+        var a = A0 + TAU * i / N, b = a + rot;
+        var r = R + st.off * (1 + 0.25 * Math.sin(tt * 0.31 + k)) + st.amp[0] * Math.sin(b * 2 + st.ph[0] + tt * st.sp[0] * (1 + wob))
+          + st.amp[1] * Math.sin(b * 3 + st.ph[1] + tt * st.sp[1]) + st.amp[2] * Math.sin(b * 5 + st.ph[2] + tt * st.sp[2] * (1 - wob));
         dd += (i ? ' L' : 'M') + (C + r * Math.cos(a)).toFixed(1) + ',' + (C + r * Math.sin(a)).toFixed(1);
       }
       st.el.setAttribute('d', dd + ' Z');
     });
-    var rd = R + 7; dot.setAttribute('cx', (C + rd * Math.cos(bumpA)).toFixed(1)); dot.setAttribute('cy', (C + rd * Math.sin(bumpA)).toFixed(1));
-    halo.setAttribute('cx', dot.getAttribute('cx')); halo.setAttribute('cy', dot.getAttribute('cy'));
+    var d = dotTarget - dotA; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; dotA += d * (still ? 1 : 0.2);
+    var cx = (C + R * Math.cos(dotA)).toFixed(1), cy = (C + R * Math.sin(dotA)).toFixed(1);
+    dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); halo.setAttribute('cx', cx); halo.setAttribute('cy', cy);
     if (!still && document.body.contains(wrap)) requestAnimationFrame(frame);
   }
   o.set = function(t){
-    o.t = t; bumpTarget = A0 + TAU * Math.max(0, Math.min(0.9999, t / f.s));
+    o.t = t; dotTarget = A0 + TAU * Math.max(0, Math.min(0.9999, t / f.s));
     wrap.setAttribute('aria-valuenow', String(Math.round(t))); wrap.setAttribute('aria-valuetext', T('{a} of {b}', { a:mmss(t), b:mmss(f.s) }));
     if (still) frame(0);
   };
