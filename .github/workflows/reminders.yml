@@ -5,7 +5,7 @@ on:
     - cron: '3,18,33,48 * * * *'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   send:
     runs-on: ubuntu-latest
@@ -20,8 +20,21 @@ jobs:
           cache: 'pip'
           cache-dependency-path: .github/scripts/requirements.txt
       - run: pip install -r .github/scripts/requirements.txt
-      - run: python .github/scripts/send_reminders.py
+      - name: Send reminders
+        run: |
+          set -o pipefail
+          python .github/scripts/send_reminders.py 2>&1 | tee /tmp/rem.log
         env:
           FB_PROJECT: fovea-25d37
           FB_KEY: AIzaSyAjuDlySp9coYIyI4KVFd0o7t2sqV3n5Ew   # the app's public web key (also in index.html)
           VAPID_PRIVATE: ${{ secrets.VAPID_PRIVATE }}
+      - name: Save the result to the ci-logs-rem branch when it changes
+        if: always()
+        run: |
+          tail -n 30 /tmp/rem.log 2>/dev/null | sed -E 's/[A-Za-z0-9_-]{60,}/[…]/g' > /tmp/now.txt || echo "no log" > /tmp/now.txt
+          git fetch -q origin ci-logs-rem 2>/dev/null && git show origin/ci-logs-rem:result.txt > /tmp/old.txt 2>/dev/null || true
+          if [ -f /tmp/old.txt ] && diff -q <(tail -n +2 /tmp/old.txt) /tmp/now.txt >/dev/null; then echo "same as last time"; exit 0; fi
+          git config user.name "Fovea build"; git config user.email "build@users.noreply.github.com"
+          git checkout -q --orphan rem-log && git rm -rq --cached . && rm -rf ./* .github 2>/dev/null || true
+          { echo "run ${{ github.run_number }} ${{ job.status }} $(date -u)"; cat /tmp/now.txt; } > result.txt
+          git add result.txt && git commit -qm "reminders: ${{ job.status }}" && git push -qf origin rem-log:ci-logs-rem
