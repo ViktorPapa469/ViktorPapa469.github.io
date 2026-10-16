@@ -30,10 +30,15 @@ function refreshPage(req, old){
     if (!res || !res.ok) return res;
     var copy = res.clone();
     return caches.open(CACHE).then(function(c){ return c.put('./', copy); }).then(function(){
-      if (old){
-        var a = old.headers.get('etag') || old.headers.get('last-modified'), b = res.headers.get('etag') || res.headers.get('last-modified');
-        if (a && b && a !== b) tell();
-      }
+      // Offer an update only when the page itself has changed. Comparing headers was not enough: the website's servers can
+      // report different dates or tags for the same page, which showed "A new version is ready" again and again.
+      if (old) Promise.all([old.arrayBuffer(), res.clone().arrayBuffer()]).then(function(b){
+        if (b[0].byteLength !== b[1].byteLength) return tell();
+        return Promise.all([crypto.subtle.digest('SHA-256', b[0]), crypto.subtle.digest('SHA-256', b[1])]).then(function(d){
+          var x = new Uint8Array(d[0]), y = new Uint8Array(d[1]), i;
+          for (i = 0; i < x.length; i++) if (x[i] !== y[i]) return tell();
+        });
+      }).catch(function(){});
       return res;
     });
   });
@@ -62,7 +67,7 @@ self.addEventListener('fetch', function(e){
   if (r.headers.get('range')) return;                        // video players ask for pieces; let the browser handle those directly
   if (r.mode === 'navigate'){
     e.respondWith(caches.open(CACHE).then(function(c){ return c.match('./'); }).then(function(hit){
-      var fresh = refreshPage(r, hit);
+      var fresh = refreshPage(r, hit ? hit.clone() : null);   // a copy: the saved page itself goes to the screen
       if (hit){ newer = false; e.waitUntil(fresh.catch(function(){})); return hit; }
       return fresh.catch(function(){ return caches.match('./'); });
     }));
