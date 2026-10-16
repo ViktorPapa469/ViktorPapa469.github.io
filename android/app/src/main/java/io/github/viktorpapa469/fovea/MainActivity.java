@@ -7,6 +7,14 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.media.AudioManager;
+import android.media.ToneGenerator;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.PowerManager;
+import android.os.SystemClock;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -94,8 +102,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        // Tell the page the person has left. The WebView keeps running, so a meditation goes on playing with the screen off.
-        web.evaluateJavascript("window.foveaNativeVisible && foveaNativeVisible(false)", null);
+        // Tell the page the person has left, and whether it was only the screen switching off (not a distraction).
+        // The WebView keeps running, so a meditation goes on playing with the screen off.
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        boolean screenOff = pm != null && !pm.isInteractive();
+        web.evaluateJavascript("window.foveaNativeVisible && foveaNativeVisible(false, '" + (screenOff ? "screen" : "left") + "')", null);
     }
 
     @Override
@@ -120,6 +131,33 @@ public class MainActivity extends Activity {
 
     NotificationManager nm() { return (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE); }
     SharedPreferences prefs() { return getSharedPreferences("fovea", MODE_PRIVATE); }
+
+    /* The end-of-session chime, played by the app so it sounds on time even with the screen off. A partial wake lock keeps the
+       phone's processor awake until then; it is released as soon as the chime has played or the session ends early. */
+    final Handler main = new Handler(Looper.getMainLooper());
+    Runnable chimeJob = null;
+    PowerManager.WakeLock cpu = null;
+    void chimeCancel() {
+        if (chimeJob != null) { main.removeCallbacks(chimeJob); chimeJob = null; }
+        if (cpu != null && cpu.isHeld()) cpu.release();
+        cpu = null;
+    }
+    void chimePlay() {
+        try {
+            final ToneGenerator tg = new ToneGenerator(AudioManager.STREAM_ALARM, 90);
+            tg.startTone(ToneGenerator.TONE_PROP_BEEP2, 450);
+            main.postDelayed(() -> tg.startTone(ToneGenerator.TONE_PROP_BEEP2, 450), 900);
+            main.postDelayed(() -> tg.startTone(ToneGenerator.TONE_PROP_BEEP2, 700), 1800);
+            main.postDelayed(tg::release, 3200);
+        } catch (Exception e) { /* no sound available */ }
+        try {
+            Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            if (v != null) {
+                long[] pat = { 0, 400, 150, 400, 150, 600 };
+                if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createWaveform(pat, -1)); else v.vibrate(pat, -1);
+            }
+        } catch (Exception e) { }
+    }
 
     class Bridge {
         @JavascriptInterface public String platform() { return "android"; }
@@ -189,6 +227,30 @@ public class MainActivity extends Activity {
                     View d = getWindow().getDecorView();
                     d.setSystemUiVisibility(on ? (View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY) : 0);
                 }
+            });
+        }
+
+        /** Plays the end chime at this time (milliseconds since 1970), even if the screen is off by then. */
+        @JavascriptInterface public void chimeAt(String epochMs) {
+            final long at;
+            try { at = Long.parseLong(epochMs); } catch (Exception e) { return; }
+            runOnUiThread(() -> {
+                chimeCancel();
+                long delay = Math.max(0, at - System.currentTimeMillis());
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                if (pm != null) { cpu = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "fovea:chime"); cpu.acquire(delay + 15000); }
+                chimeJob = () -> { chimeJob = null; chimePlay(); main.postDelayed(MainActivity.this::chimeCancel, 5000); };
+                main.postAtTime(chimeJob, SystemClock.uptimeMillis() + delay);
+            });
+        }
+        @JavascriptInterface public void cancelChime() { runOnUiThread(MainActivity.this::chimeCancel); }
+
+        /** Turns the screen down to very dim while the focus screensaver shows, and back afterwards. */
+        @JavascriptInterface public void dim(boolean on) {
+            runOnUiThread(() -> {
+                WindowManager.LayoutParams lp = getWindow().getAttributes();
+                lp.screenBrightness = on ? 0.03f : WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+                getWindow().setAttributes(lp);
             });
         }
 
