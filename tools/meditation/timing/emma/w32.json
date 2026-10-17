@@ -1,0 +1,30 @@
+{
+ "week": 32,
+ "title": "Everything Changes",
+ "aspect": "Impermanence",
+ "line": "Because nothing stays the same, every moment is precious.",
+ "invite": "Each day this week, notice one thing that is changing: a sky, a mood, a plant, a face. Let it remind you to treasure today.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 178.2
+  },
+  {
+   "name": "Breath",
+   "at": 274.0
+  },
+  {
+   "name": "Practice",
+   "at": 482.5
+  },
+  {
+   "name": "Closing",
+   "at": 1211.1
+  }
+ ]
+}

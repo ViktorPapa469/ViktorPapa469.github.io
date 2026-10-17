@@ -1,0 +1,30 @@
+{
+ "week": 49,
+ "title": "Service",
+ "aspect": "Giving beyond ourselves",
+ "line": "A life spent only on ourselves is too small a home.",
+ "invite": "This week, do one act of service for someone who cannot repay you.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 176.3
+  },
+  {
+   "name": "Breath",
+   "at": 261.2
+  },
+  {
+   "name": "Practice",
+   "at": 458.1
+  },
+  {
+   "name": "Closing",
+   "at": 1212.2
+  }
+ ]
+}

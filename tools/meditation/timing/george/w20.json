@@ -1,0 +1,30 @@
+{
+ "week": 20,
+ "title": "Seeing the Good",
+ "aspect": "Appreciation",
+ "line": "What we look for, we tend to find.",
+ "invite": "Each day this week, tell one person something you genuinely appreciate about them.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 184.4
+  },
+  {
+   "name": "Breath",
+   "at": 263.1
+  },
+  {
+   "name": "Practice",
+   "at": 485.2
+  },
+  {
+   "name": "Closing",
+   "at": 1205.0
+  }
+ ]
+}

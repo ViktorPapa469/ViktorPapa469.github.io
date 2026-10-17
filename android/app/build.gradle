@@ -1,0 +1,35 @@
+plugins { id 'com.android.application' }
+
+def runNo = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int
+
+android {
+    namespace 'io.github.viktorpapa469.fovea'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'io.github.viktorpapa469.fovea'
+        minSdk 24
+        targetSdk 35
+        versionCode runNo
+        versionName "1.0.${runNo}"
+    }
+    signingConfigs {
+        release {
+            // The private upload key. The repository holds only an encrypted copy (fovea-upload.jks.enc); the build
+            // decrypts it with the GitHub secret FOVEA_SIGNING_PASSWORD, which is also the key's password.
+            storeFile file('../fovea-upload.jks')
+            storePassword System.getenv('FOVEA_SIGNING_PASSWORD')
+            keyAlias 'fovea-upload'
+            keyPassword System.getenv('FOVEA_SIGNING_PASSWORD')
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

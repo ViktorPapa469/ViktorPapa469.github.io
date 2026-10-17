@@ -1,0 +1,30 @@
+{
+ "week": 18,
+ "title": "Interconnection",
+ "aspect": "Belonging to the whole",
+ "line": "Nothing exists on its own. We are woven together.",
+ "invite": "At each meal this week, pause to think of everyone and everything that brought the food to your plate.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 191.9
+  },
+  {
+   "name": "Breath",
+   "at": 269.9
+  },
+  {
+   "name": "Practice",
+   "at": 474.6
+  },
+  {
+   "name": "Closing",
+   "at": 1229.4
+  }
+ ]
+}

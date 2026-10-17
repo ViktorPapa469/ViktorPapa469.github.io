@@ -1,0 +1,30 @@
+{
+ "week": 31,
+ "title": "Grief and Loss",
+ "aspect": "Holding sorrow",
+ "line": "Grief is love with nowhere to go. Let it have somewhere.",
+ "invite": "This week, give your sorrow a little time each day: a walk, a few written lines, a quiet minute with a photograph.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 164.4
+  },
+  {
+   "name": "Breath",
+   "at": 259.0
+  },
+  {
+   "name": "Practice",
+   "at": 448.3
+  },
+  {
+   "name": "Closing",
+   "at": 1224.1
+  }
+ ]
+}
