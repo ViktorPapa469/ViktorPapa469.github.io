@@ -1,0 +1,30 @@
+{
+ "week": 45,
+ "title": "Silence",
+ "aspect": "Inner quiet",
+ "line": "In silence, we hear what noise has been hiding.",
+ "invite": "Each day this week, spend fifteen minutes in silence: no music, no podcasts, no screens. Just the sounds of the world.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 186.7
+  },
+  {
+   "name": "Breath",
+   "at": 274.1
+  },
+  {
+   "name": "Practice",
+   "at": 490.2
+  },
+  {
+   "name": "Closing",
+   "at": 1209.2
+  }
+ ]
+}

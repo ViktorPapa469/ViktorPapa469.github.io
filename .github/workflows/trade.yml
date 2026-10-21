@@ -1,0 +1,68 @@
+name: Opening Bell screener
+
+# Runs the NSE screener in tools/trade on weekdays and publishes the data for the phone app at
+#   https://viktorpapa469.github.io/trade/
+# The data goes to the trade-data branch (one commit, replaced each time), so main and the website build are untouched.
+#   ~8:47 IST  morning: screen published ~9:10 after the pre-open, then breakout scans every 5 min from 9:31 to 11:00
+#   ~3:02 PM   waits, then sends the 3:15 square-off reminder (only on days the market traded)
+#   ~7:07 PM   preview of the next session's screen from the day's close
+# Push notifications go to phones that turned them on in the app (listed in Opening Bell's own Firebase project);
+# they are signed with the VAPID_PRIVATE secret, the same push key pair Fovea uses.
+# GitHub can start scheduled runs several minutes late; the morning run starts early to absorb that.
+# Optional secrets TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID send the screen and each breakout to Telegram.
+on:
+  schedule:
+    - cron: '17 3 * * 1-5'    # 08:47 IST, Mon-Fri
+    - cron: '32 9 * * 1-5'    # 15:02 IST, Mon-Fri (square-off reminder)
+    - cron: '37 13 * * 1-5'   # 19:07 IST, Mon-Fri
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'auto (by time of day), premarket (screen only), orb (one breakout scan), morning, squareoff'
+        default: auto
+  push:
+    branches: [main]
+    paths: ['.github/workflows/trade.yml', 'tools/trade/**', 'trade/terms.html']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: trade-screener
+  cancel-in-progress: false
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 170
+    env:
+      TZ: Asia/Kolkata
+      GH_TOKEN: ${{ github.token }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      VAPID_PRIVATE: ${{ secrets.VAPID_PRIVATE }}
+      FB_PROJECT: opening-bell-4fdc9   # Opening Bell's own Firebase project
+      FB_KEY: AIzaSyA7xZWmVuaRYNpyCHi5jVMnSIwDK-6mCL0   # its public web key (also in trade/index.html)
+      # a push (new code) just refreshes the screen, without notifications; schedules and manual runs follow the time of day
+      MODE: ${{ github.event_name == 'push' && 'premarket' || github.event.schedule == '32 9 * * 1-5' && 'squareoff' || github.event.inputs.mode || 'auto' }}
+      NOTIFY: ${{ github.event_name == 'push' && '0' || '1' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            tools/trade/
+            trade/terms.html
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: tools/trade/requirements.txt
+      - run: pip install -r tools/trade/requirements.txt "pywebpush>=2.0,<3"
+      - name: Bring in the data published so far
+        run: |
+          mkdir -p pub
+          if git fetch -q --depth 1 origin trade-data 2>/dev/null; then git archive FETCH_HEAD | tar -x -C pub; fi
+          ls -la pub
+      - name: Screen and publish
+        run: bash tools/trade/ci.sh

@@ -1,0 +1,30 @@
+{
+ "week": 46,
+ "title": "Time",
+ "aspect": "Living each day",
+ "line": "We don't have time. We have moments, and this is one.",
+ "invite": "Each morning this week, ask: if today were my only day, what would I want to give it to? Then give it at least one thing.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 194.7
+  },
+  {
+   "name": "Breath",
+   "at": 274.7
+  },
+  {
+   "name": "Practice",
+   "at": 474.5
+  },
+  {
+   "name": "Closing",
+   "at": 1229.4
+  }
+ ]
+}

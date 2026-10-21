@@ -1,0 +1,30 @@
+{
+ "week": 11,
+ "title": "Steady Effort",
+ "aspect": "Discipline",
+ "line": "Small and steady goes further than big and rare.",
+ "invite": "Choose one small practice and do it every day this week, even on the days it feels pointless.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 175.4
+  },
+  {
+   "name": "Breath",
+   "at": 265.8
+  },
+  {
+   "name": "Practice",
+   "at": 473.5
+  },
+  {
+   "name": "Closing",
+   "at": 1217.3
+  }
+ ]
+}

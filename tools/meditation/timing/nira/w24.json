@@ -1,0 +1,30 @@
+{
+ "week": 24,
+ "title": "Joy for Others",
+ "aspect": "Shared happiness",
+ "line": "Another person's joy takes nothing away from yours.",
+ "invite": "When you hear good news about someone this week, pause and let yourself be glad for them, fully, before anything else.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 184.1
+  },
+  {
+   "name": "Breath",
+   "at": 271.4
+  },
+  {
+   "name": "Practice",
+   "at": 471.2
+  },
+  {
+   "name": "Closing",
+   "at": 1203.5
+  }
+ ]
+}

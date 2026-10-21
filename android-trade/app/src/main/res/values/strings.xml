@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Opening Bell</string>
+    <string name="launch_url">https://viktorpapa469.github.io/trade/?app=android</string>
+    <string name="asset_statements" translatable="false">
+        [{
+            \"relation\": [\"delegate_permission/common.handle_all_urls\"],
+            \"target\": {\"namespace\": \"web\", \"site\": \"https://viktorpapa469.github.io\"}
+        }]
+    </string>
+</resources>

@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function me(uid) { return request.auth != null && request.auth.uid == uid; }
+
+    /* Notifications: each phone saves its own push address and alert choices. The GitHub sender lists them. */
+    match /trade_alerts/{uid} {
+      allow create, update, delete: if me(uid);
+      allow list: if true;
+      allow get: if me(uid);
+    }
+
+    /* Terms acceptance records: written by the device, never changed or deleted from an app. */
+    match /trade_consents/{uid} {
+      allow create, update: if me(uid);
+      allow read, delete: if false;
+      match /accepts/{id} {
+        allow create: if me(uid);
+        allow read, update, delete: if false;
+      }
+    }
+
+    /* Profiles: capital settings, watchlists and paper trades, for people signed in with an email. */
+    match /trade_profiles/{uid} {
+      allow read, write: if me(uid) && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+
+    /* Everything else stays closed. */
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,79 @@
+name: Fovea Android app
+
+# Builds the Android app whenever its files change, and publishes it as a GitHub release:
+#   https://github.com/ViktorPapa469/ViktorPapa469.github.io/releases/latest/download/Fovea.apk
+# The build log is pushed to the ci-logs branch so it can be read without the Actions page.
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Unlock the signing key
+        env:
+          FOVEA_SIGNING_PASSWORD: ${{ secrets.FOVEA_SIGNING_PASSWORD }}
+        run: |
+          if [ -z "$FOVEA_SIGNING_PASSWORD" ]; then
+            echo "The secret FOVEA_SIGNING_PASSWORD is missing. Add it under Settings, Secrets and variables, Actions." | tee build.log
+            exit 1
+          fi
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in android/fovea-upload.jks.enc -out android/fovea-upload.jks -pass env:FOVEA_SIGNING_PASSWORD \
+            || { echo "The secret FOVEA_SIGNING_PASSWORD does not unlock the key. Check it has no extra spaces." | tee build.log; exit 1; }
+      - name: Build APK and App Bundle
+        working-directory: android
+        env:
+          FOVEA_SIGNING_PASSWORD: ${{ secrets.FOVEA_SIGNING_PASSWORD }}
+        run: |
+          set -o pipefail
+          gradle --no-daemon assembleRelease bundleRelease 2>&1 | tee ../build.log
+      - name: Collect files
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release.apk out/Fovea.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab out/Fovea.aab
+          ls -la out
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-v1.0.${{ github.run_number }}
+          name: Fovea for Android 1.0.${{ github.run_number }}
+          make_latest: true
+          body: |
+            Fovea for Android. Download **Fovea.apk** on your phone and open it to install.
+            Fovea.aab is the bundle for the Google Play Console.
+          files: |
+            out/Fovea.apk
+            out/Fovea.aab
+      - name: Remove the unlocked key
+        if: always()
+        run: rm -f android/fovea-upload.jks
+      - name: Save the build log
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp build.log /tmp/build.log 2>/dev/null || echo "no log" > /tmp/build.log
+          echo "run ${{ github.run_number }} ${{ job.status }} $(date -u)" > /tmp/status.txt
+          git fetch origin ci-logs || true
+          git checkout --orphan ci-logs-new
+          git rm -rf --cached . > /dev/null
+          rm -rf ./* .github 2>/dev/null || true
+          cp /tmp/build.log /tmp/status.txt .
+          git add build.log status.txt
+          git commit -m "Android build ${{ github.run_number }}: ${{ job.status }}"
+          git push -f origin ci-logs-new:ci-logs

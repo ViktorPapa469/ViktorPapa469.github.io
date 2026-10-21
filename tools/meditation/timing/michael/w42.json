@@ -1,0 +1,30 @@
+{
+ "week": 42,
+ "title": "Wholeheartedness",
+ "aspect": "Doing one thing fully",
+ "line": "Whatever you do, do it with your whole heart, and the ordinary becomes whole.",
+ "invite": "Each day this week, choose one task and do only that, with full attention, from start to finish.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 195.3
+  },
+  {
+   "name": "Breath",
+   "at": 278.5
+  },
+  {
+   "name": "Practice",
+   "at": 495.2
+  },
+  {
+   "name": "Closing",
+   "at": 1228.3
+  }
+ ]
+}

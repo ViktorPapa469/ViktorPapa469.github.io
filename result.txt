@@ -1,0 +1,11 @@
+run 396 failure Wed Oct 21 12:26:58 UTC 2026
+Traceback (most recent call last):
+  File "/home/runner/work/ViktorPapa469.github.io/ViktorPapa469.github.io/.github/scripts/send_reminders.py", line 39, in <module>
+    for rid, f in records():
+                  ^^^^^^^^^
+  File "/home/runner/work/ViktorPapa469.github.io/ViktorPapa469.github.io/.github/scripts/send_reminders.py", line 21, in records
+    r = requests.get(url, headers={'Referer': 'https://viktorpapa469.github.io/'}, params={'pageSize': 300, 'key': KEY, **({'pageToken': tok} if tok else {})}, timeout=30); r.raise_for_status(); j = r.json()
+                                                                                                                                                                             ^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/requests/models.py", line 1167, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 403 Client Error: Forbidden for url: https://firestore.googleapis.com/v1/projects/fovea-25d37/databases/(default)/documents/reminders?pageSize=300&key=AIzaSyAjuDlySp9coYIyI4KVFd0o7t2sqV3n5Ew

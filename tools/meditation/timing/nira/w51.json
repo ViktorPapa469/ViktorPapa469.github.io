@@ -1,0 +1,30 @@
+{
+ "week": 51,
+ "title": "Looking Back with Love",
+ "aspect": "Reflection",
+ "line": "Every season of the year has given you something.",
+ "invite": "This week, write a short letter to yourself about the year: what you learned, what you are proud of, and what you forgive.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 178.8
+  },
+  {
+   "name": "Breath",
+   "at": 259.2
+  },
+  {
+   "name": "Practice",
+   "at": 476.2
+  },
+  {
+   "name": "Closing",
+   "at": 1217.3
+  }
+ ]
+}
