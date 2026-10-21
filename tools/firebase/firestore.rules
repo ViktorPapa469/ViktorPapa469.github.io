@@ -33,6 +33,14 @@ service cloud.firestore {
       allow get: if me(uid);
     }
 
+    // Opening Bell (/trade/) notifications: each phone saves its own push address and which alerts it wants.
+    // The sender on GitHub lists them with the public web key, exactly like the reminders above.
+    match /trade_alerts/{uid} {
+      allow create, update, delete: if me(uid);
+      allow list: if true;
+      allow get: if me(uid);
+    }
+
     // Fovea accounts: each signed-in person reads and writes only their own saved progress.
     match /sync/{uid}/{rest=**} {
       allow read, write: if me(uid);

@@ -142,6 +142,8 @@ h2 .count{font-weight:400;font-size:14px;color:var(--ink2)}
 .field label{flex:1}
 .field small{display:block;color:var(--ink2);font-size:12px}
 .field input[type=number]{width:120px;text-align:right;padding:8px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--sheet)}
+.field.sub{padding-left:14px}
+.switch[disabled]{opacity:.5}
 .switch{width:46px;height:28px;border-radius:999px;border:0;background:var(--rule);position:relative;cursor:pointer;flex:none}
 .switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--sheet);transition:left .15s}
 .switch[aria-checked=true]{background:var(--up)}
@@ -192,11 +194,24 @@ nav.tabs .dot{position:absolute;top:5px;left:calc(50% + 8px);width:8px;height:8p
 <script>
 "use strict";
 /* ------------------------------------------------------------------ settings */
-var DEF = {capital:500000, risk:0.5, maxpos:100, lossR:3, alerts:false, source:"live"};
-var S = (function(){ try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem("ob-settings") || "{}")); } catch(e){ return Object.assign({}, DEF); } })();
-function saveS(){ try { localStorage.setItem("ob-settings", JSON.stringify(S)); } catch(e){} }
+var KINDS = [["screen", "Screen ready", "About 9:12, with the market mood and top picks."],
+             ["breakouts", "Breakouts", "Each stock that triggers between 9:30 and 11:00, with your quantity."],
+             ["squareoff", "Square-off reminder", "3:15, on days the market is open."],
+             ["preview", "Evening preview", "About 7 PM, the next session's list."]];
+var DEF = {capital:500000, risk:0.5, maxpos:100, lossR:3, source:"live", push:false, pushAt:0, pushEp:"",
+           kinds:{screen:true, breakouts:true, squareoff:true, preview:false}};
+var S = (function(){ try { var x = JSON.parse(localStorage.getItem("ob-settings") || "{}");
+  var o = Object.assign({}, DEF, x); o.kinds = Object.assign({}, DEF.kinds, x.kinds || {}); return o; } catch(e){ return Object.assign({}, DEF); } })();
+function saveS(){
+  try { localStorage.setItem("ob-settings", JSON.stringify(S)); } catch(e){}
+  // the notification helper can't read this page's storage, so it gets its own copy of what it needs for quantities
+  if (window.caches) caches.open("ob-prefs").then(function(c){
+    return c.put("https://data.local/settings.json", new Response(JSON.stringify({capital:S.capital, risk:S.risk, maxpos:S.maxpos}),
+                 {headers:{"Content-Type":"application/json"}}));
+  }).catch(function(){});
+}
 
-var st = {tab:"plan", side:"longs", swing:"pullbacks", pre:null, orb:null, days:[], day:null, latest:null,
+var st = {pushBusy:false, pushNote:"", tab:"plan", side:"longs", swing:"pullbacks", pre:null, orb:null, days:[], day:null, latest:null,
           loading:false, error:null, noData:false, loadedAt:0, base:""};
 
 /* ------------------------------------------------------------------ helpers */
@@ -320,7 +335,7 @@ function load(day){
   }).then(function(){ st.loading = false; render(); });
 }
 
-/* ------------------------------------------------------------------ alerts while the app is open */
+/* ------------------------------------------------------------------ new breakouts while the app is on screen */
 function seenKey(){ return "ob-seen-" + (st.orb ? st.orb.date : ""); }
 function checkAlerts(){
   var o = st.orb; if (!o || !o.rows) return;
@@ -330,24 +345,111 @@ function checkAlerts(){
   if (!fresh.length) return;
   fresh.forEach(function(r){ seen.push(r.symbol); });
   try { localStorage.setItem(seenKey(), JSON.stringify(seen)); } catch(e){}
-  if (!S.alerts || o.date !== ist().date) return;          // only alert for today's scan
-  fresh.forEach(function(r){
-    var q = qty(r.entry, Math.abs(r.entry - r.stop), o.size_mult);
-    var body = (r.side === "long" ? "Buy" : "Short") + " above " + rs(r.entry) + ", stop " + rs(r.stop) + ", qty " + q;
-    notify(r.symbol + " triggered " + (r.trigger_time || ""), body);
-  });
-}
-function notify(title, body){
-  if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
-  if (!("Notification" in window) || Notification.permission !== "granted"){ toast(title); return; }
-  if (navigator.serviceWorker && navigator.serviceWorker.ready){
-    navigator.serviceWorker.ready.then(function(reg){ reg.showNotification(title, {body:body, icon:"icon-192.png", tag:title}); })
-      .catch(function(){ new Notification(title, {body:body}); });
-  } else new Notification(title, {body:body});
+  if (o.date !== ist().date || o.demo || document.hidden) return;   // only for today's real scan, while the app is on screen
+  toast(fresh.map(function(r){ return r.symbol; }).join(", ") + " triggered. See Live.");
 }
 function toast(msg){
+  document.querySelectorAll(".toast").forEach(function(x){ x.remove(); });
   var t = document.createElement("div"); t.className = "toast"; t.setAttribute("role", "status"); t.textContent = msg;
   document.body.appendChild(t); setTimeout(function(){ t.remove(); }, 3200);
+}
+
+/* ------------------------------------------------------------------ push notifications
+   The phone subscribes on this app's own helper (sw.js, scope /trade/) and saves the push address in Firestore
+   trade_alerts/{id}; tools/trade/push.py on GitHub sends to it. Same Firebase project and push key as Fovea. */
+var FB = {apiKey:"AIzaSyAjuDlySp9coYIyI4KVFd0o7t2sqV3n5Ew", projectId:"fovea-25d37"};
+var VAPID_PUB = "BHQOqFb3wH3PKsfhYO-8V2FXzjjvAHIY5FHzRFTBCbX7zrBl1qUF0aDUQAVCmktDlgcNI9EClocjpr4-8jFVCSM";
+var ID_URL = "https://identitytoolkit.googleapis.com/v1", TOK_URL = "https://securetoken.googleapis.com/v1", FS_URL = "https://firestore.googleapis.com/v1";
+function isIOS(){ return /iPad|iPhone|iPod/.test(navigator.userAgent || "") || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
+function standalone(){ return (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true; }
+function pushCan(){ return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && (location.protocol === "https:" || location.hostname === "localhost"); }
+function jsonOrThrow(r){ return r.text().then(function(t){ if (!r.ok) throw new Error(r.status + " " + t.slice(0, 160)); return t ? JSON.parse(t) : {}; }); }
+var fbTok = null, fbExp = 0;
+function fbAuth(){
+  var cred = null; try { cred = JSON.parse(localStorage.getItem("ob-fb") || "null"); } catch(e){}
+  if (fbTok && cred && Date.now() < fbExp - 60e3) return Promise.resolve({uid:cred.uid, tok:fbTok});
+  var p = cred && cred.refresh
+    ? fetch(TOK_URL + "/token?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"},
+            body:"grant_type=refresh_token&refresh_token=" + encodeURIComponent(cred.refresh)})
+        .then(jsonOrThrow).then(function(r){ return {uid:r.user_id, tok:r.id_token, refresh:r.refresh_token, exp:+r.expires_in}; })
+    : fetch(ID_URL + "/accounts:signUp?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({returnSecureToken:true})})
+        .then(jsonOrThrow).then(function(r){ return {uid:r.localId, tok:r.idToken, refresh:r.refreshToken, exp:+r.expiresIn}; });
+  return p.then(function(a){
+    try { localStorage.setItem("ob-fb", JSON.stringify({uid:a.uid, refresh:a.refresh})); } catch(e){}
+    fbTok = a.tok; fbExp = Date.now() + (a.exp || 3600) * 1000; return a;
+  });
+}
+function fv(v){
+  if (v === null || v === undefined) return {nullValue:null};
+  if (v instanceof Date) return {timestampValue:v.toISOString()};
+  if (typeof v === "boolean") return {booleanValue:v};
+  if (typeof v === "number") return Number.isInteger(v) ? {integerValue:String(v)} : {doubleValue:v};
+  if (typeof v === "object"){ var f = {}; Object.keys(v).forEach(function(k){ f[k] = fv(v[k]); }); return {mapValue:{fields:f}}; }
+  return {stringValue:String(v)};
+}
+function docUrl(uid){ return FS_URL + "/projects/" + FB.projectId + "/databases/(default)/documents/trade_alerts/" + uid; }
+function fsCall(method, body){
+  return fbAuth().then(function(a){
+    return fetch(docUrl(a.uid), {method:method, headers:{"Content-Type":"application/json", Authorization:"Bearer " + a.tok},
+                                 body:body ? JSON.stringify(body) : undefined}).then(jsonOrThrow);
+  });
+}
+function b64u(s){ s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; var b = atob(s), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+function myReg(){ return navigator.serviceWorker.register("sw.js", {scope:"./"}).then(function(){ return navigator.serviceWorker.ready; }); }
+function pushSub(){
+  return myReg().then(function(reg){
+    var fresh = function(){ return reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64u(VAPID_PUB)}); };
+    return reg.pushManager.getSubscription().then(function(s){ return s || fresh(); });
+  });
+}
+function pushSave(sub){
+  var j = sub.toJSON();
+  return fsCall("PATCH", {fields:{endpoint:fv(j.endpoint), p256dh:fv(j.keys.p256dh), auth:fv(j.keys.auth), on:fv(true),
+                                   kinds:fv(S.kinds), device:fv(isIOS() ? "iPhone" : /Android/.test(navigator.userAgent) ? "Android" : "Computer"),
+                                   updatedAt:fv(new Date())}})
+    .then(function(){ S.pushEp = j.endpoint; S.pushAt = Date.now(); saveS(); });
+}
+function pushWhy(e){
+  var m = String((e && e.message) || e || "");
+  if (/PERMISSION_DENIED|^403/.test(m)) return "Firebase is refusing the sign-up. Publish the updated rules (tools/firebase/firestore.rules) in the Firebase console, then try again.";
+  if (/ADMIN_ONLY|OPERATION_NOT_ALLOWED/.test(m)) return "Anonymous sign-in is switched off in Firebase.";
+  if (/NotAllowedError|denied/i.test(m)) return "Notifications are blocked for this site. Allow them in your browser's site settings, then try again.";
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "No internet connection. Try again when you're online.";
+  return "Something went wrong (" + m.slice(0, 80) + ").";
+}
+function pushOn(){
+  if (isIOS() && !standalone()){ st.pushNote = "On iPhone, add Opening Bell to your Home Screen first (Share, then Add to Home Screen), open it from there, and turn this on."; render(); return; }
+  if (!pushCan()){ st.pushNote = "This browser can't receive notifications. Use Chrome on Android, or the Home Screen app on iPhone."; render(); return; }
+  st.pushBusy = true; st.pushNote = "Asking for permission…"; render();
+  Notification.requestPermission().then(function(p){
+    if (p !== "granted") throw new Error("denied");
+    return pushSub().then(pushSave);
+  }).then(function(){ S.push = true; saveS(); st.pushNote = ""; toast("Notifications are on"); },
+          function(e){ S.push = false; saveS(); st.pushNote = pushWhy(e); })
+    .then(function(){ st.pushBusy = false; render(); });
+}
+function pushOff(){
+  S.push = false; S.pushEp = ""; saveS(); st.pushNote = ""; render();
+  fsCall("DELETE").catch(function(){});
+  if ("serviceWorker" in navigator) myReg().then(function(reg){ return reg.pushManager.getSubscription(); })
+    .then(function(s){ if (s) s.unsubscribe(); }).catch(function(){});
+}
+function pushKinds(){ return pushSub().then(pushSave).catch(function(e){ st.pushNote = pushWhy(e); render(); }); }
+/* keep the push address current: phones replace it now and then, and the sender drops addresses that stop working */
+function pushRenew(){
+  if (!S.push || !pushCan()) return;
+  if (Notification.permission !== "granted"){ S.push = false; saveS(); st.pushNote = "Notifications were turned off because this site lost permission to show them."; return; }
+  myReg().then(function(reg){ return reg.pushManager.getSubscription(); }).then(function(s){
+    if (!s) return pushSub().then(pushSave);
+    if (s.endpoint !== S.pushEp || Date.now() - S.pushAt > 7 * 864e5) return pushSave(s);
+  }).catch(function(){});
+}
+function pushSample(){
+  myReg().then(function(reg){
+    var q = qty(1250, 12.5, 1);
+    return reg.showNotification("Sample: RELIANCE long triggered 09:35", {body:"Buy above ₹1,250.00, stop ₹1,237.50, qty " + q + ", target ₹1,268.75.",
+      icon:"icon-192.png", badge:"badge-96.png", tag:"ob-sample", vibrate:[150, 80, 150], data:{url:"./?tab=live", tab:"live"}});
+  }).catch(function(e){ toast(pushWhy(e)); });
 }
 
 /* ------------------------------------------------------------------ rendering */
@@ -481,7 +583,7 @@ function viewLive(){
     var msg = st.pre && st.pre.date > t.date ? "The live scan starts at 9:30 on " + niceDate(st.pre.date) + "." :
               t.mins < 570 && !t.weekend ? "The live scan starts at 9:30 and refreshes every 5 minutes until 11:00." :
               "No live scan for this day.";
-    return '<div class="empty"><p>' + esc(msg) + "</p><p>Keep this tab open and turn on alerts in Settings to be told when a stock triggers.</p></div>";
+    return '<div class="empty"><p>' + esc(msg) + "</p><p>Turn on notifications in Settings to hear about each breakout, even with the app closed.</p></div>";
   }
   var mult = o.size_mult;
   var head = '<div class="live-head"><div class="fact"><b class="' + tone(o.nifty_chg) + '">' + pc(o.nifty_chg) + "</b><span>Nifty since open</span></div>" +
@@ -551,16 +653,21 @@ function viewSettings(){
     num("s-maxpos", "Largest position", "Percent of capital in one stock.", S.maxpos, 5) +
     num("s-loss", "Daily stop", "Stop trading after this many losing trades.", S.lossR, 1) +
     '<p class="note">At these settings each trade risks ' + rs(riskAmt(1), 0) + ". Quantities across the app update as soon as you change a value.</p>" +
-    "<h2>Alerts</h2>" +
-    '<div class="field"><label for="s-alerts">Breakout alerts<small>' +
-      (perm === "denied" ? "Notifications are blocked for this site in your browser settings." :
-       perm === "unsupported" ? "This browser can't show notifications; you'll get a vibration and a message instead." :
-       "A notification and vibration when a stock triggers, while the app is open.") +
-    '</small></label><button class="switch" id="s-alerts" type="button" role="switch" aria-checked="' + !!S.alerts + '" aria-label="Breakout alerts"></button></div>' +
-    '<p class="note">For alerts with the app closed, add a Telegram bot: put <b>TELEGRAM_BOT_TOKEN</b> and <b>TELEGRAM_CHAT_ID</b> under the repository\'s Settings, Secrets and variables, Actions.</p>' +
+    "<h2>Notifications</h2>" +
+    '<div class="field"><label for="s-push">Notifications on this phone<small>' +
+      (S.push ? "Arrive even when the app is closed. Your capital never leaves the phone." :
+       perm === "denied" ? "Blocked for this site. Allow notifications in your browser's site settings first." :
+       "Sent from GitHub on trading days, even when the app is closed.") +
+    '</small></label><button class="switch" id="s-push" type="button" role="switch" aria-checked="' + !!S.push + '" aria-label="Notifications on this phone"' + (st.pushBusy ? " disabled" : "") + "></button></div>" +
+    (st.pushNote ? '<div class="warn">' + esc(st.pushNote) + "</div>" : "") +
+    (S.push ? KINDS.map(function(k){
+      return '<div class="field sub"><label for="k-' + k[0] + '">' + k[1] + "<small>" + k[2] + '</small></label><button class="switch" id="k-' + k[0] +
+        '" data-kind="' + k[0] + '" type="button" role="switch" aria-checked="' + !!S.kinds[k[0]] + '" aria-label="' + k[1] + '"></button></div>';
+    }).join("") + '<p class="note"><button class="btn ghost" id="s-sample" type="button">Show a sample</button></p>' +
+      '<p class="note">On Xiaomi, Oppo, Vivo or Realme phones, allow Chrome to run in the background (battery settings) so breakout alerts aren\'t delayed.</p>' : "") +
     "<h2>Data</h2>" +
     '<div class="field"><label for="s-demo">Sample data<small>Made-up prices for trying the app.</small></label><button class="switch" id="s-demo" type="button" role="switch" aria-checked="' + (S.source === "demo") + '" aria-label="Sample data"></button></div>' +
-    '<p class="note">The screener runs on GitHub every weekday: a preview around 7 PM, the full screen at about 9:12 AM, and the live scan every 5 minutes from 9:30 to 11:00. ' +
+    '<p class="note">The screener runs on GitHub every weekday: the full screen at about 9:12 AM, the live scan every 5 minutes from 9:30 to 11:00, the square-off reminder at 3:15 and a preview around 7 PM. ' +
     "It reads NSE (F&amp;O list, open interest, flows, results, pre-open) and Yahoo Finance (prices). A screening aid, not investment advice.</p>" +
     '<p class="note"><button class="btn ghost" id="s-install" type="button" hidden>Add to home screen</button></p>';
 }
@@ -579,23 +686,28 @@ function bindView(){
     var el = document.getElementById(p[0]); if (!el) return;
     el.onchange = function(){ var v = parseFloat(el.value); if (ok(v) && v > 0){ S[p[1]] = v; saveS(); render(); } else el.value = S[p[1]]; };
   });
-  var a = $("#s-alerts");
-  if (a) a.onclick = function(){
-    if (S.alerts){ S.alerts = false; saveS(); render(); return; }
-    var go = function(){ S.alerts = true; saveS(); render(); toast("Alerts on while the app is open"); };
-    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().then(go, go); else go();
-  };
+  var a = $("#s-push");
+  if (a) a.onclick = function(){ if (S.push) pushOff(); else pushOn(); };
+  document.querySelectorAll("[data-kind]").forEach(function(b){
+    b.onclick = function(){ S.kinds[b.dataset.kind] = !S.kinds[b.dataset.kind]; saveS(); render(); pushKinds(); };
+  });
+  var sm = $("#s-sample"); if (sm) sm.onclick = pushSample;
   var d = $("#s-demo");
   if (d) d.onclick = function(){ S.source = S.source === "demo" ? "live" : "demo"; saveS(); load(); };
   var ins = $("#s-install");
   if (ins){ ins.hidden = !bip; ins.onclick = function(){ if (bip){ bip.prompt(); bip = null; ins.hidden = true; } }; }
 }
-document.querySelectorAll("nav.tabs [data-tab]").forEach(function(b){
-  b.onclick = function(){
-    st.tab = b.dataset.tab;
-    document.querySelectorAll("nav.tabs [data-tab]").forEach(function(x){ x.setAttribute("aria-selected", x === b); });
-    render(); scrollTo(0, 0);
-  };
+function setTab(name){
+  if (!/^(plan|intraday|live|swing|settings)$/.test(name || "")) return;
+  st.tab = name;
+  document.querySelectorAll("nav.tabs [data-tab]").forEach(function(x){ x.setAttribute("aria-selected", x.dataset.tab === name); });
+  render(); scrollTo(0, 0);
+}
+document.querySelectorAll("nav.tabs [data-tab]").forEach(function(b){ b.onclick = function(){ setTab(b.dataset.tab); }; });
+if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", function(e){
+  var m = e.data || {};
+  if (m.type === "ob-open") setTab(m.tab);
+  if (m.type === "ob-push" && !st.loading) load();
 });
 $("#reload").onclick = function(){ load(st.day === st.latest ? null : st.day); };
 
@@ -611,6 +723,9 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
   navigator.serviceWorker.register("sw.js", {scope:"./"}).catch(function(){});
 
 if (params.has("demo")){ S.source = "demo"; }
+if (params.get("tab")){ setTab(params.get("tab")); history.replaceState(null, "", location.pathname + (params.has("demo") ? "?demo" : "")); }
+saveS();
+pushRenew();
 render();
 load();
 </script>

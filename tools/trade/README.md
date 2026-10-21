@@ -7,6 +7,12 @@
 set in the app and stay on the phone. To run it by hand, open the repository's
 Actions tab, pick "Opening Bell screener" and "Run workflow".
 
+**Notifications:** turn them on in the app (Settings > Notifications). The phone saves its
+push address in Firestore `trade_alerts/{id}`; `push.py` sends from GitHub with the
+`VAPID_PRIVATE` secret Fovea already uses: screen ready (~9:12), each breakout (9:30–11:00),
+square-off (3:15) and the evening preview. One-time setup: publish
+`tools/firebase/firestore.rules` in the Firebase console (Firestore Database > Rules).
+
 Everything below is for running it on your own computer instead.
 
 Automates the morning routine: pulls same-day data from NSE and Yahoo Finance,
