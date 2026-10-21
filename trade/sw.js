@@ -5,7 +5,7 @@
    - Notifications pushed from GitHub (see tools/trade/push.py). Breakout alerts carry entry and stop; the quantity is
      worked out here from the capital and risk the app saved on this phone, so they never leave it. */
 var SHELL = 'ob-shell-1', DATA = 'ob-data-1', PREFS = 'ob-prefs';
-var CORE = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
+var CORE = ['./', 'terms.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', function (e) {
   self.skipWaiting();
@@ -58,6 +58,7 @@ self.addEventListener('fetch', function (e) {
 
 /* ---------------- notifications ---------------- */
 var DEF = { capital: 500000, risk: 0.5, maxpos: 100 };
+var NOT_ADVICE = 'For study only, not investment advice.';
 function settings() {
   return caches.open(PREFS).then(function (c) { return c.match('https://data.local/settings.json'); })
     .then(function (r) { return r ? r.json() : {}; }).catch(function () { return {}; })
@@ -77,11 +78,11 @@ self.addEventListener('push', function (e) {
   var p = (d.kind === 'breakouts' && d.entry) ? settings().then(function (s) {
     var long = d.side === 'long', q = qtyFor(s, d), lots = d.lot > 0 && q >= d.lot ? ' (' + (q / d.lot).toFixed(1) + ' lots)' : '';
     return {
-      title: d.symbol + (long ? ' long' : ' short') + ' triggered' + (d.time ? ' ' + d.time : ''),
-      body: (long ? 'Buy above ' : 'Short below ') + inr(d.entry) + ', stop ' + inr(d.stop) + ', qty ' + q + lots +
-            (d.t1 ? ', target ' + inr(d.t1) : '') + '.' + (d.extended ? ' Already past 1R: don\u2019t chase.' : '')
+      title: d.symbol + (long ? ' long' : ' short') + ' setup triggered' + (d.time ? ' ' + d.time : ''),
+      body: (long ? 'Long setup above ' : 'Short setup below ') + inr(d.entry) + ', stop ' + inr(d.stop) + ', suggested position ' + q + lots +
+            (d.t1 ? ', target ' + inr(d.t1) : '') + '.' + (d.extended ? ' Already past 1R.' : '') + ' ' + NOT_ADVICE
     };
-  }) : Promise.resolve({ title: d.title || 'Opening Bell', body: d.body || '' });
+  }) : Promise.resolve({ title: d.title || 'Opening Bell', body: (d.body || '') + (d.kind === 'squareoff' || !d.kind ? '' : ' ' + NOT_ADVICE) });
   e.waitUntil(p.then(function (m) {
     return self.registration.showNotification(m.title, {
       body: m.body, icon: 'icon-192.png', badge: 'badge-96.png', tag: d.tag || 'ob', renotify: d.kind === 'breakouts',

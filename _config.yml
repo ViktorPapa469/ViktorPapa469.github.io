@@ -1,0 +1,3 @@
+# GitHub Pages builds this site with Jekyll, which skips folders starting with a dot.
+# .well-known holds assetlinks.json, which lets the Opening Bell Android app open /trade/ full screen.
+include: [".well-known"]

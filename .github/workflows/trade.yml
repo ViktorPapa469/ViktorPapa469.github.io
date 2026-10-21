@@ -21,7 +21,7 @@ on:
         default: auto
   push:
     branches: [main]
-    paths: ['.github/workflows/trade.yml', 'tools/trade/**']
+    paths: ['.github/workflows/trade.yml', 'tools/trade/**', 'trade/terms.html']
 
 permissions:
   contents: write
@@ -48,7 +48,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: tools/trade
+          sparse-checkout: |
+            tools/trade/
+            trade/terms.html
+          sparse-checkout-cone-mode: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'

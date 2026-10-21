@@ -5,8 +5,8 @@
   python push.py breakouts  PUB   # each stock newly marked TRIGGERED in PUB/orb.json
   python push.py squareoff  PUB   # 3:15 reminder, only on days the market traded
 
-Phones sign up in the app (Settings > Notifications), which saves a push address and the alert types they want to
-Firestore trade_alerts/{id}. This lists them with Fovea's public web key and signs each push with the VAPID_PRIVATE
+Phones sign up in the app (Settings > Notifications), which saves a push address, the alert types they want and
+the terms version they accepted to Firestore trade_alerts/{id}; only phones on the current terms are sent to. This lists them with Fovea's public web key and signs each push with the VAPID_PRIVATE
 secret, the same key pair Fovea's reminders use. Quantities are not sent: each phone works them out from its own
 capital and risk. What was already sent is kept in PUB/state/pushed.json, so a rerun never repeats a notification.
 Never fails the run: problems are printed as warnings.
@@ -27,6 +27,17 @@ SITE = "https://viktorpapa469.github.io"
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 TTL = {"screen": 3 * 3600, "preview": 12 * 3600, "breakouts": 15 * 60, "squareoff": 15 * 60}
 PREF = {"screen": "screen", "preview": "preview", "breakouts": "breakouts", "squareoff": "squareoff"}
+
+
+def terms_version():
+    """The current terms version, read from trade/terms.html. Phones that haven't accepted it get nothing."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    try:
+        with open(os.path.join(here, "..", "..", "trade", "terms.html"), encoding="utf-8") as fh:
+            m = re.search(r'<meta name="terms-version" content="([^"]+)"', fh.read())
+        return m.group(1) if m else None
+    except OSError:
+        return None
 
 
 def warn(msg):
@@ -81,17 +92,17 @@ def msg_breakouts(orb, already):
             "symbol": r["symbol"], "side": r.get("side"), "time": r.get("trigger_time"),
             "entry": r["entry"], "stop": r["stop"], "t1": r.get("t1"), "lot": r.get("lot"),
             "size_mult": orb.get("size_mult", 1), "extended": bool(r.get("extended")),
-            # fallback text; the phone replaces it with one that includes its own quantity
-            "title": f"{r['symbol']} {'long' if long else 'short'} triggered {r.get('trigger_time') or ''}".strip(),
-            "body": (f"{'Buy' if long else 'Short'} {'above' if long else 'below'} {money(r['entry'])}, "
-                     f"stop {money(r['stop'])}, target {money(r['t1'])}."),
+            # fallback text; the phone replaces it with one that includes its own suggested position
+            "title": f"{r['symbol']} {'long' if long else 'short'} setup triggered {r.get('trigger_time') or ''}".strip(),
+            "body": (f"{'Long setup above' if long else 'Short setup below'} {money(r['entry'])}, "
+                     f"stop {money(r['stop'])}, target {money(r['t1'])}. For study only, not investment advice."),
         })
     return out
 
 
 def msg_squareoff():
-    return [{"kind": "squareoff", "title": "Square off intraday trades", "tab": "live", "tag": "ob-squareoff",
-             "body": "15 minutes to the close. Exit intraday positions before your broker's auto square-off.",
+    return [{"kind": "squareoff", "title": "15 minutes to the close", "tab": "live", "tag": "ob-squareoff",
+             "body": "Reminder: brokers auto square-off intraday positions near the close.",
              "date": today()}]
 
 
@@ -139,8 +150,13 @@ def send(messages, kind):
         warn("pywebpush not installed; notifications not sent")
         return False
     try:
+        terms = terms_version()
+        if not terms:
+            warn("trade/terms.html not found; notifications not sent")
+            return False
         phones = [(rid, f) for rid, f in records()
-                  if f.get("on") and f.get("endpoint") and (f.get("kinds") or {}).get(PREF[kind], True)]
+                  if f.get("on") and f.get("endpoint") and f.get("terms") == terms
+                  and (f.get("kinds") or {}).get(PREF[kind], True)]
     except Exception as e:  # noqa: BLE001 - any Firestore problem just skips this round
         warn(f"could not list phones ({str(e)[:160]})")
         return False

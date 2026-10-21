@@ -163,9 +163,38 @@ nav.tabs .dot{position:absolute;top:5px;left:calc(50% + 8px);width:8px;height:8p
 .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--paper);
   padding:9px 14px;border-radius:10px;font-size:14px;z-index:9;max-width:90vw}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* terms gate: nothing else is shown or loaded until the terms are accepted */
+body.locked main, body.locked nav.tabs{display:none}
+body.locked{padding:0}
+#gate{position:fixed;inset:0;z-index:20;background:var(--paper);display:flex;justify-content:center}
+#gate[hidden]{display:none}
+.gate-in{width:100%;max-width:600px;display:flex;flex-direction:column;height:100%;
+  padding:calc(14px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom))}
+.gate-in .brand{margin:0 0 10px}
+.gate-in h1{font:600 22px/1.2 var(--cond);margin:0 0 6px}
+.gate-in .lede{margin:0 0 10px}
+.terms-box{flex:1;min-height:120px;overflow:auto;border:1px solid var(--rule);border-radius:12px;background:var(--sheet);
+  padding:4px 14px 14px;font-size:14px;-webkit-overflow-scrolling:touch}
+.terms-box .key{background:var(--paper)!important}
+.checks{margin:12px 0 4px}
+.check{display:flex;gap:10px;align-items:flex-start;padding:6px 0;font-size:14px;cursor:pointer}
+.check input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--ink)}
+.gate-actions{display:flex;gap:10px;margin-top:8px}
+.gate-actions .btn{flex:1;padding:12px 16px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.gate-foot{font-size:12px;color:var(--ink2);margin:8px 0 0}
+.gate-foot a{color:inherit}
+.linkish{background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font-size:inherit}
 </style>
 </head>
-<body>
+<body class="locked">
+<div id="gate" role="dialog" aria-modal="true" aria-labelledby="gate-h">
+  <div class="gate-in">
+    <p class="brand">Opening Bell</p>
+    <div id="gate-body" style="display:flex;flex-direction:column;flex:1;min-height:0"><p class="muted">Loading the terms…</p></div>
+  </div>
+</div>
 <main>
   <header class="top">
     <span class="brand">Opening Bell</span>
@@ -195,10 +224,10 @@ nav.tabs .dot{position:absolute;top:5px;left:calc(50% + 8px);width:8px;height:8p
 "use strict";
 /* ------------------------------------------------------------------ settings */
 var KINDS = [["screen", "Screen ready", "About 9:12, with the market mood and top picks."],
-             ["breakouts", "Breakouts", "Each stock that triggers between 9:30 and 11:00, with your quantity."],
+             ["breakouts", "Breakouts", "Each setup that triggers between 9:30 and 11:00, with a suggested position."],
              ["squareoff", "Square-off reminder", "3:15, on days the market is open."],
              ["preview", "Evening preview", "About 7 PM, the next session's list."]];
-var DEF = {capital:500000, risk:0.5, maxpos:100, lossR:3, source:"live", push:false, pushAt:0, pushEp:"",
+var DEF = {capital:500000, risk:0.5, maxpos:100, lossR:3, source:"live", push:false, pushAt:0, pushEp:"", pushTerms:"",
            kinds:{screen:true, breakouts:true, squareoff:true, preview:false}};
 var S = (function(){ try { var x = JSON.parse(localStorage.getItem("ob-settings") || "{}");
   var o = Object.assign({}, DEF, x); o.kinds = Object.assign({}, DEF.kinds, x.kinds || {}); return o; } catch(e){ return Object.assign({}, DEF); } })();
@@ -314,6 +343,7 @@ function resolveBase(){
     .catch(function(e){ if (e.nodata) throw e; return raw + "trade-data/"; });
 }
 function load(day){
+  if (document.body.classList.contains("locked")) return Promise.resolve();
   st.loading = true; st.error = null; render();
   return resolveBase().then(function(base){
     st.base = base;
@@ -405,9 +435,9 @@ function pushSub(){
 function pushSave(sub){
   var j = sub.toJSON();
   return fsCall("PATCH", {fields:{endpoint:fv(j.endpoint), p256dh:fv(j.keys.p256dh), auth:fv(j.keys.auth), on:fv(true),
-                                   kinds:fv(S.kinds), device:fv(isIOS() ? "iPhone" : /Android/.test(navigator.userAgent) ? "Android" : "Computer"),
+                                   kinds:fv(S.kinds), terms:fv(TERMS.version), device:fv(isIOS() ? "iPhone" : /Android/.test(navigator.userAgent) ? "Android" : "Computer"),
                                    updatedAt:fv(new Date())}})
-    .then(function(){ S.pushEp = j.endpoint; S.pushAt = Date.now(); saveS(); });
+    .then(function(){ S.pushEp = j.endpoint; S.pushAt = Date.now(); S.pushTerms = TERMS.version; saveS(); });
 }
 function pushWhy(e){
   var m = String((e && e.message) || e || "");
@@ -441,15 +471,144 @@ function pushRenew(){
   if (Notification.permission !== "granted"){ S.push = false; saveS(); st.pushNote = "Notifications were turned off because this site lost permission to show them."; return; }
   myReg().then(function(reg){ return reg.pushManager.getSubscription(); }).then(function(s){
     if (!s) return pushSub().then(pushSave);
-    if (s.endpoint !== S.pushEp || Date.now() - S.pushAt > 7 * 864e5) return pushSave(s);
+    if (s.endpoint !== S.pushEp || S.pushTerms !== TERMS.version || Date.now() - S.pushAt > 7 * 864e5) return pushSave(s);
   }).catch(function(){});
 }
 function pushSample(){
   myReg().then(function(reg){
     var q = qty(1250, 12.5, 1);
-    return reg.showNotification("Sample: RELIANCE long triggered 09:35", {body:"Buy above ₹1,250.00, stop ₹1,237.50, qty " + q + ", target ₹1,268.75.",
+    return reg.showNotification("Sample: RELIANCE long setup triggered 09:35", {body:"Long setup above ₹1,250.00, stop ₹1,237.50, suggested position " + q + ", target ₹1,268.75. For study only, not investment advice.",
       icon:"icon-192.png", badge:"badge-96.png", tag:"ob-sample", vibrate:[150, 80, 150], data:{url:"./?tab=live", tab:"live"}});
   }).catch(function(e){ toast(pushWhy(e)); });
+}
+
+/* ------------------------------------------------------------------ terms gate
+   Shown every time the app opens (and after 30 minutes away). Nothing loads until the person ticks every box and
+   presses "I accept". The first acceptance of each version requires scrolling to the end of the full text.
+   Each acceptance is logged on the phone and in Firestore (trade_consents/{id} and its accepts log) with the
+   version and a SHA-256 fingerprint of the exact text accepted. */
+var TERMS = {version:"", hash:"", html:""};
+var CHECKS = [["adult", "I am 18 years of age or older and competent to contract."],
+              ["notAdvice", "I understand Opening Bell is a screener for market study only, not investment advice or a recommendation, and that the developer is not registered with SEBI."],
+              ["ownRisk", "I alone am responsible for my trading decisions and any profit or loss. The developer is not responsible for them."],
+              ["agree", "I have read and accept the Terms and Conditions and the Privacy Notice, and I will follow all applicable laws."]];
+var started = false, gateRead = false;
+function consentLog(){ try { return JSON.parse(localStorage.getItem("ob-consents") || "[]"); } catch(e){ return []; } }
+function lockApp(){ document.body.classList.add("locked"); $("#gate").hidden = false; }
+function unlockApp(){ document.body.classList.remove("locked"); $("#gate").hidden = true; $("#gate-body").innerHTML = ""; }
+function sha256(text){
+  if (!window.crypto || !crypto.subtle) return Promise.resolve("");
+  return crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)).then(function(b){
+    return Array.from(new Uint8Array(b)).map(function(x){ return ("0" + x.toString(16)).slice(-2); }).join("");
+  });
+}
+function loadTerms(){
+  return fetch("terms.html", {cache:"no-cache"}).then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+    .then(function(t){
+      var d = new DOMParser().parseFromString(t, "text/html"), art = d.getElementById("terms"), meta = d.querySelector('meta[name="terms-version"]');
+      if (!art || !meta) throw new Error("terms page is incomplete");
+      TERMS.version = meta.content; TERMS.html = art.innerHTML;
+      return sha256(art.textContent.replace(/\s+/g, " ").trim()).then(function(h){ TERMS.hash = h; });
+    });
+}
+function gateStart(){
+  lockApp();
+  $("#gate-body").innerHTML = '<p class="muted">Loading the terms…</p>';
+  loadTerms().then(gateShow, function(){
+    $("#gate-body").innerHTML = '<h1 id="gate-h">The terms could not be loaded</h1><p class="lede muted">Opening Bell needs your acceptance of its terms before it runs. Connect to the internet and try again.</p>' +
+      '<div class="gate-actions"><button class="btn" id="g-retry" type="button">Try again</button></div>';
+    $("#g-retry").onclick = gateStart;
+  });
+}
+function gateShow(){
+  var seenVersion = consentLog().some(function(c){ return c.terms === TERMS.version; });
+  gateRead = seenVersion;
+  $("#gate-body").innerHTML =
+    '<h1 id="gate-h">' + (seenVersion ? "Confirm before you continue" : "Terms and conditions") + "</h1>" +
+    '<p class="lede muted small">' + (seenVersion ? "Each time you open Opening Bell, please confirm that you accept its terms." :
+      "Please read the terms to the end. Opening Bell runs only after you accept them.") + "</p>" +
+    '<div class="terms-box" id="g-terms" tabindex="0" aria-label="Terms and conditions">' + TERMS.html + "</div>" +
+    '<div class="checks">' + CHECKS.map(function(c){
+      return '<label class="check"><input type="checkbox" data-check="' + c[0] + '"><span>' + esc(c[1]) + "</span></label>"; }).join("") + "</div>" +
+    '<div class="gate-actions"><button class="btn ghost" id="g-decline" type="button">Decline</button><button class="btn" id="g-accept" type="button" disabled></button></div>' +
+    '<p class="gate-foot">Version ' + esc(TERMS.version) + '. <a href="terms.html" target="_blank" rel="noopener">Open the full terms in a new page</a>.</p>';
+  var box = $("#g-terms"), acc = $("#g-accept");
+  function update(){
+    var all = Array.prototype.every.call(document.querySelectorAll("[data-check]"), function(x){ return x.checked; });
+    acc.disabled = !(all && gateRead);
+    acc.textContent = gateRead ? "I accept" : "Read to the end first";
+  }
+  box.onscroll = function(){ if (box.scrollTop + box.clientHeight >= box.scrollHeight - 24){ gateRead = true; update(); } };
+  if (box.scrollHeight <= box.clientHeight + 24) gateRead = true;
+  document.querySelectorAll("[data-check]").forEach(function(x){ x.onchange = update; });
+  update();
+  $("#g-decline").onclick = gateDeclined;
+  acc.onclick = function(){
+    var checks = {}; document.querySelectorAll("[data-check]").forEach(function(x){ checks[x.dataset.check] = x.checked; });
+    recordAcceptance(checks, !seenVersion);
+    unlockApp(); startApp();
+  };
+}
+function gateDeclined(){
+  $("#gate-body").innerHTML = '<h1 id="gate-h">Opening Bell can\'t run without your acceptance</h1>' +
+    '<p class="lede">You declined the terms, so the app will not show any screens, setups or notifications. You can close the app, or review the terms again.</p>' +
+    '<div class="gate-actions"><button class="btn" id="g-review" type="button">Review the terms</button></div>';
+  $("#g-review").onclick = gateShow;
+}
+function recordAcceptance(checks, firstForVersion){
+  var rec = {terms:TERMS.version, termsHash:TERMS.hash, at:new Date().toISOString(), checks:checks, readToEnd:gateRead,
+             firstForVersion:firstForVersion, app:inAndroidApp() ? "android" : standalone() ? "installed" : "browser",
+             device:isIOS() ? "iPhone" : /Android/.test(navigator.userAgent) ? "Android" : "Computer", tz:"Asia/Kolkata"};
+  var log = consentLog(); log.unshift(rec);
+  try { localStorage.setItem("ob-consents", JSON.stringify(log.slice(0, 50))); } catch(e){}
+  var q; try { q = JSON.parse(localStorage.getItem("ob-consent-q") || "[]"); } catch(e){ q = []; }
+  q.push(rec); try { localStorage.setItem("ob-consent-q", JSON.stringify(q.slice(-50))); } catch(e){}
+  flushConsents();
+}
+/* send queued acceptances to Firestore; anything that fails stays queued for the next open */
+function flushConsents(){
+  var q; try { q = JSON.parse(localStorage.getItem("ob-consent-q") || "[]"); } catch(e){ q = []; }
+  if (!q.length) return Promise.resolve();
+  return fbAuth().then(function(a){
+    var base = FS_URL + "/projects/" + FB.projectId + "/databases/(default)/documents/trade_consents/" + a.uid;
+    var hdr = {"Content-Type":"application/json", Authorization:"Bearer " + a.tok};
+    var chain = Promise.resolve();
+    q.forEach(function(rec){
+      chain = chain.then(function(){
+        var f = {}; Object.keys(rec).forEach(function(k){ f[k] = fv(k === "at" ? new Date(rec.at) : rec[k]); });
+        return fetch(base + "/accepts", {method:"POST", headers:hdr, body:JSON.stringify({fields:f})}).then(jsonOrThrow)
+          .then(function(){ return fetch(base + "?updateMask.fieldPaths=terms&updateMask.fieldPaths=termsHash&updateMask.fieldPaths=lastAcceptedAt&updateMask.fieldPaths=device&updateMask.fieldPaths=app",
+            {method:"PATCH", headers:hdr, body:JSON.stringify({fields:{terms:f.terms, termsHash:f.termsHash, lastAcceptedAt:f.at, device:f.device, app:f.app}})}).then(jsonOrThrow); })
+          .then(function(){
+            var cur; try { cur = JSON.parse(localStorage.getItem("ob-consent-q") || "[]"); } catch(e){ cur = []; }
+            cur = cur.filter(function(x){ return x.at !== rec.at; });
+            try { localStorage.setItem("ob-consent-q", JSON.stringify(cur)); } catch(e){}
+          });
+      });
+    });
+    return chain;
+  }).catch(function(){ /* offline or rules not published yet: retried next time */ });
+}
+function startApp(){
+  if (!started){ started = true; saveS(); }
+  pushRenew(); render(); load();
+}
+function withdraw(){
+  if (!confirm("Withdraw your consent? Notifications will be turned off, this phone's settings cleared, and the app will stop until you accept the terms again.")) return;
+  if (S.push) pushOff();
+  fbAuth().then(function(a){
+    return fetch(FS_URL + "/projects/" + FB.projectId + "/databases/(default)/documents/trade_consents/" + a.uid + "?updateMask.fieldPaths=withdrawnAt",
+      {method:"PATCH", headers:{"Content-Type":"application/json", Authorization:"Bearer " + a.tok}, body:JSON.stringify({fields:{withdrawnAt:fv(new Date())}})});
+  }).catch(function(){});
+  try { ["ob-settings", "ob-consents", "ob-consent-q"].forEach(function(k){ localStorage.removeItem(k); }); } catch(e){}
+  if (window.caches) caches.delete("ob-prefs").catch(function(){});
+  S = Object.assign({}, DEF, {kinds:Object.assign({}, DEF.kinds)});
+  st.pre = null; st.orb = null;
+  lockApp();
+  $("#gate-body").innerHTML = '<h1 id="gate-h">Consent withdrawn</h1><p class="lede">Opening Bell has stopped. Your settings were cleared from this phone and notifications were turned off. ' +
+    'Records of your earlier acceptances are kept as described in the privacy notice; to ask for their erasure, use the contact in the terms.</p>' +
+    '<div class="gate-actions"><button class="btn" id="g-review" type="button">Review the terms</button></div>';
+  $("#g-review").onclick = gateShow;
 }
 
 /* ------------------------------------------------------------------ rendering */
@@ -509,7 +668,6 @@ function viewPlan(){
     return '<div class="fact"><b>' + f[1] + "</b><span>" + esc(f[0]) + sub + "</span></div>";
   }).join("");
   var cues = (p.cues || []).map(function(c){ return "<span>" + esc(c.name) + ' <b class="' + tone(c.chg_pct) + '">' + pc(c.chg_pct) + "</b></span>"; }).join("");
-  var ra = riskAmt(r.size_mult);
 
   var secs = p.sectors || [], mx = secs.reduce(function(m, s){ return Math.max(m, Math.abs(s.score || 0)); }, 0) || 1;
   var sh = secs.map(function(s){
@@ -524,19 +682,19 @@ function viewPlan(){
   }).join("") || '<p class="muted">No F&amp;O results in the next few days.</p>';
 
   return '<h2>Market</h2><div class="regime"><span class="pill ' + cls + '">' + esc(r.label || "Unknown") + "</span>" +
-    '<span class="muted small">Risk ' + rs(ra, 0) + " a trade" + (r.size_mult < 1 ? " (size × " + r.size_mult + ")" : "") + "</span></div>" +
+    (r.size_mult < 1 ? '<span class="muted small">Suggested positions cut to ' + Math.round(r.size_mult * 100) + "% today</span>" : "") + "</div>" +
     '<p style="margin:8px 0 0">' + esc(r.bias || "") + "</p>" +
     '<div class="facts">' + fh + "</div>" + (cues ? '<div class="cues">' + cues + "</div>" : "") +
     '<h2>Sector strength <span class="count">vs Nifty, 20 days</span></h2>' + sh +
     '<h2>Results coming up</h2><div class="events">' + ev + "</div>" +
-    "<h2>Today's rules</h2><ol class=\"rules\">" +
-      "<li>No trades before 9:30. Let the opening range form.</li>" +
-      "<li>Risk " + rs(ra, 0) + " per trade. Stop for the day after losing " + rs(ra * S.lossR, 0) + " (" + S.lossR + " losing trades).</li>" +
-      "<li>Book half at 1.5R and trail the rest. Never average down.</li>" +
+    "<h2>Discipline checklist</h2><ol class=\"rules\">" +
+      "<li>No new positions before 9:30. Let the opening range form.</li>" +
+      "<li>Keep each position to the suggested size. Stop for the day after " + S.lossR + " losing trades.</li>" +
+      "<li>Take part off at 1.5R and trail the rest. Never average down.</li>" +
       "<li>If Nifty is stuck inside its own opening range, sit out.</li>" +
-      "<li>Skip stocks with results today unless trading the reaction after 10:00.</li></ol>" +
+      "<li>Skip stocks with results today unless studying the reaction after 10:00.</li></ol>" +
     '<p class="note">' + n(p.meta && p.meta.universe) + " F&amp;O stocks screened, " + n(p.meta && p.meta.liquid) +
-      " liquid enough to trade. Prices to the close of " + esc(niceDate(p.as_of)) + ". Built " + esc(niceDate(p.generated)) + " at " + esc(hmOf(p.generated)) + ".</p>";
+      " liquid enough to study. Prices to the close of " + esc(niceDate(p.as_of)) + ". Built " + esc(niceDate(p.generated)) + " at " + esc(hmOf(p.generated)) + ".</p>";
 }
 
 /* ---- Intraday */
@@ -555,8 +713,8 @@ function viewIntraday(){
       '<span><span class="sym">' + esc(x.symbol) + "</span>" + (o ? statusPill(o.status) : "") + '<span class="ind">' + esc([indOf(x.industry), ok(x.lot) ? "lot " + x.lot : ""].filter(Boolean).join(", ")) + "</span></span>" +
       '<span class="px">' + rs(x.price) + '<small class="' + tone(x.chg1) + '">' + pc(x.chg1) + "</small></span></button>" +
       '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
-      '<div class="plan">' + (isLong ? "Buy above the 9:30 range high" : "Short below the 9:30 range low") +
-        ". Stop about " + rs(x.est_stop_dist) + " away, qty <b>" + n(q) + "</b>" + lots(q, x.lot) + ".</div>" +
+      '<div class="plan">' + (isLong ? "Long setup above the 9:30 range high" : "Short setup below the 9:30 range low") +
+        ", stop about " + rs(x.est_stop_dist) + " away. Suggested position <b>" + n(q) + "</b>" + lots(q, x.lot) + ".</div>" +
       (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(w) + "</div>"; }).join("") +
       '<div class="levels" id="lv' + i + '" hidden>' +
         '<div><span>Prev high</span><b>' + rs(x.pdh) + "</b></div>" +
@@ -564,7 +722,7 @@ function viewIntraday(){
         '<div><span>Daily ATR</span><b>' + rs(x.atr) + "</b></div>" +
         '<div><span>Pre-open gap</span><b class="' + tone(x.gap_pct) + '">' + pc(x.gap_pct) + "</b></div>" +
         '<div><span>Score</span><b>' + n(x.score) + "</b></div>" +
-        '<div><span>Risk</span><b>' + rs(q * x.est_stop_dist, 0) + "</b></div></div>" +
+        '<div><span>Suggested position</span><b>' + n(q) + "</b></div></div>" +
       "</article>";
   }).join("");
   return '<h2>Intraday watchlist</h2>' +
@@ -598,7 +756,7 @@ function viewLive(){
     return "<h2>" + g[0] + ' <span class="count">' + rows.length + "</span></h2>" + rows.map(function(r){ return ticket(r, mult); }).join("");
   }).join("");
   return "<h2>Opening-range scan</h2>" + head + notes + (body || '<div class="empty"><p>Nothing on the watchlist to scan.</p></div>') +
-    '<p class="note">Prices from Yahoo Finance can lag a few minutes. Confirm on your broker\'s chart before placing an order.</p>';
+    '<p class="note">Prices from Yahoo Finance can lag a few minutes. Always check your broker\'s chart; you decide whether to act.</p>';
 }
 function ticket(r, mult){
   var long = r.side === "long", hot = r.status === "TRIGGERED";
@@ -610,10 +768,9 @@ function ticket(r, mult){
   var q = qty(r.entry, Math.abs(r.entry - r.stop), mult);
   return '<div class="ticket' + (hot ? " hot" : "") + '">' + top + info +
     '<div class="levels"><div><span>Entry</span><b>' + rs(r.entry) + "</b></div><div><span>Stop</span><b>" + rs(r.stop) + "</b></div>" +
-    "<div><span>Qty</span><b>" + n(q) + "</b></div><div><span>Target 1.5R</span><b>" + rs(r.t1) + "</b></div>" +
+    "<div><span>Position</span><b>" + n(q) + "</b></div><div><span>Target 1.5R</span><b>" + rs(r.t1) + "</b></div>" +
     "<div><span>Target 3R</span><b>" + rs(r.t2) + "</b></div><div><span>Since</span><b>" + esc(r.trigger_time || "–") + "</b></div></div>" +
-    '<p class="why">' + n(q) + " shares" + (ok(r.lot) && r.lot > 0 && q >= r.lot ? ", " + (q / r.lot).toFixed(1) + " lots" : "") +
-      ", risking " + rs(q * Math.abs(r.entry - r.stop), 0) + "</p>" +
+    '<p class="why">Suggested position ' + n(q) + " shares" + (ok(r.lot) && r.lot > 0 && q >= r.lot ? ", " + (q / r.lot).toFixed(1) + " lots" : "") + ".</p>" +
     (r.extended ? '<div class="warn">Already more than 1R past entry. Don\'t chase; wait for a pullback toward VWAP or skip.</div>' : "") +
     (r.status === "TRIGGERED (weak RS)" ? '<div class="warn">Broke out but isn\'t beating Nifty. Half size or skip.</div>' : "") +
     "</div>";
@@ -627,17 +784,17 @@ function viewSwing(){
     return '<article class="stock"><div class="head" style="cursor:default"><span><span class="sym">' + esc(x.symbol) + '</span><span class="ind">' + esc(indOf(x.industry)) + "</span></span>" +
       '<span class="px">' + rs(x.price) + '<small class="' + tone(x.chg1) + '">' + pc(x.chg1) + "</small></span></div>" +
       '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
-      '<div class="levels"><div><span>Buy above</span><b>' + rs(x.entry) + "</b></div><div><span>Stop</span><b>" + rs(x.stop) + "</b></div>" +
-      "<div><span>Qty</span><b>" + n(q) + "</b></div><div><span>Target 2R</span><b>" + rs(x.t1) + "</b></div>" +
-      "<div><span>Target 3R</span><b>" + rs(x.t2) + "</b></div><div><span>Risk</span><b>" + (ok(x.risk_pct) ? x.risk_pct.toFixed(1) + "%" : "–") + "</b></div></div>" +
+      '<div class="levels"><div><span>Setup above</span><b>' + rs(x.entry) + "</b></div><div><span>Stop</span><b>" + rs(x.stop) + "</b></div>" +
+      "<div><span>Position</span><b>" + n(q) + "</b></div><div><span>Target 2R</span><b>" + rs(x.t1) + "</b></div>" +
+      "<div><span>Target 3R</span><b>" + rs(x.t2) + "</b></div><div><span>Stop distance</span><b>" + (ok(x.risk_pct) ? x.risk_pct.toFixed(1) + "%" : "–") + "</b></div></div>" +
       (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(w) + "</div>"; }).join("") + "</article>";
   }).join("");
   return "<h2>Swing setups</h2>" +
     '<div class="seg-ctl" role="group" aria-label="Setup"><button type="button" data-swing="pullbacks" aria-pressed="' + pb + '">Pullbacks ' + (p.pullbacks || []).length + "</button>" +
     '<button type="button" data-swing="bases" aria-pressed="' + !pb + '">Tight bases ' + (p.bases || []).length + "</button></div>" +
-    '<p class="lede">' + (pb ? "Leaders in an uptrend that dipped to their 20-day average on light volume. Buy only if price trades above yesterday's high." :
-                               "Narrow 10-day ranges near 52-week highs with volume drying up. Buy only on a break above the 10-day high.") +
-    " Hold 2 to 10 days.</p>" +
+    '<p class="lede">' + (pb ? "Leaders in an uptrend that dipped to their 20-day average on light volume. The setup is valid only if price trades above yesterday's high." :
+                               "Narrow 10-day ranges near 52-week highs with volume drying up. The setup is valid only on a break above the 10-day high.") +
+    " Typical holding period 2 to 10 days.</p>" +
     (rows ? '<div class="ledger">' + rows + "</div>" : '<div class="empty"><p>No stocks fit this setup today.</p></div>');
 }
 
@@ -647,12 +804,12 @@ function viewSettings(){
   function num(id, label, help, val, step){
     return '<div class="field"><label for="' + id + '">' + label + "<small>" + help + '</small></label><input id="' + id + '" type="number" inputmode="decimal" step="' + step + '" value="' + val + '"></div>';
   }
-  return "<h2>Money and risk</h2>" +
-    num("s-capital", "Trading capital", "In rupees. Stays on this phone.", S.capital, 1000) +
-    num("s-risk", "Risk per trade", "Percent of capital lost if the stop is hit.", S.risk, 0.1) +
+  return "<h2>Capital</h2>" +
+    num("s-capital", "Capital", "Used only to size suggested positions. Stays on this phone.", S.capital, 1000) +
+    num("s-risk", "Risk per trade", "Percent of capital between entry and stop.", S.risk, 0.1) +
     num("s-maxpos", "Largest position", "Percent of capital in one stock.", S.maxpos, 5) +
-    num("s-loss", "Daily stop", "Stop trading after this many losing trades.", S.lossR, 1) +
-    '<p class="note">At these settings each trade risks ' + rs(riskAmt(1), 0) + ". Quantities across the app update as soon as you change a value.</p>" +
+    num("s-loss", "Daily stop", "Losing trades after which the checklist says stop.", S.lossR, 1) +
+    '<p class="note">Suggested positions across the app update as soon as you change a value.</p>' +
     "<h2>Notifications</h2>" +
     '<div class="field"><label for="s-push">Notifications on this phone<small>' +
       (S.push ? "Arrive even when the app is closed. Your capital never leaves the phone." :
@@ -669,7 +826,39 @@ function viewSettings(){
     '<div class="field"><label for="s-demo">Sample data<small>Made-up prices for trying the app.</small></label><button class="switch" id="s-demo" type="button" role="switch" aria-checked="' + (S.source === "demo") + '" aria-label="Sample data"></button></div>' +
     '<p class="note">The screener runs on GitHub every weekday: the full screen at about 9:12 AM, the live scan every 5 minutes from 9:30 to 11:00, the square-off reminder at 3:15 and a preview around 7 PM. ' +
     "It reads NSE (F&amp;O list, open interest, flows, results, pre-open) and Yahoo Finance (prices). A screening aid, not investment advice.</p>" +
-    '<p class="note"><button class="btn ghost" id="s-install" type="button" hidden>Add to home screen</button></p>';
+    viewGetApp() + viewTermsSettings();
+}
+/* ---- Get the app (like Fovea: Android browsers download the real app) */
+var APK_URL = "https://github.com/ViktorPapa469/ViktorPapa469.github.io/releases/download/opening-bell/OpeningBell.apk";
+function inAndroidApp(){
+  try { if (params.get("app") === "android") sessionStorage.setItem("ob-android", "1"); } catch(e){}
+  try { return sessionStorage.getItem("ob-android") === "1" || document.referrer.indexOf("android-app://") === 0; } catch(e){ return false; }
+}
+function viewGetApp(){
+  var android = /Android/.test(navigator.userAgent || "");
+  var body;
+  if (inAndroidApp()) body = '<p class="note">You are using the Opening Bell Android app. Updates arrive automatically with the website.</p>';
+  else if (android) body = '<div class="field"><label>Android app<small>Installs Opening Bell like any other app, with its own icon and notifications.</small></label>' +
+      '<button class="btn" id="s-apk" type="button">Download</button></div><p class="note" id="apk-note" hidden></p>';
+  else if (isIOS()) body = '<p class="note">On iPhone, open this page in Safari, tap Share, then Add to Home Screen.</p>';
+  else body = '<p class="note">On an Android phone, open this page in Chrome to download the app. On iPhone, use Safari\'s Share menu and Add to Home Screen.</p>' +
+      '<p class="note"><button class="btn ghost" id="s-install" type="button" hidden>Add to this device</button></p>';
+  return "<h2>Get the app</h2>" + body;
+}
+function apkGet(){
+  var p = $("#apk-note");
+  if (p){ p.textContent = "The app is downloading. When it finishes, open OpeningBell.apk from your notifications or Downloads and tap Install. If Android asks, allow installing from this browser."; p.hidden = false; }
+  toast("Downloading Opening Bell…");
+  location.href = APK_URL;
+}
+/* ---- Terms and privacy */
+function viewTermsSettings(){
+  var last = consentLog()[0];
+  return "<h2>Terms and privacy</h2>" +
+    '<p class="note">' + (last ? "You accepted version " + esc(last.terms) + " on " + esc(new Date(last.at).toLocaleString("en-IN", {dateStyle:"medium", timeStyle:"short", timeZone:"Asia/Kolkata"})) + ". " : "") +
+      'Opening Bell is a screener for market study, not investment advice. The developer is not registered with SEBI. <a href="terms.html" target="_blank" rel="noopener">Read the terms and privacy notice</a>.</p>' +
+    '<div class="field"><label>Withdraw consent<small>Turns off notifications, clears this phone\'s settings and stops the app until you accept again.</small></label>' +
+    '<button class="btn ghost" id="s-withdraw" type="button">Withdraw</button></div>';
 }
 
 /* ------------------------------------------------------------------ events */
@@ -696,6 +885,8 @@ function bindView(){
   if (d) d.onclick = function(){ S.source = S.source === "demo" ? "live" : "demo"; saveS(); load(); };
   var ins = $("#s-install");
   if (ins){ ins.hidden = !bip; ins.onclick = function(){ if (bip){ bip.prompt(); bip = null; ins.hidden = true; } }; }
+  var apk = $("#s-apk"); if (apk) apk.onclick = apkGet;
+  var wd = $("#s-withdraw"); if (wd) wd.onclick = withdraw;
 }
 function setTab(name){
   if (!/^(plan|intraday|live|swing|settings)$/.test(name || "")) return;
@@ -717,17 +908,20 @@ function due(){
   return Date.now() - st.loadedAt > (fast ? 120e3 : 900e3);
 }
 setInterval(function(){ drawClock(); if (!document.hidden && !st.loading && (!st.day || st.day === st.latest) && due()) load(); }, 30e3);
-document.addEventListener("visibilitychange", function(){ if (!document.hidden){ drawClock(); if (Date.now() - st.loadedAt > 60e3 && (!st.day || st.day === st.latest)) load(); } });
+var hiddenAt = 0, REASK_AFTER = 30 * 60e3;   // coming back after 30 minutes away counts as a new visit: accept again
+document.addEventListener("visibilitychange", function(){
+  if (document.hidden){ hiddenAt = Date.now(); return; }
+  if (hiddenAt && Date.now() - hiddenAt > REASK_AFTER && !document.body.classList.contains("locked")){ lockApp(); gateShow(); return; }
+  drawClock(); if (Date.now() - st.loadedAt > 60e3 && (!st.day || st.day === st.latest)) load();
+});
 
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost"))
   navigator.serviceWorker.register("sw.js", {scope:"./"}).catch(function(){});
 
 if (params.has("demo")){ S.source = "demo"; }
+inAndroidApp();   // remember "opened from the Android app" before the address is tidied below
 if (params.get("tab")){ setTab(params.get("tab")); history.replaceState(null, "", location.pathname + (params.has("demo") ? "?demo" : "")); }
-saveS();
-pushRenew();
-render();
-load();
+gateStart();
 </script>
 </body>
 </html>
