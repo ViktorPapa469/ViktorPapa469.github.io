@@ -4,255 +4,305 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Opening Bell</title>
-<meta name="description" content="Morning watchlist and opening-range breakout alerts for NSE F&O stocks.">
-<meta name="theme-color" content="#EDF0EA" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#151B22" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Stock screener, position sizing and paper trading for NSE F&O stocks. For market study only.">
+<meta name="theme-color" content="#0E141B">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Opening Bell">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+/* Always dark: a slate night sky with a faint green glow (the open) and a faint gold one (the bell), glass tiles on top. */
 :root{
-  --paper:#EDF0EA; --sheet:#F8FAF6; --ink:#18212B; --ink2:#5A6570; --rule:#D3D9CF;
-  --up:#11744F; --up-soft:#D9EEE3; --down:#B8371F; --down-soft:#F6DDD6;
-  --gold:#A8730A; --gold-bar:#E0A21C; --gold-soft:#F5E6BE; --focus:#2B5BD1;
+  --bg:#0E141B; --ink:#E8EDF1; --ink2:#9AA6B1; --ink3:#6F7C88;
+  --glass:rgba(255,255,255,.055); --glass-hi:rgba(255,255,255,.09); --line:rgba(255,255,255,.10); --line-hi:rgba(255,255,255,.18);
+  --blur:blur(18px) saturate(1.25);
+  --up:#4ACB91; --up-soft:rgba(74,203,145,.15); --down:#FF7D60; --down-soft:rgba(255,125,96,.15);
+  --gold:#F2B33D; --gold-soft:rgba(242,179,61,.15); --focus:#9DB4FF;
   --cond:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
   --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  color-scheme:light;
+  --tabh:64px;
+  color-scheme:dark;
 }
-@media (prefers-color-scheme:dark){:root{
-  --paper:#151B22; --sheet:#1D252E; --ink:#E8ECE6; --ink2:#97A2AB; --rule:#2C3640;
-  --up:#45C08A; --up-soft:#173628; --down:#FF7A5C; --down-soft:#3D1D16;
-  --gold:#F2B33D; --gold-bar:#F2B33D; --gold-soft:#3A2E14; --focus:#8EAEFF; color-scheme:dark;
-}}
 *{box-sizing:border-box}
-html{background:var(--paper)}
-body{margin:0;background:var(--paper);color:var(--ink);font:400 15px/1.5 var(--sans);
-  font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%;
-  padding:env(safe-area-inset-top) 0 calc(72px + env(safe-area-inset-bottom))}
-button,input,select{font:inherit;color:inherit}
-:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+html{background:var(--bg);height:100%}
+body{margin:0;height:100%;color:var(--ink);font:400 15px/1.45 var(--sans);font-variant-numeric:tabular-nums;
+  -webkit-text-size-adjust:100%;overflow:hidden;background:var(--bg)}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(110% 55% at 0% 0%, rgba(40,128,100,.26), transparent 62%),
+    radial-gradient(90% 45% at 100% 100%, rgba(242,179,61,.11), transparent 60%),
+    radial-gradient(70% 40% at 100% 20%, rgba(70,96,160,.12), transparent 65%),
+    linear-gradient(180deg,#131C26 0%,#0C1117 100%)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
 [hidden]{display:none!important}
-main{max-width:600px;margin:0 auto;padding:0 16px}
-.up{color:var(--up)}.down{color:var(--down)}
-.muted{color:var(--ink2)}
-.small{font-size:13px}
+.up{color:var(--up)}.down{color:var(--down)}.muted{color:var(--ink2)}.small{font-size:13px}
+.glass{background:var(--glass);border:1px solid var(--line);border-radius:18px;
+  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
 
-/* top bar */
-.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0 6px}
-.brand{font:700 20px/1 var(--cond);letter-spacing:.01em}
-.fresh{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2)}
-.fresh button{border:1px solid var(--rule);background:var(--sheet);border-radius:999px;padding:4px 10px;cursor:pointer}
-.fresh select{border:1px solid var(--rule);background:var(--sheet);border-radius:999px;padding:4px 8px;max-width:150px}
+/* frame: header, clock, toolbar, pages, page dots; tab bar fixed at the bottom */
+.app{height:100%;display:flex;flex-direction:column;max-width:620px;margin:0 auto;
+  padding:calc(10px + env(safe-area-inset-top)) 0 calc(var(--tabh) + env(safe-area-inset-bottom))}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 16px 8px}
+.brand{font:700 19px/1 var(--cond);letter-spacing:.01em;display:flex;align-items:center;gap:8px}
+.brand i{width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px var(--gold)}
+.fresh{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2);min-width:0}
+.fresh select,.pill-btn{border:1px solid var(--line);background:var(--glass);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--ink)}
+.fresh select{max-width:120px}
 
-/* session clock: the one bold element */
-.clock{margin:8px 0 4px;padding:14px 0 10px}
-.phase{font:600 22px/1.2 var(--cond);margin:0}
-.todo{margin:4px 0 14px;color:var(--ink2);max-width:60ch}
-.strip{position:relative;display:flex;height:30px;border-radius:6px;overflow:hidden;background:var(--sheet);border:1px solid var(--rule)}
-.seg{position:relative;border-right:1px solid var(--rule);display:flex;align-items:center;justify-content:center;
-  font-size:11px;color:var(--ink2);white-space:nowrap;overflow:hidden}
+.clock{margin:0 16px 8px;padding:10px 12px 6px}
+.phase{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 7px}
+.phase b{font:600 16px/1.2 var(--cond)}
+.phase span{font-size:12.5px;color:var(--ink2)}
+.strip{position:relative;display:flex;height:22px;border-radius:7px;overflow:hidden;background:rgba(255,255,255,.04)}
+.seg{border-right:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:10.5px;color:var(--ink2);white-space:nowrap;overflow:hidden}
 .seg:last-child{border-right:0}
-.seg.pre{background:repeating-linear-gradient(135deg,transparent 0 5px,var(--rule) 5px 6px)}
+.seg.pre{background:repeating-linear-gradient(135deg,transparent 0 5px,rgba(255,255,255,.07) 5px 6px)}
 .seg.win{background:var(--gold-soft);color:var(--ink)}
-.seg.past{opacity:.55}
-.now{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1.5px;background:var(--gold-bar);border-radius:2px;
-  box-shadow:0 0 0 2px var(--paper)}
-.ticks{position:relative;height:18px;font-size:11px;color:var(--ink2)}
-.ticks span{position:absolute;transform:translateX(-50%);top:3px}
+.seg.past{opacity:.5}
+.now{position:absolute;top:-3px;bottom:-3px;width:3px;margin-left:-1.5px;background:var(--gold);border-radius:2px;box-shadow:0 0 10px var(--gold)}
+.ticks{position:relative;height:16px;font-size:10.5px;color:var(--ink3)}
+.ticks span{position:absolute;transform:translateX(-50%);top:2px}
 .ticks span:first-child{transform:none}.ticks span:last-child{transform:translateX(-100%)}
 
-.banner{margin:10px 0;padding:10px 12px;border-radius:10px;background:var(--gold-soft);font-size:14px}
-.banner.err{background:var(--down-soft)}
+#banners{padding:0 16px}
+.banner{margin:0 0 8px;padding:7px 11px;border-radius:12px;background:var(--gold-soft);border:1px solid rgba(242,179,61,.25);font-size:12.5px}
+.banner.err{background:var(--down-soft);border-color:rgba(255,125,96,.3)}
+#toolbar{padding:0 16px}
+#toolbar:empty{display:none}
 
-/* sections */
-h2{font:600 17px/1.3 var(--sans);margin:26px 0 8px;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-h2 .count{font-weight:400;font-size:14px;color:var(--ink2)}
-.lede{margin:0 0 10px;color:var(--ink2);font-size:14px;max-width:62ch}
+/* pages: one screen each, swipe sideways for the next */
+.pager{flex:1;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;
+  overscroll-behavior-x:contain}
+.pager::-webkit-scrollbar{display:none}
+.page{flex:0 0 100%;scroll-snap-align:start;scroll-snap-stop:always;overflow-y:auto;padding:2px 16px 10px;min-height:0}
+.pagenav{display:flex;align-items:center;justify-content:center;gap:10px;padding:6px 16px 4px}
+.pagenav .arrow{width:34px;height:30px;border-radius:10px;border:1px solid var(--line);background:var(--glass);cursor:pointer;color:var(--ink);
+  display:flex;align-items:center;justify-content:center}
+.pagenav .arrow[disabled]{opacity:.3;cursor:default}
+.dots{display:flex;gap:6px;align-items:center}
+.dots button{width:7px;height:7px;border-radius:50%;border:0;padding:0;background:var(--ink3);cursor:pointer}
+.dots button[aria-current=true]{width:20px;border-radius:4px;background:var(--gold)}
+.pageno{font-size:11.5px;color:var(--ink2);min-width:36px;text-align:center}
 
-.regime{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.pill{display:inline-block;font-size:13px;font-weight:600;padding:2px 10px;border-radius:999px;background:var(--rule)}
-.pill.up{background:var(--up-soft);color:var(--up)}.pill.down{background:var(--down-soft);color:var(--down)}
-.pill.gold{background:var(--gold-soft);color:var(--gold)}
-.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 12px;margin:14px 0 4px}
-.fact b{display:block;font-weight:600;font-size:17px}
-.fact > span{font-size:12px;color:var(--ink2)}
-.cues{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;margin-top:10px;color:var(--ink2)}
+h2{font:600 15px/1.3 var(--sans);margin:4px 0 10px;display:flex;align-items:baseline;justify-content:space-between;gap:8px;color:var(--ink)}
+h2 .count{font-weight:400;font-size:12.5px;color:var(--ink2)}
+.lede{margin:0 0 10px;color:var(--ink2);font-size:13px}
+.tile{padding:12px 14px;margin:0 0 10px}
+
+.pill{display:inline-block;font-size:12.5px;font-weight:600;padding:2px 10px;border-radius:999px;background:var(--glass-hi)}
+.pill.up{background:var(--up-soft);color:var(--up)}.pill.down{background:var(--down-soft);color:var(--down)}.pill.gold{background:var(--gold-soft);color:var(--gold)}
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 10px}
+.fact b{display:block;font-weight:600;font-size:16.5px}
+.fact > span{font-size:11.5px;color:var(--ink2)}
+.cues{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12.5px;color:var(--ink2)}
 .cues b{font-weight:600}
 
-/* sector bars */
-.sector{display:grid;grid-template-columns:minmax(0,1fr) 34% 58px;gap:10px;align-items:center;padding:5px 0;font-size:14px}
+.sector{display:grid;grid-template-columns:minmax(0,1fr) 32% 54px;gap:10px;align-items:center;padding:5px 0;font-size:13.5px}
 .sector .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.track{position:relative;height:8px}
-.track::before{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--rule)}
+.track{position:relative;height:7px}
+.track::before{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--line-hi)}
 .track i{position:absolute;top:0;height:100%;border-radius:3px}
 .sector .v{text-align:right}
 
-/* segmented control */
-.seg-ctl{display:flex;background:var(--sheet);border:1px solid var(--rule);border-radius:999px;padding:3px;margin:6px 0 8px}
-.seg-ctl button{flex:1;border:0;background:none;padding:7px 4px;border-radius:999px;cursor:pointer;font-size:14px;color:var(--ink2)}
-.seg-ctl button[aria-pressed=true]{background:var(--ink);color:var(--paper);font-weight:600}
+.seg-ctl{display:flex;border:1px solid var(--line);background:var(--glass);border-radius:999px;padding:3px;margin:0 0 8px}
+.seg-ctl button{flex:1;border:0;background:none;padding:6px 4px;border-radius:999px;cursor:pointer;font-size:13.5px;color:var(--ink2)}
+.seg-ctl button[aria-pressed=true]{background:var(--ink);color:var(--bg);font-weight:600}
 
-/* ledger rows */
-.ledger{border-top:1px solid var(--rule)}
-.stock{border-bottom:1px solid var(--rule);padding:12px 0}
-.head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;width:100%;background:none;border:0;padding:0;text-align:left;cursor:pointer}
-.sym{font:700 21px/1.1 var(--cond);letter-spacing:.01em}
-.ind{display:block;font-size:12px;color:var(--ink2);margin-top:1px}
+/* stock tiles */
+.stock{padding:11px 13px;margin:0 0 9px}
+.head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;width:100%;background:none;border:0;padding:0;text-align:left;color:inherit}
+button.head{cursor:pointer}
+.sym{font:700 19px/1.1 var(--cond);letter-spacing:.01em}
+.ind{display:block;font-size:11.5px;color:var(--ink2);margin-top:1px}
 .px{text-align:right;white-space:nowrap;font-weight:500}
-.px small{display:block;font-size:13px;font-weight:500}
-.why{margin:6px 0 0;font-size:14px;color:var(--ink2)}
-.score{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--ink2)}
-.score .bar{flex:1;height:4px;background:var(--rule);border-radius:2px;overflow:hidden}
-.score .bar i{display:block;height:100%;background:var(--ink2)}
-.plan{margin-top:8px;font-size:14px}
+.px small{display:block;font-size:12.5px;font-weight:500}
+.why{margin:5px 0 0;font-size:12.5px;color:var(--ink2)}
+.plan{margin-top:6px;font-size:13.5px}
 .plan b{font-weight:600}
-.warn{margin-top:8px;padding:7px 10px;border-radius:8px;background:var(--gold-soft);font-size:13px}
-.status{font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;margin-left:6px;vertical-align:3px;background:var(--rule);font-family:var(--sans)}
-.status.go{background:var(--up-soft);color:var(--up)}.status.fail{background:var(--down-soft);color:var(--down)}
-.status.weak{background:var(--gold-soft);color:var(--gold)}
-.side{font:600 12px/1 var(--sans);padding:3px 7px;border-radius:5px;margin-left:6px;vertical-align:4px}
+.warn{margin-top:7px;padding:6px 10px;border-radius:10px;background:var(--gold-soft);font-size:12.5px}
+.status{font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px;margin-left:6px;vertical-align:3px;background:var(--glass-hi);font-family:var(--sans)}
+.status.go{background:var(--up-soft);color:var(--up)}.status.fail{background:var(--down-soft);color:var(--down)}.status.weak{background:var(--gold-soft);color:var(--gold)}
+.side{font:600 11.5px/1 var(--sans);padding:3px 7px;border-radius:5px;margin-left:6px;vertical-align:3px}
 .side.long{background:var(--up-soft);color:var(--up)}.side.short{background:var(--down-soft);color:var(--down)}
-.levels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;margin-top:10px;background:var(--rule);border:1px solid var(--rule);border-radius:10px;overflow:hidden}
-.levels div{background:var(--sheet);padding:7px 10px}
-.levels span{display:block;font-size:11px;color:var(--ink2)}
-.levels b{font-weight:600;font-size:15px}
+.levels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;margin-top:9px;background:var(--line);border-radius:11px;overflow:hidden}
+.levels div{background:rgba(14,20,27,.55);padding:6px 9px}
+.levels span{display:block;font-size:10.5px;color:var(--ink2)}
+.levels b{font-weight:600;font-size:14px}
+.hot{border-color:rgba(242,179,61,.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(242,179,61,.35)}
+.row-actions{display:flex;gap:8px;margin-top:9px}
+.btn{border:0;background:var(--ink);color:var(--bg);border-radius:11px;padding:9px 14px;font-weight:600;cursor:pointer;font-size:14px}
+.btn.ghost{background:var(--glass);color:var(--ink);border:1px solid var(--line)}
+.btn.small{padding:6px 11px;font-size:13px;border-radius:9px}
+.btn.gold{background:var(--gold);color:#1B1405}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.linkish{background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font-size:inherit}
 
-/* live tickets */
-.ticket{background:var(--sheet);border:1px solid var(--rule);border-radius:14px;padding:14px;margin:10px 0}
-.ticket.hot{border-color:var(--gold-bar);box-shadow:0 0 0 1px var(--gold-bar)}
-.ticket .levels{background:var(--rule);border-color:var(--rule)}
-.ticket .levels div{background:var(--paper)}
-.live-head{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 4px}
-
-.events .ev{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--rule);font-size:14px}
-.rules{margin:0;padding-left:20px}.rules li{margin:5px 0}
-.empty{padding:28px 4px;color:var(--ink2)}
-.empty p{margin:0 0 12px;max-width:52ch}
-.btn{border:0;background:var(--ink);color:var(--paper);border-radius:10px;padding:10px 16px;font-weight:600;cursor:pointer}
-.btn.ghost{background:none;color:var(--ink);border:1px solid var(--rule)}
-
-/* settings */
-.field{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--rule)}
-.field label{flex:1}
-.field small{display:block;color:var(--ink2);font-size:12px}
-.field input[type=number]{width:120px;text-align:right;padding:8px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--sheet)}
-.field.sub{padding-left:14px}
-.switch[disabled]{opacity:.5}
-.switch{width:46px;height:28px;border-radius:999px;border:0;background:var(--rule);position:relative;cursor:pointer;flex:none}
-.switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--sheet);transition:left .15s}
-.switch[aria-checked=true]{background:var(--up)}
-.switch[aria-checked=true]::after{left:21px}
-.note{font-size:13px;color:var(--ink2);margin:14px 0}
+.events .ev{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.events .ev:last-child{border-bottom:0}
+.rules{margin:0;padding-left:20px}.rules li{margin:6px 0}
+.empty{padding:18px 2px;color:var(--ink2)}
+.empty p{margin:0 0 12px}
+.note{font-size:12.5px;color:var(--ink2);margin:10px 0}
 .note a{color:inherit}
 
+/* settings fields */
+.field{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.field:last-child{border-bottom:0}
+.field label{flex:1}
+.field small{display:block;color:var(--ink2);font-size:11.5px}
+.field.sub{padding-left:12px}
+input[type=number],input[type=text],input[type=email],input[type=password],input[type=date],input[type=time],select.input,textarea{
+  padding:8px 10px;border:1px solid var(--line-hi);border-radius:10px;background:rgba(0,0,0,.25);color:var(--ink);min-width:0}
+.field input[type=number]{width:118px;text-align:right}
+.switch{width:44px;height:26px;border-radius:999px;border:0;background:rgba(255,255,255,.16);position:relative;cursor:pointer;flex:none}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s}
+.switch[aria-checked=true]{background:var(--up)}
+.switch[aria-checked=true]::after{left:21px}
+.switch[disabled]{opacity:.5}
+.stack{display:flex;flex-direction:column;gap:8px}
+.stack input{width:100%}
+.inline{display:flex;gap:8px;flex-wrap:wrap}
+
+/* Test tab */
+.chips{display:flex;gap:6px;overflow-x:auto;padding:0 0 8px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--glass);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--ink2);white-space:nowrap}
+.chip i{font-style:normal;font-size:11px;margin-left:7px;padding:1px 6px;border-radius:999px;background:rgba(255,255,255,.1)}
+.chip[aria-pressed=true]{background:var(--gold-soft);border-color:rgba(242,179,61,.45);color:var(--ink);font-weight:600}
+.wl-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.wl-row:last-child{border-bottom:0}
+.wl-row .sym{font-size:17px}
+.x{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:none;color:var(--ink2);cursor:pointer}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 10px}
+.result{margin-top:8px;padding:8px 10px;border-radius:11px;background:rgba(0,0,0,.22);font-size:13px}
+.result b{font-weight:600}
+
 /* tab bar */
-nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--sheet);border-top:1px solid var(--rule);
-  display:flex;justify-content:center;padding:4px 0 calc(4px + env(safe-area-inset-bottom))}
-nav.tabs .in{display:flex;width:100%;max-width:600px}
-nav.tabs button{flex:1;border:0;background:none;padding:8px 2px 6px;cursor:pointer;color:var(--ink2);font-size:12px;
-  display:flex;flex-direction:column;align-items:center;gap:3px;position:relative}
-nav.tabs svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;border-radius:18px 18px 0 0;border-bottom:0;
+  display:flex;justify-content:center;padding:4px 4px calc(4px + env(safe-area-inset-bottom));background:rgba(16,23,31,.72)}
+nav.tabs .in{display:flex;width:100%;max-width:620px}
+nav.tabs button{flex:1;border:0;background:none;padding:7px 0 5px;cursor:pointer;color:var(--ink3);font-size:11px;
+  display:flex;flex-direction:column;align-items:center;gap:3px;position:relative;min-width:0}
+nav.tabs svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 nav.tabs button[aria-selected=true]{color:var(--ink);font-weight:600}
-nav.tabs .dot{position:absolute;top:5px;left:calc(50% + 8px);width:8px;height:8px;border-radius:50%;background:var(--gold-bar)}
-.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--paper);
-  padding:9px 14px;border-radius:10px;font-size:14px;z-index:9;max-width:90vw}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+nav.tabs button[aria-selected=true]::before{content:"";position:absolute;top:0;width:22px;height:2px;border-radius:2px;background:var(--gold)}
+nav.tabs .dot{position:absolute;top:5px;left:calc(50% + 7px);width:7px;height:7px;border-radius:50%;background:var(--gold)}
+
+/* sheet (forms) and toast */
+#sheet{position:fixed;inset:0;z-index:15;display:flex;align-items:flex-end;justify-content:center;background:rgba(5,8,12,.55)}
+#sheet .in{width:100%;max-width:620px;max-height:92%;overflow-y:auto;border-radius:22px 22px 0 0;border-bottom:0;
+  padding:16px 16px calc(16px + env(safe-area-inset-bottom));background:rgba(22,30,40,.92)}
+#sheet h3{font:600 18px/1.2 var(--cond);margin:0 0 4px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink2)}
+.form label.full{grid-column:1 / -1}
+.form input,.form select,.form textarea{width:100%;font-size:15px}
+.form-err{color:var(--down);font-size:13px;margin:8px 0 0}
+.toast{position:fixed;left:50%;bottom:calc(var(--tabh) + 18px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:30;
+  background:rgba(232,237,241,.95);color:#0E141B;padding:9px 14px;border-radius:12px;font-size:13.5px;max-width:90vw}
 
 /* terms gate: nothing else is shown or loaded until the terms are accepted */
-body.locked main, body.locked nav.tabs{display:none}
-body.locked{padding:0}
-#gate{position:fixed;inset:0;z-index:20;background:var(--paper);display:flex;justify-content:center}
-#gate[hidden]{display:none}
-.gate-in{width:100%;max-width:600px;display:flex;flex-direction:column;height:100%;
+body.locked .app, body.locked nav.tabs{display:none}
+#gate{position:fixed;inset:0;z-index:20;display:flex;justify-content:center}
+.gate-in{width:100%;max-width:620px;display:flex;flex-direction:column;height:100%;
   padding:calc(14px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom))}
-.gate-in .brand{margin:0 0 10px}
-.gate-in h1{font:600 22px/1.2 var(--cond);margin:0 0 6px}
-.gate-in .lede{margin:0 0 10px}
-.terms-box{flex:1;min-height:120px;overflow:auto;border:1px solid var(--rule);border-radius:12px;background:var(--sheet);
-  padding:4px 14px 14px;font-size:14px;-webkit-overflow-scrolling:touch}
-.terms-box .key{background:var(--paper)!important}
-.checks{margin:12px 0 4px}
-.check{display:flex;gap:10px;align-items:flex-start;padding:6px 0;font-size:14px;cursor:pointer}
-.check input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--ink)}
+.gate-in h1{font:600 21px/1.2 var(--cond);margin:0 0 6px}
+.terms-box{flex:1;min-height:120px;overflow:auto;padding:4px 14px 14px;font-size:13.5px}
+.terms-box .key{background:rgba(0,0,0,.22)!important;border-color:var(--line)!important}
+.checks{margin:10px 0 2px}
+.check{display:flex;gap:10px;align-items:flex-start;padding:5px 0;font-size:13px;cursor:pointer}
+.check input{width:19px;height:19px;margin:1px 0 0;flex:none;accent-color:var(--gold)}
 .gate-actions{display:flex;gap:10px;margin-top:8px}
 .gate-actions .btn{flex:1;padding:12px 16px}
-.btn[disabled]{opacity:.45;cursor:not-allowed}
-.gate-foot{font-size:12px;color:var(--ink2);margin:8px 0 0}
+.gate-foot{font-size:11.5px;color:var(--ink2);margin:8px 0 0}
 .gate-foot a{color:inherit}
-.linkish{background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font-size:inherit}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
 <body class="locked">
 <div id="gate" role="dialog" aria-modal="true" aria-labelledby="gate-h">
   <div class="gate-in">
-    <p class="brand">Opening Bell</p>
+    <p class="brand" style="margin:0 0 10px"><i></i>Opening Bell</p>
     <div id="gate-body" style="display:flex;flex-direction:column;flex:1;min-height:0"><p class="muted">Loading the terms…</p></div>
   </div>
 </div>
-<main>
-  <header class="top">
-    <span class="brand">Opening Bell</span>
-    <span class="fresh"><span id="fresh"></span><button id="reload" type="button">Refresh</button></span>
-  </header>
 
-  <section class="clock" aria-live="polite">
-    <p class="phase" id="phase"></p>
-    <p class="todo" id="todo"></p>
+<div class="app">
+  <header class="top">
+    <span class="brand"><i></i>Opening Bell</span>
+    <span class="fresh"><span id="fresh"></span><button id="reload" class="pill-btn" type="button">Refresh</button></span>
+  </header>
+  <section class="clock glass" aria-live="polite">
+    <p class="phase"><b id="phase"></b><span id="todo"></span></p>
     <div class="strip" id="strip"></div>
     <div class="ticks" id="ticks"></div>
   </section>
-
   <div id="banners"></div>
-  <div id="view"></div>
-</main>
+  <div id="toolbar"></div>
+  <div class="pager" id="pager" tabindex="-1"></div>
+  <div class="pagenav" id="pagenav">
+    <button class="arrow" id="prevPage" type="button" aria-label="Previous page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="dots" id="dots"></div>
+    <span class="pageno" id="pageno"></span>
+    <button class="arrow" id="nextPage" type="button" aria-label="Next page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg></button>
+  </div>
+</div>
 
-<nav class="tabs" aria-label="Sections"><div class="in" role="tablist">
+<nav class="tabs glass" aria-label="Sections"><div class="in" role="tablist">
   <button role="tab" data-tab="plan" aria-selected="true"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6"/></svg>Plan</button>
   <button role="tab" data-tab="intraday"><svg viewBox="0 0 24 24"><path d="M7 4v16M7 8h-2v6h2M17 4v16M17 9h-2v7h2M12 6v12M12 10h-2v4h2"/></svg>Intraday</button>
   <button role="tab" data-tab="live"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Live<i class="dot" id="liveDot" hidden></i></button>
   <button role="tab" data-tab="swing"><svg viewBox="0 0 24 24"><path d="M3 17c4 0 4-10 9-10s5 6 9 6"/></svg>Swing</button>
+  <button role="tab" data-tab="test"><svg viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3M7.5 15h9"/></svg>Test</button>
   <button role="tab" data-tab="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/></svg>Settings</button>
 </div></nav>
 
+<div id="sheet" hidden><div class="in glass" role="dialog" aria-modal="true" id="sheet-in"></div></div>
+
+<script src="paper.js"></script>
 <script>
 "use strict";
-/* ------------------------------------------------------------------ settings */
-var KINDS = [["screen", "Screen ready", "About 9:12, with the market mood and top picks."],
+/* ================================================================== settings (on this phone; synced to the profile when signed in) */
+var KINDS = [["screen", "Screen ready", "About 9:12, with the market mood and top setups."],
              ["breakouts", "Breakouts", "Each setup that triggers between 9:30 and 11:00, with a suggested position."],
              ["squareoff", "Square-off reminder", "3:15, on days the market is open."],
              ["preview", "Evening preview", "About 7 PM, the next session's list."]];
 var DEF = {capital:500000, risk:0.5, maxpos:100, lossR:3, source:"live", push:false, pushAt:0, pushEp:"", pushTerms:"",
-           kinds:{screen:true, breakouts:true, squareoff:true, preview:false}};
+           kinds:{screen:true, breakouts:true, squareoff:true, preview:false}, updatedAt:0};
 var S = (function(){ try { var x = JSON.parse(localStorage.getItem("ob-settings") || "{}");
   var o = Object.assign({}, DEF, x); o.kinds = Object.assign({}, DEF.kinds, x.kinds || {}); return o; } catch(e){ return Object.assign({}, DEF); } })();
 function saveS(){
   try { localStorage.setItem("ob-settings", JSON.stringify(S)); } catch(e){}
-  // the notification helper can't read this page's storage, so it gets its own copy of what it needs for quantities
+  // the notification helper can't read this page's storage, so it gets its own copy of what it needs for positions
   if (window.caches) caches.open("ob-prefs").then(function(c){
     return c.put("https://data.local/settings.json", new Response(JSON.stringify({capital:S.capital, risk:S.risk, maxpos:S.maxpos}),
                  {headers:{"Content-Type":"application/json"}}));
   }).catch(function(){});
 }
+function changedS(){ S.updatedAt = Date.now(); saveS(); syncSoon(); }
 
-var st = {pushBusy:false, pushNote:"", tab:"plan", side:"longs", swing:"pullbacks", pre:null, orb:null, days:[], day:null, latest:null,
-          loading:false, error:null, noData:false, loadedAt:0, base:""};
+var st = {tab:"plan", side:"longs", swing:"pullbacks", list:null, page:{}, pre:null, orb:null, days:[], day:null, latest:null,
+          loading:false, error:null, noData:false, loadedAt:0, base:"", pushBusy:false, pushNote:"", authBusy:false, authNote:""};
 
-/* ------------------------------------------------------------------ helpers */
+/* ================================================================== helpers */
 function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
 function ok(x){ return typeof x === "number" && isFinite(x); }
 function rs(x, d){ if (!ok(x)) return "–"; d = d == null ? 2 : d; return "₹" + x.toLocaleString("en-IN", {minimumFractionDigits:d, maximumFractionDigits:d}); }
 function n(x, d){ return ok(x) ? x.toLocaleString("en-IN", {minimumFractionDigits:d||0, maximumFractionDigits:d||0}) : "–"; }
 function pc(x, d){ if (!ok(x)) return "–"; d = d == null ? 2 : d; return (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(d) + "%"; }
+function rr(x){ return ok(x) ? (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(2) + "R" : "–"; }
 function tone(x){ return !ok(x) || x === 0 ? "" : x > 0 ? "up" : "down"; }
 function $(s){ return document.querySelector(s); }
 function indOf(x){ return x && x !== "Other" ? x : ""; }
-
+function chunk(a, k){ var o = []; for (var i = 0; i < a.length; i += k) o.push(a.slice(i, i + k)); return o; }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 function ist(){
   var f = new Intl.DateTimeFormat("en-GB", {timeZone:"Asia/Kolkata", year:"numeric", month:"2-digit", day:"2-digit",
                                             hour:"2-digit", minute:"2-digit", weekday:"short", hourCycle:"h23"});
@@ -266,8 +316,13 @@ function niceDate(iso){
   return d.toLocaleDateString("en-IN", {weekday:"short", day:"numeric", month:"short", timeZone:"Asia/Kolkata"});
 }
 function hmOf(iso){ return iso ? iso.slice(11, 16) : ""; }
+function toast(msg){
+  document.querySelectorAll(".toast").forEach(function(x){ x.remove(); });
+  var t = document.createElement("div"); t.className = "toast"; t.setAttribute("role", "status"); t.textContent = msg;
+  document.body.appendChild(t); setTimeout(function(){ t.remove(); }, 3200);
+}
 
-/* position sizing lives on the phone, never in the published data */
+/* position sizing lives on the phone (and in your own profile), never in the published data */
 function riskAmt(mult){ return S.capital * S.risk / 100 * (ok(mult) ? mult : 1); }
 function qty(entry, perShare, mult){
   if (!ok(entry) || !ok(perShare) || perShare <= 0) return 0;
@@ -276,7 +331,7 @@ function qty(entry, perShare, mult){
 }
 function lots(q, lot){ return ok(lot) && lot > 0 && q >= lot ? " (" + (q / lot).toFixed(1) + " lots)" : ""; }
 
-/* ------------------------------------------------------------------ session clock */
+/* ================================================================== session clock */
 var SEGS = [
   {from:540, to:555, w:12, cls:"pre", label:"Pre-open"},
   {from:555, to:570, w:13, cls:"", label:"Range"},
@@ -293,14 +348,14 @@ function posOf(m){
 }
 function phaseText(t){
   var m = t.mins;
-  if (t.weekend) return ["Market closed", "Weekend. The next screen arrives around 9:12 on Monday, with a preview on Friday evening."];
-  if (m < 540) return ["Before the open", "Read the plan. The screen refreshes at about 9:12 with pre-open gaps."];
-  if (m < 555) return ["Pre-open auction", "Opening prices are being set. No orders yet."];
-  if (m < 570) return ["Opening range forming", "Don't trade the first 15 minutes. Live starts checking breakouts at 9:30."];
-  if (m < 660) return ["Breakout window", "Act only on names marked Triggered in Live, with the stop placed at once."];
-  if (m < 915) return ["Midday", "Manage open trades. No new breakouts from this list after 11:00."];
-  if (m < 930) return ["Square off", "Close intraday positions before your broker's auto square-off."];
-  return ["Market closed", "Tomorrow's preview arrives around 7 PM, the final screen at about 9:12."];
+  if (t.weekend) return ["Market closed", "Weekend. Next screen Monday about 9:12."];
+  if (m < 540) return ["Before the open", "Screen refreshes about 9:12."];
+  if (m < 555) return ["Pre-open auction", "Opening prices being set."];
+  if (m < 570) return ["Range forming", "Let the first 15 minutes pass."];
+  if (m < 660) return ["Breakout window", "Watch Live for triggered setups."];
+  if (m < 915) return ["Midday", "No new breakouts from this list."];
+  if (m < 930) return ["Square off", "Intraday positions close soon."];
+  return ["Market closed", "Preview about 7 PM, screen about 9:12."];
 }
 function drawClock(){
   var t = ist(), p = phaseText(t);
@@ -316,7 +371,7 @@ function drawClock(){
   $("#ticks").innerHTML = TICKS.map(function(k){ return '<span style="left:' + posOf(k[0]) + '%">' + k[1] + "</span>"; }).join("");
 }
 
-/* ------------------------------------------------------------------ data */
+/* ================================================================== screener data */
 var params = new URLSearchParams(location.search);
 function demoBase(){ return new URL("demo/", location.href).href; }
 function getJSON(url){
@@ -346,6 +401,7 @@ function load(day){
   if (document.body.classList.contains("locked")) return Promise.resolve();
   st.loading = true; st.error = null; render();
   return resolveBase().then(function(base){
+    if (base.replace(/[0-9a-f]{40}\/$/, "") !== (st.base || "").replace(/[0-9a-f]{40}\/$/, "")) PX.reset();
     st.base = base;
     return getJSON(base + "index.json").catch(function(){ return null; }).then(function(idx){
       st.days = idx && idx.days ? idx.days : [];
@@ -362,10 +418,13 @@ function load(day){
   }).catch(function(e){
     if (e.nodata || e.status === 404){ st.noData = true; st.pre = null; st.orb = null; }
     else st.error = "Couldn't reach the data (" + (e.message || "network error") + "). Showing what was loaded before.";
-  }).then(function(){ st.loading = false; render(); });
+  }).then(function(){
+    st.loading = false; render();
+    if (st.tab === "test") loadTestPrices();
+  });
 }
 
-/* ------------------------------------------------------------------ new breakouts while the app is on screen */
+/* new breakouts while the app is on screen: a short message (the system notification comes from the push) */
 function seenKey(){ return "ob-seen-" + (st.orb ? st.orb.date : ""); }
 function checkAlerts(){
   var o = st.orb; if (!o || !o.rows) return;
@@ -375,39 +434,35 @@ function checkAlerts(){
   if (!fresh.length) return;
   fresh.forEach(function(r){ seen.push(r.symbol); });
   try { localStorage.setItem(seenKey(), JSON.stringify(seen)); } catch(e){}
-  if (o.date !== ist().date || o.demo || document.hidden) return;   // only for today's real scan, while the app is on screen
+  if (o.date !== ist().date || o.demo || document.hidden) return;
   toast(fresh.map(function(r){ return r.symbol; }).join(", ") + " triggered. See Live.");
 }
-function toast(msg){
-  document.querySelectorAll(".toast").forEach(function(x){ x.remove(); });
-  var t = document.createElement("div"); t.className = "toast"; t.setAttribute("role", "status"); t.textContent = msg;
-  document.body.appendChild(t); setTimeout(function(){ t.remove(); }, 3200);
-}
 
-/* ------------------------------------------------------------------ push notifications
-   The phone subscribes on this app's own helper (sw.js, scope /trade/) and saves the push address in Firestore
-   trade_alerts/{id}; tools/trade/push.py on GitHub sends to it. Same Firebase project and push key as Fovea. */
+/* ================================================================== Firebase (same project as Fovea): sign-in, Firestore */
 var FB = {apiKey:"AIzaSyAjuDlySp9coYIyI4KVFd0o7t2sqV3n5Ew", projectId:"fovea-25d37"};
 var VAPID_PUB = "BHQOqFb3wH3PKsfhYO-8V2FXzjjvAHIY5FHzRFTBCbX7zrBl1qUF0aDUQAVCmktDlgcNI9EClocjpr4-8jFVCSM";
 var ID_URL = "https://identitytoolkit.googleapis.com/v1", TOK_URL = "https://securetoken.googleapis.com/v1", FS_URL = "https://firestore.googleapis.com/v1";
+var FS_DOCS = FS_URL + "/projects/" + FB.projectId + "/databases/(default)/documents/";
 function isIOS(){ return /iPad|iPhone|iPod/.test(navigator.userAgent || "") || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
 function standalone(){ return (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true; }
-function pushCan(){ return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && (location.protocol === "https:" || location.hostname === "localhost"); }
-function jsonOrThrow(r){ return r.text().then(function(t){ if (!r.ok) throw new Error(r.status + " " + t.slice(0, 160)); return t ? JSON.parse(t) : {}; }); }
+function jsonOrThrow(r){ return r.text().then(function(t){ if (!r.ok) throw new Error(r.status + " " + t.slice(0, 200)); return t ? JSON.parse(t) : {}; }); }
+function cred(){ try { return JSON.parse(localStorage.getItem("ob-fb") || "null"); } catch(e){ return null; } }
+function setCred(c, tok, exp){
+  try { localStorage.setItem("ob-fb", JSON.stringify(c)); } catch(e){}
+  fbTok = tok || null; fbExp = tok ? Date.now() + (exp || 3600) * 1000 : 0;
+}
 var fbTok = null, fbExp = 0;
+/* a device id: anonymous until the person adds an email, which keeps the same id */
 function fbAuth(){
-  var cred = null; try { cred = JSON.parse(localStorage.getItem("ob-fb") || "null"); } catch(e){}
-  if (fbTok && cred && Date.now() < fbExp - 60e3) return Promise.resolve({uid:cred.uid, tok:fbTok});
-  var p = cred && cred.refresh
+  var c = cred();
+  if (fbTok && c && Date.now() < fbExp - 60e3) return Promise.resolve({uid:c.uid, tok:fbTok, email:c.email || ""});
+  var p = c && c.refresh
     ? fetch(TOK_URL + "/token?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"},
-            body:"grant_type=refresh_token&refresh_token=" + encodeURIComponent(cred.refresh)})
-        .then(jsonOrThrow).then(function(r){ return {uid:r.user_id, tok:r.id_token, refresh:r.refresh_token, exp:+r.expires_in}; })
+            body:"grant_type=refresh_token&refresh_token=" + encodeURIComponent(c.refresh)})
+        .then(jsonOrThrow).then(function(r){ return {uid:r.user_id, tok:r.id_token, refresh:r.refresh_token, exp:+r.expires_in, email:c.email || ""}; })
     : fetch(ID_URL + "/accounts:signUp?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({returnSecureToken:true})})
-        .then(jsonOrThrow).then(function(r){ return {uid:r.localId, tok:r.idToken, refresh:r.refreshToken, exp:+r.expiresIn}; });
-  return p.then(function(a){
-    try { localStorage.setItem("ob-fb", JSON.stringify({uid:a.uid, refresh:a.refresh})); } catch(e){}
-    fbTok = a.tok; fbExp = Date.now() + (a.exp || 3600) * 1000; return a;
-  });
+        .then(jsonOrThrow).then(function(r){ return {uid:r.localId, tok:r.idToken, refresh:r.refreshToken, exp:+r.expiresIn, email:""}; });
+  return p.then(function(a){ setCred({uid:a.uid, refresh:a.refresh, email:a.email}, a.tok, a.exp); return a; });
 }
 function fv(v){
   if (v === null || v === undefined) return {nullValue:null};
@@ -417,13 +472,24 @@ function fv(v){
   if (typeof v === "object"){ var f = {}; Object.keys(v).forEach(function(k){ f[k] = fv(v[k]); }); return {mapValue:{fields:f}}; }
   return {stringValue:String(v)};
 }
-function docUrl(uid){ return FS_URL + "/projects/" + FB.projectId + "/databases/(default)/documents/trade_alerts/" + uid; }
-function fsCall(method, body){
+function unfv(v){
+  var t = Object.keys(v)[0], x = v[t];
+  if (t === "mapValue"){ var o = {}; Object.keys(x.fields || {}).forEach(function(k){ o[k] = unfv(x.fields[k]); }); return o; }
+  if (t === "integerValue") return +x;
+  if (t === "nullValue") return null;
+  return x;
+}
+function fsReq(method, path, body){
   return fbAuth().then(function(a){
-    return fetch(docUrl(a.uid), {method:method, headers:{"Content-Type":"application/json", Authorization:"Bearer " + a.tok},
-                                 body:body ? JSON.stringify(body) : undefined}).then(jsonOrThrow);
+    return fetch(FS_DOCS + path.replace("{uid}", a.uid), {method:method, headers:{"Content-Type":"application/json", Authorization:"Bearer " + a.tok},
+                                                          body:body ? JSON.stringify(body) : undefined}).then(jsonOrThrow);
   });
 }
+
+/* ================================================================== push notifications
+   The phone subscribes on this app's own helper (sw.js, scope /trade/) and saves the push address in Firestore
+   trade_alerts/{id}; tools/trade/push.py on GitHub sends to it. Same push key as Fovea. */
+function pushCan(){ return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && (location.protocol === "https:" || location.hostname === "localhost"); }
 function b64u(s){ s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; var b = atob(s), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
 function myReg(){ return navigator.serviceWorker.register("sw.js", {scope:"./"}).then(function(){ return navigator.serviceWorker.ready; }); }
 function pushSub(){
@@ -434,22 +500,22 @@ function pushSub(){
 }
 function pushSave(sub){
   var j = sub.toJSON();
-  return fsCall("PATCH", {fields:{endpoint:fv(j.endpoint), p256dh:fv(j.keys.p256dh), auth:fv(j.keys.auth), on:fv(true),
+  return fsReq("PATCH", "trade_alerts/{uid}", {fields:{endpoint:fv(j.endpoint), p256dh:fv(j.keys.p256dh), auth:fv(j.keys.auth), on:fv(true),
                                    kinds:fv(S.kinds), terms:fv(TERMS.version), device:fv(isIOS() ? "iPhone" : /Android/.test(navigator.userAgent) ? "Android" : "Computer"),
                                    updatedAt:fv(new Date())}})
     .then(function(){ S.pushEp = j.endpoint; S.pushAt = Date.now(); S.pushTerms = TERMS.version; saveS(); });
 }
 function pushWhy(e){
   var m = String((e && e.message) || e || "");
-  if (/PERMISSION_DENIED|^403/.test(m)) return "Firebase is refusing the sign-up. Publish the updated rules (tools/firebase/firestore.rules) in the Firebase console, then try again.";
-  if (/ADMIN_ONLY|OPERATION_NOT_ALLOWED/.test(m)) return "Anonymous sign-in is switched off in Firebase.";
+  if (/PERMISSION_DENIED|^403/.test(m)) return "Firebase refused the request. The updated rules (tools/firebase/firestore.rules) need publishing in the Firebase console.";
+  if (/ADMIN_ONLY|OPERATION_NOT_ALLOWED/.test(m)) return "This sign-in method is switched off in Firebase.";
   if (/NotAllowedError|denied/i.test(m)) return "Notifications are blocked for this site. Allow them in your browser's site settings, then try again.";
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "No internet connection. Try again when you're online.";
   return "Something went wrong (" + m.slice(0, 80) + ").";
 }
 function pushOn(){
   if (isIOS() && !standalone()){ st.pushNote = "On iPhone, add Opening Bell to your Home Screen first (Share, then Add to Home Screen), open it from there, and turn this on."; render(); return; }
-  if (!pushCan()){ st.pushNote = "This browser can't receive notifications. Use Chrome on Android, or the Home Screen app on iPhone."; render(); return; }
+  if (!pushCan()){ st.pushNote = "This browser can't receive notifications. Use Chrome on Android, the Android app, or the Home Screen app on iPhone."; render(); return; }
   st.pushBusy = true; st.pushNote = "Asking for permission…"; render();
   Notification.requestPermission().then(function(p){
     if (p !== "granted") throw new Error("denied");
@@ -460,13 +526,13 @@ function pushOn(){
 }
 function pushOff(){
   S.push = false; S.pushEp = ""; saveS(); st.pushNote = ""; render();
-  fsCall("DELETE").catch(function(){});
+  var del = fsReq("DELETE", "trade_alerts/{uid}").catch(function(){});
   if ("serviceWorker" in navigator) myReg().then(function(reg){ return reg.pushManager.getSubscription(); })
     .then(function(s){ if (s) s.unsubscribe(); }).catch(function(){});
+  return del;
 }
 function pushKinds(){ return pushSub().then(pushSave).catch(function(e){ st.pushNote = pushWhy(e); render(); }); }
-/* keep the push address current: phones replace it now and then, and the sender drops addresses that stop working */
-function pushRenew(){
+function pushRenew(){   // phones replace their push address now and then; keep the saved one current
   if (!S.push || !pushCan()) return;
   if (Notification.permission !== "granted"){ S.push = false; saveS(); st.pushNote = "Notifications were turned off because this site lost permission to show them."; return; }
   myReg().then(function(reg){ return reg.pushManager.getSubscription(); }).then(function(s){
@@ -482,7 +548,112 @@ function pushSample(){
   }).catch(function(e){ toast(pushWhy(e)); });
 }
 
-/* ------------------------------------------------------------------ terms gate
+/* ================================================================== profile: email sign-in, synced across devices
+   Only an email (and a password to protect it) is asked for. Signing up adds the email to this device's existing id,
+   so its terms records and notifications carry on. The profile (trade_profiles/{id}) holds capital settings,
+   watchlists and paper trades; without a profile they stay on this phone only. */
+function signedIn(){ var c = cred(); return !!(c && c.email); }
+function authWhy(e){
+  var m = String((e && e.message) || e || "");
+  if (/EMAIL_EXISTS/.test(m)) return "This email already has a profile. Use Sign in instead.";
+  if (/INVALID_LOGIN_CREDENTIALS|INVALID_PASSWORD|EMAIL_NOT_FOUND/.test(m)) return "The email or password is not right.";
+  if (/WEAK_PASSWORD/.test(m)) return "Use a password of at least 6 characters.";
+  if (/INVALID_EMAIL|MISSING_EMAIL/.test(m)) return "That doesn't look like an email address.";
+  if (/TOO_MANY_ATTEMPTS/.test(m)) return "Too many attempts. Wait a few minutes and try again.";
+  if (/USER_DISABLED/.test(m)) return "This profile has been disabled.";
+  if (/CREDENTIAL_TOO_OLD|TOKEN_EXPIRED/.test(m)) return "Please sign in again.";
+  return pushWhy(e);
+}
+function createProfile(email, pw){
+  st.authBusy = true; st.authNote = ""; render();
+  return fbAuth().then(function(a){
+    return fetch(ID_URL + "/accounts:update?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({idToken:a.tok, email:email, password:pw, returnSecureToken:true})}).then(jsonOrThrow);
+  }).then(function(r){
+    setCred({uid:r.localId, refresh:r.refreshToken, email:r.email}, r.idToken, +r.expiresIn);
+    S.updatedAt = Date.now(); T.updatedAt = Date.now(); saveS(); saveT(false);
+    return pushProfile();
+  }).then(function(){ toast("Profile created"); }, function(e){ st.authNote = authWhy(e); })
+    .then(function(){ st.authBusy = false; render(); });
+}
+function signIn(email, pw){
+  st.authBusy = true; st.authNote = ""; render();
+  var oldPush = S.push, signed;
+  return fetch(ID_URL + "/accounts:signInWithPassword?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({email:email, password:pw, returnSecureToken:true})}).then(jsonOrThrow)
+    .then(function(r){
+      signed = r;
+      return oldPush ? pushOff() : null;   // the device's old id stops getting notifications; the profile's id takes over
+    }).then(function(){
+      setCred({uid:signed.localId, refresh:signed.refreshToken, email:signed.email}, signed.idToken, +signed.expiresIn);
+      var last = consentLog()[0];   // this session's acceptance, recorded again under the profile
+      if (last) queueConsent(Object.assign({}, last, {carriedOver:true}));
+      flushConsents();
+      return pullProfile(true);
+    }).then(function(){
+      if (oldPush) return pushSub().then(pushSave).then(function(){ S.push = true; saveS(); });
+    }).then(function(){ toast("Signed in"); }, function(e){ st.authNote = authWhy(e); })
+    .then(function(){ st.authBusy = false; render(); });
+}
+function resetPassword(email){
+  if (!email){ st.authNote = "Type your email first, then tap Forgot password."; render(); return; }
+  fetch(ID_URL + "/accounts:sendOobCode?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({requestType:"PASSWORD_RESET", email:email})}).then(jsonOrThrow)
+    .then(function(){ st.authNote = "If that email has a profile, a reset link is on its way. The email may mention Fovea, which shares the sign-in service."; },
+          function(e){ st.authNote = authWhy(e); }).then(render);
+}
+function clearLocalProfile(){
+  try { ["ob-settings", "ob-test"].forEach(function(k){ localStorage.removeItem(k); }); } catch(e){}
+  S = Object.assign({}, DEF, {kinds:Object.assign({}, DEF.kinds), source:S.source});
+  T = defaultT(); saveS();
+}
+function signOut(){
+  if (!confirm("Sign out on this phone? Your profile stays in your account; this phone's copy of your settings, watchlists and paper trades is cleared.")) return;
+  (S.push ? pushOff() : Promise.resolve()).then(function(){
+    try { localStorage.removeItem("ob-fb"); } catch(e){}
+    fbTok = null; clearLocalProfile(); toast("Signed out"); render();
+  });
+}
+function deleteProfile(){
+  if (!confirm("Delete your profile? Your saved capital settings, watchlists and paper trades are erased from the cloud and this phone. This can't be undone.")) return;
+  fsReq("DELETE", "trade_profiles/{uid}").then(function(){
+    return S.push ? pushOff() : null;
+  }).then(function(){
+    try { localStorage.removeItem("ob-fb"); } catch(e){}
+    fbTok = null; clearLocalProfile(); toast("Profile deleted"); render();
+  }, function(e){ st.authNote = authWhy(e); render(); });
+}
+var syncTimer = null;
+function syncSoon(){ if (!signedIn()) return; clearTimeout(syncTimer); syncTimer = setTimeout(pushProfile, 1500); }
+function profileFields(){
+  return {settings:fv({capital:S.capital, risk:S.risk, maxpos:S.maxpos, lossR:S.lossR, kinds:S.kinds, updatedAt:S.updatedAt || 0}),
+          test:fv(JSON.stringify(T)), updatedAt:fv(new Date())};
+}
+function pushProfile(){
+  if (!signedIn()) return Promise.resolve();
+  return fsReq("PATCH", "trade_profiles/{uid}", {fields:profileFields()}).catch(function(e){ st.authNote = authWhy(e); });
+}
+function pullProfile(force){
+  if (!signedIn()) return Promise.resolve();
+  return fsReq("GET", "trade_profiles/{uid}").then(function(doc){
+    var f = doc.fields || {};
+    if (f.settings){
+      var rs_ = unfv(f.settings);
+      if (force || (rs_.updatedAt || 0) > (S.updatedAt || 0)){
+        ["capital", "risk", "maxpos", "lossR"].forEach(function(k){ if (ok(+rs_[k])) S[k] = +rs_[k]; });
+        if (rs_.kinds) S.kinds = Object.assign({}, DEF.kinds, rs_.kinds);
+        S.updatedAt = rs_.updatedAt || S.updatedAt; saveS();
+      }
+    }
+    if (f.test){ try { T = mergeT(T, JSON.parse(unfv(f.test))); saveT(false); } catch(e){} }
+    return pushProfile();
+  }, function(e){
+    if (/^404/.test(String(e.message))) return pushProfile();   // first sync: create it
+    st.authNote = authWhy(e);
+  }).then(function(){ render(); });
+}
+
+/* ================================================================== terms gate
    Shown every time the app opens (and after 30 minutes away). Nothing loads until the person ticks every box and
    presses "I accept". The first acceptance of each version requires scrolling to the end of the full text.
    Each acceptance is logged on the phone and in Firestore (trade_consents/{id} and its accepts log) with the
@@ -515,7 +686,7 @@ function gateStart(){
   lockApp();
   $("#gate-body").innerHTML = '<p class="muted">Loading the terms…</p>';
   loadTerms().then(gateShow, function(){
-    $("#gate-body").innerHTML = '<h1 id="gate-h">The terms could not be loaded</h1><p class="lede muted">Opening Bell needs your acceptance of its terms before it runs. Connect to the internet and try again.</p>' +
+    $("#gate-body").innerHTML = '<h1 id="gate-h">The terms could not be loaded</h1><p class="lede">Opening Bell needs your acceptance of its terms before it runs. Connect to the internet and try again.</p>' +
       '<div class="gate-actions"><button class="btn" id="g-retry" type="button">Try again</button></div>';
     $("#g-retry").onclick = gateStart;
   });
@@ -525,12 +696,12 @@ function gateShow(){
   gateRead = seenVersion;
   $("#gate-body").innerHTML =
     '<h1 id="gate-h">' + (seenVersion ? "Confirm before you continue" : "Terms and conditions") + "</h1>" +
-    '<p class="lede muted small">' + (seenVersion ? "Each time you open Opening Bell, please confirm that you accept its terms." :
+    '<p class="lede small">' + (seenVersion ? "Each time you open Opening Bell, please confirm that you accept its terms." :
       "Please read the terms to the end. Opening Bell runs only after you accept them.") + "</p>" +
-    '<div class="terms-box" id="g-terms" tabindex="0" aria-label="Terms and conditions">' + TERMS.html + "</div>" +
+    '<div class="terms-box glass" id="g-terms" tabindex="0" aria-label="Terms and conditions">' + TERMS.html + "</div>" +
     '<div class="checks">' + CHECKS.map(function(c){
       return '<label class="check"><input type="checkbox" data-check="' + c[0] + '"><span>' + esc(c[1]) + "</span></label>"; }).join("") + "</div>" +
-    '<div class="gate-actions"><button class="btn ghost" id="g-decline" type="button">Decline</button><button class="btn" id="g-accept" type="button" disabled></button></div>' +
+    '<div class="gate-actions"><button class="btn ghost" id="g-decline" type="button">Decline</button><button class="btn gold" id="g-accept" type="button" disabled></button></div>' +
     '<p class="gate-foot">Version ' + esc(TERMS.version) + '. <a href="terms.html" target="_blank" rel="noopener">Open the full terms in a new page</a>.</p>';
   var box = $("#g-terms"), acc = $("#g-accept");
   function update(){
@@ -551,9 +722,13 @@ function gateShow(){
 }
 function gateDeclined(){
   $("#gate-body").innerHTML = '<h1 id="gate-h">Opening Bell can\'t run without your acceptance</h1>' +
-    '<p class="lede">You declined the terms, so the app will not show any screens, setups or notifications. You can close the app, or review the terms again.</p>' +
+    '<p class="lede">You declined the terms, so the app will not show any screens, setups, paper trades or notifications. You can close the app, or review the terms again.</p>' +
     '<div class="gate-actions"><button class="btn" id="g-review" type="button">Review the terms</button></div>';
   $("#g-review").onclick = gateShow;
+}
+function queueConsent(rec){
+  var q; try { q = JSON.parse(localStorage.getItem("ob-consent-q") || "[]"); } catch(e){ q = []; }
+  q.push(rec); try { localStorage.setItem("ob-consent-q", JSON.stringify(q.slice(-50))); } catch(e){}
 }
 function recordAcceptance(checks, firstForVersion){
   var rec = {terms:TERMS.version, termsHash:TERMS.hash, at:new Date().toISOString(), checks:checks, readToEnd:gateRead,
@@ -561,8 +736,7 @@ function recordAcceptance(checks, firstForVersion){
              device:isIOS() ? "iPhone" : /Android/.test(navigator.userAgent) ? "Android" : "Computer", tz:"Asia/Kolkata"};
   var log = consentLog(); log.unshift(rec);
   try { localStorage.setItem("ob-consents", JSON.stringify(log.slice(0, 50))); } catch(e){}
-  var q; try { q = JSON.parse(localStorage.getItem("ob-consent-q") || "[]"); } catch(e){ q = []; }
-  q.push(rec); try { localStorage.setItem("ob-consent-q", JSON.stringify(q.slice(-50))); } catch(e){}
+  queueConsent(rec);
   flushConsents();
 }
 /* send queued acceptances to Firestore; anything that fails stays queued for the next open */
@@ -570,7 +744,7 @@ function flushConsents(){
   var q; try { q = JSON.parse(localStorage.getItem("ob-consent-q") || "[]"); } catch(e){ q = []; }
   if (!q.length) return Promise.resolve();
   return fbAuth().then(function(a){
-    var base = FS_URL + "/projects/" + FB.projectId + "/databases/(default)/documents/trade_consents/" + a.uid;
+    var base = FS_DOCS + "trade_consents/" + a.uid;
     var hdr = {"Content-Type":"application/json", Authorization:"Bearer " + a.tok};
     var chain = Promise.resolve();
     q.forEach(function(rec){
@@ -592,29 +766,102 @@ function flushConsents(){
 function startApp(){
   if (!started){ started = true; saveS(); }
   pushRenew(); render(); load();
+  pullProfile(false);
 }
 function withdraw(){
-  if (!confirm("Withdraw your consent? Notifications will be turned off, this phone's settings cleared, and the app will stop until you accept the terms again.")) return;
+  if (!confirm("Withdraw your consent? Notifications will be turned off, this phone's settings and paper trades cleared, and the app will stop until you accept the terms again.")) return;
   if (S.push) pushOff();
-  fbAuth().then(function(a){
-    return fetch(FS_URL + "/projects/" + FB.projectId + "/databases/(default)/documents/trade_consents/" + a.uid + "?updateMask.fieldPaths=withdrawnAt",
-      {method:"PATCH", headers:{"Content-Type":"application/json", Authorization:"Bearer " + a.tok}, body:JSON.stringify({fields:{withdrawnAt:fv(new Date())}})});
-  }).catch(function(){});
-  try { ["ob-settings", "ob-consents", "ob-consent-q"].forEach(function(k){ localStorage.removeItem(k); }); } catch(e){}
+  fsReq("PATCH", "trade_consents/{uid}?updateMask.fieldPaths=withdrawnAt", {fields:{withdrawnAt:fv(new Date())}}).catch(function(){});
+  try { ["ob-consents", "ob-consent-q"].forEach(function(k){ localStorage.removeItem(k); }); } catch(e){}
+  clearLocalProfile();
   if (window.caches) caches.delete("ob-prefs").catch(function(){});
-  S = Object.assign({}, DEF, {kinds:Object.assign({}, DEF.kinds)});
   st.pre = null; st.orb = null;
   lockApp();
-  $("#gate-body").innerHTML = '<h1 id="gate-h">Consent withdrawn</h1><p class="lede">Opening Bell has stopped. Your settings were cleared from this phone and notifications were turned off. ' +
-    'Records of your earlier acceptances are kept as described in the privacy notice; to ask for their erasure, use the contact in the terms.</p>' +
+  $("#gate-body").innerHTML = '<h1 id="gate-h">Consent withdrawn</h1><p class="lede">Opening Bell has stopped. This phone\'s settings and paper trades were cleared and notifications turned off. ' +
+    'If you have a profile, it stays in your account until you delete it in Settings. Records of your earlier acceptances are kept as described in the privacy notice; to ask for their erasure, use the contact in the terms.</p>' +
     '<div class="gate-actions"><button class="btn" id="g-review" type="button">Review the terms</button></div>';
   $("#g-review").onclick = gateShow;
 }
 
-/* ------------------------------------------------------------------ rendering */
+/* ================================================================== Test: watchlists and paper trades
+   Stored on this phone ("ob-test") and in the profile when signed in. Results come from paper.js using the daily
+   and 15-minute prices GitHub publishes (prices/daily.json, prices/intraday/<date>.json). */
+var MIN_LISTS = 5, MAX_LISTS = 10, MAX_STOCKS = 10;
+function defaultT(){
+  var l = []; for (var i = 1; i <= MIN_LISTS; i++) l.push({id:"l" + i, name:"Watchlist " + i, symbols:[], updatedAt:0});
+  return {lists:l, trades:[], deleted:[], updatedAt:0};
+}
+var T = (function(){ try { var x = JSON.parse(localStorage.getItem("ob-test") || "null"); return x && x.lists ? x : defaultT(); } catch(e){ return defaultT(); } })();
+function saveT(sync){ try { localStorage.setItem("ob-test", JSON.stringify(T)); } catch(e){} if (sync !== false) syncSoon(); }
+function touchT(){ T.updatedAt = Date.now(); saveT(); }
+function mergeT(a, b){   // a = this phone, b = profile; newest copy of each list and trade wins, deletions are kept
+  if (!b || !b.lists) return a;
+  var del = {}; (a.deleted || []).concat(b.deleted || []).forEach(function(id){ del[id] = 1; });
+  function byId(xs, ys){
+    var m = {}, order = [];
+    ys.concat(xs).forEach(function(x){ if (!m[x.id]) order.push(x.id); if (!m[x.id] || (x.updatedAt || 0) > (m[x.id].updatedAt || 0)) m[x.id] = x; });
+    return order.filter(function(id){ return !del[id]; }).map(function(id){ return m[id]; });
+  }
+  var lists = byId(a.lists, b.lists).slice(0, MAX_LISTS);
+  while (lists.length < MIN_LISTS) lists.push({id:uid(), name:"Watchlist " + (lists.length + 1), symbols:[], updatedAt:0});
+  return {lists:lists, trades:byId(a.trades || [], b.trades || []), deleted:Object.keys(del).slice(-500), updatedAt:Math.max(a.updatedAt || 0, b.updatedAt || 0)};
+}
+function curList(){ var l = T.lists.filter(function(x){ return x.id === st.list; })[0]; if (!l){ l = T.lists[0]; st.list = l.id; } return l; }
+
+/* prices for results */
+var PX = {daily:null, meta:null, intra:{}, loading:false, tried:false, err:null,
+  reset:function(){ this.daily = null; this.meta = null; this.intra = {}; this.err = null; this.tried = false; }};
+function loadTestPrices(){
+  if (!st.base || PX.loading) return;
+  PX.loading = true; PX.tried = true;
+  var base = st.base;
+  Promise.all([getJSON(base + "prices/daily.json").catch(function(){ return null; }), getJSON(base + "prices/meta.json").catch(function(){ return null; })])
+    .then(function(r){
+      PX.daily = r[0]; PX.meta = r[1]; PX.err = r[0] ? null : "Prices for results haven't been published yet. They arrive with the next screen.";
+      var have = (PX.meta && PX.meta.intraday_days) || [], need = {};
+      T.trades.forEach(function(t){ if (have.indexOf(t.date) >= 0) need[t.date] = 1; if (t.exit && have.indexOf(t.exit.date) >= 0) need[t.exit.date] = 1; });
+      if (have[0]) need[have[0]] = 1;   // the latest session, for open trades
+      return Promise.all(Object.keys(need).filter(function(d){ return !PX.intra[d]; }).map(function(d){
+        return getJSON(base + "prices/intraday/" + d + ".json").then(function(j){ PX.intra[d] = j; }).catch(function(){});
+      }));
+    }).then(function(){ PX.loading = false; if (st.tab === "test") render(); });
+}
+function pricesFor(sym){
+  var D = PX.daily, idx = {}, i;
+  if (D) for (i = 0; i < D.dates.length; i++) idx[D.dates[i]] = i;
+  var days = {};
+  if (D) D.dates.forEach(function(d){ if (D.symbols[sym] && D.symbols[sym][3][idx[d]] != null) days[d] = 1; });
+  Object.keys(PX.intra).forEach(function(d){ if (PX.intra[d].symbols[sym]) days[d] = 1; });
+  return {
+    days:function(){ return Object.keys(days).sort(); },
+    daily:function(d){ if (!D || idx[d] == null || !D.symbols[sym]) return null; var a = D.symbols[sym], k = idx[d];
+      return a[3][k] == null ? null : {o:a[0][k], h:a[1][k], l:a[2][k], c:a[3][k]}; },
+    bars:function(d){ var f = PX.intra[d]; if (!f || !f.symbols[sym]) return null; var a = f.symbols[sym];
+      return f.times.map(function(t, k){ return {t:t, o:a[0][k], h:a[1][k], l:a[2][k], c:a[3][k]}; }).filter(function(b){ return b.c != null; }); }
+  };
+}
+function lastPrice(sym){
+  var p = pricesFor(sym), ds = p.days(); if (!ds.length) return null;
+  var d = ds[ds.length - 1], b = p.bars(d), prev = ds.length > 1 ? p.daily(ds[ds.length - 2]) : null;
+  var last = b && b.length ? b[b.length - 1].c : (p.daily(d) || {}).c;
+  var prior = b && b.length ? (p.daily(ds[ds.length - 2]) || {}).c : prev && prev.c;
+  return {price:last, chg:ok(prior) ? (last / prior - 1) * 100 : null, date:d, time:b && b.length ? b[b.length - 1].t : null};
+}
+function atrOf(sym){
+  var p = pricesFor(sym), ds = p.days().filter(function(d){ return p.daily(d); }).slice(-15), tr = [];
+  for (var i = 1; i < ds.length; i++){ var a = p.daily(ds[i]), pc_ = p.daily(ds[i - 1]).c;
+    tr.push(Math.max(a.h - a.l, Math.abs(a.h - pc_), Math.abs(a.l - pc_))); }
+  return tr.length ? tr.reduce(function(x, y){ return x + y; }, 0) / tr.length : null;
+}
+function universe(){ return PX.daily ? Object.keys(PX.daily.symbols).sort() : []; }
+function resultOf(t){ return PaperEngine.simulate(t, pricesFor(t.symbol), ist()); }
+
+/* ================================================================== pages: each tab is a row of short pages */
+function page(title, html, count){
+  return {title:title, html:"<h2>" + esc(title) + (count != null ? ' <span class="count">' + count + "</span>" : "") + "</h2>" + html};
+}
 function render(){
   drawClock();
-  // freshness + history picker
   var f = $("#fresh");
   if (st.loading) f.textContent = "Loading…";
   else if (st.pre){
@@ -625,42 +872,80 @@ function render(){
     var sel = $("#day"); if (sel) sel.onchange = function(){ load(this.value === st.latest ? null : this.value); };
   } else f.textContent = "";
 
-  // banners
   var b = [], t = ist();
   if (st.error) b.push('<div class="banner err">' + esc(st.error) + "</div>");
-  if (st.pre){
-    if (st.pre.demo) b.push('<div class="banner">Sample data with made-up prices. Switch to live data in Settings.</div>');
+  if (st.pre && st.tab !== "settings" && st.tab !== "test"){
+    if (st.pre.demo) b.push('<div class="banner">Sample data with made-up prices. Switch it off in Settings.</div>');
     else if (st.day !== st.latest) b.push('<div class="banner">Viewing an earlier day: ' + esc(niceDate(st.day)) + ".</div>");
-    else if (st.pre.date > t.date) b.push('<div class="banner">Preview for ' + esc(niceDate(st.pre.date)) + ", built from the last close. The 9:12 run adds pre-open gaps and the latest flows.</div>");
-    else if (st.pre.date < t.date && !t.weekend && t.mins >= 560) b.push('<div class="banner">Today\'s screen hasn\'t arrived yet. Showing the list for ' + esc(niceDate(st.pre.date)) + ". GitHub sometimes starts scheduled runs late.</div>");
-    if ((st.pre.notes || []).length) b.push('<div class="banner small">Unavailable this run: ' + esc(st.pre.notes.join(", ")) + ". The rest of the screen still applies.</div>");
+    else if (st.pre.date > t.date) b.push('<div class="banner">Preview for ' + esc(niceDate(st.pre.date)) + ", from the last close. Final screen about 9:12.</div>");
+    else if (st.pre.date < t.date && !t.weekend && t.mins >= 560) b.push('<div class="banner">Today\'s screen hasn\'t arrived yet; showing ' + esc(niceDate(st.pre.date)) + ".</div>");
   }
   $("#banners").innerHTML = b.join("");
 
-  var v = $("#view");
-  if (st.noData){ v.innerHTML = emptyState(); bindEmpty(); return; }
-  if (!st.pre){ v.innerHTML = st.loading ? '<div class="empty"><p>Loading the latest screen…</p></div>' : '<div class="empty"><p>No data loaded yet.</p></div>'; if (st.tab !== "settings") return; }
-  v.innerHTML = ({plan:viewPlan, intraday:viewIntraday, live:viewLive, swing:viewSwing, settings:viewSettings})[st.tab]();
+  var tb = "", pages;
+  if (st.tab === "settings") pages = viewSettings();
+  else if (st.tab === "test"){ tb = testToolbar(); pages = viewTest(); }
+  else if (st.noData) pages = [page("No screen yet", emptyState())];
+  else if (!st.pre) pages = [page(st.loading ? "Loading" : "No data", '<div class="empty"><p>' + (st.loading ? "Loading the latest screen…" : "No data loaded yet.") + "</p></div>")];
+  else {
+    if (st.tab === "intraday") tb = segCtl("side", [["longs", "Longs " + (st.pre.longs || []).length], ["shorts", "Shorts " + (st.pre.shorts || []).length]], st.side);
+    if (st.tab === "swing") tb = segCtl("swing", [["pullbacks", "Pullbacks " + (st.pre.pullbacks || []).length], ["bases", "Tight bases " + (st.pre.bases || []).length]], st.swing);
+    pages = ({plan:viewPlan, intraday:viewIntraday, live:viewLive, swing:viewSwing})[st.tab]();
+  }
+  $("#toolbar").innerHTML = tb;
+  drawPages(pages);
   bindView();
 }
+function segCtl(kind, opts, cur){
+  return '<div class="seg-ctl" role="group">' + opts.map(function(o){
+    return '<button type="button" data-' + kind + '="' + o[0] + '" aria-pressed="' + (o[0] === cur) + '">' + esc(o[1]) + "</button>"; }).join("") + "</div>";
+}
+var pagerKey = "";
+function drawPages(pages){
+  var pg = $("#pager"), key = st.tab + "|" + (st.tab === "intraday" ? st.side : st.tab === "swing" ? st.swing : st.tab === "test" ? st.list : "");
+  var want = Math.min(st.page[key] || 0, pages.length - 1);
+  pg.innerHTML = pages.map(function(p, i){ return '<section class="page" aria-label="' + esc(p.title) + '" data-i="' + i + '">' + p.html + "</section>"; }).join("");
+  pagerKey = key;
+  pg.scrollLeft = want * pg.clientWidth;
+  $("#dots").innerHTML = pages.length > 1 ? pages.map(function(p, i){
+    return '<button type="button" data-goto="' + i + '" aria-label="Page ' + (i + 1) + ": " + esc(p.title) + '"' + (i === want ? ' aria-current="true"' : "") + "></button>"; }).join("") : "";
+  $("#pagenav").style.visibility = pages.length > 1 ? "visible" : "hidden";
+  pageState(want, pages.length);
+}
+function pageState(i, total){
+  st.page[pagerKey] = i;
+  $("#pageno").textContent = total > 1 ? (i + 1) + " / " + total : "";
+  $("#prevPage").disabled = i <= 0; $("#nextPage").disabled = i >= total - 1;
+  document.querySelectorAll("#dots button").forEach(function(d, k){ if (k === i) d.setAttribute("aria-current", "true"); else d.removeAttribute("aria-current"); });
+}
+function goPage(i){ var pg = $("#pager"); pg.scrollTo({left:i * pg.clientWidth, behavior:"smooth"}); }
+(function(){
+  var pg = $("#pager"), tmr = null;
+  pg.addEventListener("scroll", function(){
+    clearTimeout(tmr);
+    tmr = setTimeout(function(){
+      var total = pg.children.length; if (!total) return;
+      var i = Math.round(pg.scrollLeft / Math.max(1, pg.clientWidth));
+      pageState(Math.max(0, Math.min(i, total - 1)), total);
+    }, 60);
+  }, {passive:true});
+  $("#prevPage").onclick = function(){ goPage((st.page[pagerKey] || 0) - 1); };
+  $("#nextPage").onclick = function(){ goPage((st.page[pagerKey] || 0) + 1); };
+  $("#dots").onclick = function(e){ var b = e.target.closest("[data-goto]"); if (b) goPage(+b.dataset.goto); };
+  addEventListener("resize", function(){ pg.scrollLeft = (st.page[pagerKey] || 0) * pg.clientWidth; });
+})();
 
 function emptyState(){
-  if (st.tab === "settings") return viewSettings();
   return '<div class="empty"><p><b>Your first screen arrives on the next trading morning at about 9:12.</b></p>' +
     "<p>GitHub runs the screener on weekday mornings and publishes it here. Until then you can look around with sample data.</p>" +
     '<button class="btn" id="tryDemo" type="button">Show sample data</button></div>';
 }
-function bindEmpty(){ var x = $("#tryDemo"); if (x) x.onclick = function(){ S.source = "demo"; saveS(); load(); }; bindView(); }
 
-/* ---- Plan */
+/* ---- Plan: market, sectors, results, checklist */
 function viewPlan(){
   var p = st.pre, r = p.regime || {};
   var cls = r.label === "Uptrend" ? "up" : r.label === "Downtrend" ? "down" : "gold";
-  var facts = [
-    ["Nifty 50", n(r.nifty), r.nifty_chg],
-    ["Bank Nifty", n(r.bank), r.bank_chg],
-    ["India VIX", ok(r.vix) ? r.vix.toFixed(2) : "–", r.vix_chg, true]
-  ];
+  var facts = [["Nifty 50", n(r.nifty), r.nifty_chg], ["Bank Nifty", n(r.bank), r.bank_chg], ["India VIX", ok(r.vix) ? r.vix.toFixed(2) : "–", r.vix_chg, true]];
   if (p.preopen) facts.push(["Pre-open up / down", p.preopen.adv + " / " + p.preopen.dec, p.preopen.avg]);
   (p.fii_dii || []).forEach(function(f){ facts.push([f.category + " net", '<span class="' + tone(f.net_cr) + '">' + (f.net_cr > 0 ? "+" : "") + n(f.net_cr) + " cr</span>", null]); });
   var fh = facts.map(function(f){
@@ -668,6 +953,12 @@ function viewPlan(){
     return '<div class="fact"><b>' + f[1] + "</b><span>" + esc(f[0]) + sub + "</span></div>";
   }).join("");
   var cues = (p.cues || []).map(function(c){ return "<span>" + esc(c.name) + ' <b class="' + tone(c.chg_pct) + '">' + pc(c.chg_pct) + "</b></span>"; }).join("");
+  var market = '<div class="glass tile"><div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><span class="pill ' + cls + '">' + esc(r.label || "Unknown") + "</span>" +
+      (r.size_mult < 1 ? '<span class="muted small">Suggested positions cut to ' + Math.round(r.size_mult * 100) + "% today</span>" : "") + "</div>" +
+      '<p style="margin:8px 0 0">' + esc(r.bias || "") + "</p></div>" +
+    '<div class="glass tile"><div class="facts">' + fh + "</div></div>" +
+    (cues ? '<div class="glass tile"><div class="cues">' + cues + "</div></div>" : "") +
+    ((p.notes || []).length ? '<p class="note">Unavailable this run: ' + esc(p.notes.join(", ")) + ".</p>" : "");
 
   var secs = p.sectors || [], mx = secs.reduce(function(m, s){ return Math.max(m, Math.abs(s.score || 0)); }, 0) || 1;
   var sh = secs.map(function(s){
@@ -676,40 +967,36 @@ function viewPlan(){
       '<span class="track"><i style="left:' + left.toFixed(1) + "%;width:" + w.toFixed(1) + "%;background:var(--" + (s.score >= 0 ? "up" : "down") + ')"></i></span>' +
       '<span class="v ' + tone(s.rs20) + '">' + pc(s.rs20, 1) + "</span></div>";
   }).join("") || '<p class="muted">No sector data.</p>';
-
   var ev = (p.events || []).map(function(e){
     return '<div class="ev"><span><b>' + esc(e.symbol) + '</b> <span class="muted">' + esc(e.purpose) + "</span></span><span class=muted>" + esc(niceDate(e.date)) + "</span></div>";
   }).join("") || '<p class="muted">No F&amp;O results in the next few days.</p>';
-
-  return '<h2>Market</h2><div class="regime"><span class="pill ' + cls + '">' + esc(r.label || "Unknown") + "</span>" +
-    (r.size_mult < 1 ? '<span class="muted small">Suggested positions cut to ' + Math.round(r.size_mult * 100) + "% today</span>" : "") + "</div>" +
-    '<p style="margin:8px 0 0">' + esc(r.bias || "") + "</p>" +
-    '<div class="facts">' + fh + "</div>" + (cues ? '<div class="cues">' + cues + "</div>" : "") +
-    '<h2>Sector strength <span class="count">vs Nifty, 20 days</span></h2>' + sh +
-    '<h2>Results coming up</h2><div class="events">' + ev + "</div>" +
-    "<h2>Discipline checklist</h2><ol class=\"rules\">" +
+  return [
+    page("Market", market),
+    page("Sector strength", '<div class="glass tile">' + sh + "</div>", "vs Nifty, 20 days"),
+    page("Results coming up", '<div class="glass tile events">' + ev + "</div>"),
+    page("Discipline checklist", '<div class="glass tile"><ol class="rules">' +
       "<li>No new positions before 9:30. Let the opening range form.</li>" +
       "<li>Keep each position to the suggested size. Stop for the day after " + S.lossR + " losing trades.</li>" +
       "<li>Take part off at 1.5R and trail the rest. Never average down.</li>" +
       "<li>If Nifty is stuck inside its own opening range, sit out.</li>" +
-      "<li>Skip stocks with results today unless studying the reaction after 10:00.</li></ol>" +
-    '<p class="note">' + n(p.meta && p.meta.universe) + " F&amp;O stocks screened, " + n(p.meta && p.meta.liquid) +
-      " liquid enough to study. Prices to the close of " + esc(niceDate(p.as_of)) + ". Built " + esc(niceDate(p.generated)) + " at " + esc(hmOf(p.generated)) + ".</p>";
+      "<li>Skip stocks with results today unless studying the reaction after 10:00.</li></ol></div>" +
+      '<p class="note">' + n(p.meta && p.meta.universe) + " F&amp;O stocks screened, " + n(p.meta && p.meta.liquid) +
+      " liquid enough to study. Prices to the close of " + esc(niceDate(p.as_of)) + ". Built " + esc(niceDate(p.generated)) + " at " + esc(hmOf(p.generated)) + ".</p>")
+  ];
 }
 
-/* ---- Intraday */
+/* ---- Intraday: three stocks a page */
 function orbFor(sym){ return st.orb && st.orb.rows ? st.orb.rows.filter(function(r){ return r.symbol === sym; })[0] : null; }
 var STATUS = {"TRIGGERED":["go","Triggered"], "TRIGGERED (weak RS)":["weak","Triggered, weak"], "FAILED":["fail","Failed"],
               "WAITING":["","Waiting"], "RANGE FORMING":["","Range forming"], "NO DATA":["","No data"]};
 function statusPill(s){ var x = STATUS[s]; return x ? '<span class="status ' + x[0] + '">' + x[1] + "</span>" : ""; }
-
 function viewIntraday(){
   var p = st.pre, list = p[st.side] || [], mult = p.regime && p.regime.size_mult, isLong = st.side === "longs";
-  var rows = list.map(function(x, i){
+  var cards = list.map(function(x, i){
     var counter = (x.warnings || []).some(function(w){ return /counter-trend/i.test(w); });
     var q = qty(x.price, x.est_stop_dist, (mult || 1) * (counter ? 0.5 : 1));
     var o = orbFor(x.symbol);
-    return '<article class="stock"><button class="head" type="button" data-open="' + i + '" aria-expanded="false">' +
+    return '<article class="stock glass"><button class="head" type="button" data-open="' + i + '" aria-expanded="false">' +
       '<span><span class="sym">' + esc(x.symbol) + "</span>" + (o ? statusPill(o.status) : "") + '<span class="ind">' + esc([indOf(x.industry), ok(x.lot) ? "lot " + x.lot : ""].filter(Boolean).join(", ")) + "</span></span>" +
       '<span class="px">' + rs(x.price) + '<small class="' + tone(x.chg1) + '">' + pc(x.chg1) + "</small></span></button>" +
       '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
@@ -717,182 +1004,427 @@ function viewIntraday(){
         ", stop about " + rs(x.est_stop_dist) + " away. Suggested position <b>" + n(q) + "</b>" + lots(q, x.lot) + ".</div>" +
       (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(w) + "</div>"; }).join("") +
       '<div class="levels" id="lv' + i + '" hidden>' +
-        '<div><span>Prev high</span><b>' + rs(x.pdh) + "</b></div>" +
-        '<div><span>Prev low</span><b>' + rs(x.pdl) + "</b></div>" +
+        '<div><span>Prev high</span><b>' + rs(x.pdh) + "</b></div><div><span>Prev low</span><b>" + rs(x.pdl) + "</b></div>" +
         '<div><span>Daily ATR</span><b>' + rs(x.atr) + "</b></div>" +
         '<div><span>Pre-open gap</span><b class="' + tone(x.gap_pct) + '">' + pc(x.gap_pct) + "</b></div>" +
-        '<div><span>Score</span><b>' + n(x.score) + "</b></div>" +
-        '<div><span>Suggested position</span><b>' + n(q) + "</b></div></div>" +
+        '<div><span>Score</span><b>' + n(x.score) + "</b></div><div><span>Suggested position</span><b>" + n(q) + "</b></div></div>" +
+      '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="intra:' + st.side + ":" + i + '">Paper trade</button></div>' +
       "</article>";
-  }).join("");
-  return '<h2>Intraday watchlist</h2>' +
-    '<div class="seg-ctl" role="group" aria-label="Side"><button type="button" data-side="longs" aria-pressed="' + isLong + '">Longs ' + (p.longs || []).length + "</button>" +
-    '<button type="button" data-side="shorts" aria-pressed="' + !isLong + '">Shorts ' + (p.shorts || []).length + "</button></div>" +
-    '<p class="lede">' + (isLong ? "Strongest liquid F&O stocks, ranked. Wait for a break of the 15-minute high with price above VWAP." :
-                                   "Weakest liquid F&O stocks, ranked. Wait for a break of the 15-minute low with price below VWAP.") +
-    " Tap a stock for its levels.</p>" +
-    (rows ? '<div class="ledger">' + rows + "</div>" : '<div class="empty"><p>No stocks qualify on this side today. That is a signal too: fewer trades.</p></div>');
+  });
+  if (!cards.length) return [page(isLong ? "Longs" : "Shorts", '<div class="empty"><p>No stocks qualify on this side today. That is a signal too: fewer trades.</p></div>')];
+  var lede = '<p class="lede">' + (isLong ? "Strongest liquid F&O stocks, ranked. Watch for a break of the 15-minute high with price above VWAP." :
+    "Weakest liquid F&O stocks, ranked. Watch for a break of the 15-minute low with price below VWAP.") + " Tap a stock for its levels.</p>";
+  return chunk(cards, 3).map(function(c, k){ return page((isLong ? "Longs " : "Shorts ") + (k * 3 + 1) + "–" + (k * 3 + c.length), (k === 0 ? lede : "") + c.join(""), list.length + " in all"); });
 }
 
-/* ---- Live */
+/* ---- Live: overview, then two tickets a page */
 function viewLive(){
   var o = st.orb, t = ist();
   if (!o){
     var msg = st.pre && st.pre.date > t.date ? "The live scan starts at 9:30 on " + niceDate(st.pre.date) + "." :
-              t.mins < 570 && !t.weekend ? "The live scan starts at 9:30 and refreshes every 5 minutes until 11:00." :
-              "No live scan for this day.";
-    return '<div class="empty"><p>' + esc(msg) + "</p><p>Turn on notifications in Settings to hear about each breakout, even with the app closed.</p></div>";
+              t.mins < 570 && !t.weekend ? "The live scan starts at 9:30 and refreshes every 5 minutes until 11:00." : "No live scan for this day.";
+    return [page("Opening-range scan", '<div class="empty"><p>' + esc(msg) + "</p><p>Turn on notifications in Settings to hear about each breakout, even with the app closed.</p></div>")];
   }
-  var mult = o.size_mult;
-  var head = '<div class="live-head"><div class="fact"><b class="' + tone(o.nifty_chg) + '">' + pc(o.nifty_chg) + "</b><span>Nifty since open</span></div>" +
+  var mult = o.size_mult, rows = o.rows || [];
+  var trig = rows.filter(function(r){ return /^TRIGGERED/.test(r.status); }), wait = rows.filter(function(r){ return r.status === "WAITING" || r.status === "RANGE FORMING"; });
+  var rest = rows.filter(function(r){ return r.status === "FAILED" || r.status === "NO DATA"; });
+  var head = '<div class="glass tile"><div class="facts"><div class="fact"><b class="' + tone(o.nifty_chg) + '">' + pc(o.nifty_chg) + "</b><span>Nifty since open</span></div>" +
     (o.nifty_above_vwap == null ? "" : '<div class="fact"><b>' + (o.nifty_above_vwap ? "Above" : "Below") + "</b><span>Nifty vs VWAP</span></div>") +
-    '<div class="fact"><b>' + esc(o.bars_to || "–") + "</b><span>Prices up to</span></div></div>";
-  var notes = (o.notes || []).map(function(x){ return '<p class="muted">' + esc(x) + "</p>"; }).join("");
-  var groups = [["Triggered", function(r){ return /^TRIGGERED/.test(r.status); }],
-                ["Waiting for a break", function(r){ return r.status === "WAITING" || r.status === "RANGE FORMING"; }],
-                ["Failed or no data", function(r){ return r.status === "FAILED" || r.status === "NO DATA"; }]];
-  var body = groups.map(function(g){
-    var rows = (o.rows || []).filter(g[1]); if (!rows.length) return "";
-    return "<h2>" + g[0] + ' <span class="count">' + rows.length + "</span></h2>" + rows.map(function(r){ return ticket(r, mult); }).join("");
-  }).join("");
-  return "<h2>Opening-range scan</h2>" + head + notes + (body || '<div class="empty"><p>Nothing on the watchlist to scan.</p></div>') +
-    '<p class="note">Prices from Yahoo Finance can lag a few minutes. Always check your broker\'s chart; you decide whether to act.</p>';
+    '<div class="fact"><b>' + esc(o.bars_to || "–") + "</b><span>Prices up to</span></div>" +
+    '<div class="fact"><b class="up">' + trig.length + '</b><span>Triggered</span></div><div class="fact"><b>' + wait.length + "</b><span>Waiting</span></div>" +
+    '<div class="fact"><b>' + rest.length + "</b><span>Failed</span></div></div></div>" +
+    (o.notes || []).map(function(x){ return '<p class="note">' + esc(x) + "</p>"; }).join("") +
+    '<p class="note">Prices from Yahoo Finance can lag a few minutes. Always check your broker\'s chart; you decide whether to act. Swipe for each setup.</p>';
+  var pages = [page("Opening-range scan", head)];
+  [["Triggered", trig], ["Waiting", wait], ["Failed or no data", rest]].forEach(function(g){
+    chunk(g[1], 2).forEach(function(c, k, all){ pages.push(page(g[0] + (all.length > 1 ? " " + (k + 1) + "/" + all.length : ""), c.map(function(r){ return ticket(r, mult); }).join(""), g[1].length)); });
+  });
+  return pages;
 }
 function ticket(r, mult){
   var long = r.side === "long", hot = r.status === "TRIGGERED";
-  var top = '<div class="head" style="cursor:default"><span><span class="sym">' + esc(r.symbol) + '</span><span class="side ' + (long ? "long" : "short") + '">' + (long ? "Long" : "Short") + "</span>" + statusPill(r.status) +
+  var top = '<div class="head"><span><span class="sym">' + esc(r.symbol) + '</span><span class="side ' + (long ? "long" : "short") + '">' + (long ? "Long" : "Short") + "</span>" + statusPill(r.status) +
     '<span class="ind">' + esc(indOf(r.industry)) + "</span></span>" +
     (ok(r.last) ? '<span class="px">' + rs(r.last) + '<small class="' + tone(r.chg) + '">' + pc(r.chg) + "</small></span>" : "") + "</div>";
   var info = ok(r.orh) ? '<p class="why">Range ' + rs(r.orl) + " to " + rs(r.orh) + ", VWAP " + rs(r.vwap) + (ok(r.rs) ? ", " + pc(r.rs) + " vs Nifty" : "") + "</p>" : "";
-  if (!ok(r.entry)) return '<div class="stock">' + top + info + "</div>";
+  if (!ok(r.entry)) return '<div class="stock glass">' + top + info + "</div>";
   var q = qty(r.entry, Math.abs(r.entry - r.stop), mult);
-  return '<div class="ticket' + (hot ? " hot" : "") + '">' + top + info +
+  return '<div class="stock glass' + (hot ? " hot" : "") + '">' + top + info +
     '<div class="levels"><div><span>Entry</span><b>' + rs(r.entry) + "</b></div><div><span>Stop</span><b>" + rs(r.stop) + "</b></div>" +
     "<div><span>Position</span><b>" + n(q) + "</b></div><div><span>Target 1.5R</span><b>" + rs(r.t1) + "</b></div>" +
     "<div><span>Target 3R</span><b>" + rs(r.t2) + "</b></div><div><span>Since</span><b>" + esc(r.trigger_time || "–") + "</b></div></div>" +
     '<p class="why">Suggested position ' + n(q) + " shares" + (ok(r.lot) && r.lot > 0 && q >= r.lot ? ", " + (q / r.lot).toFixed(1) + " lots" : "") + ".</p>" +
     (r.extended ? '<div class="warn">Already more than 1R past entry. Don\'t chase; wait for a pullback toward VWAP or skip.</div>' : "") +
     (r.status === "TRIGGERED (weak RS)" ? '<div class="warn">Broke out but isn\'t beating Nifty. Half size or skip.</div>' : "") +
+    '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="live:' + esc(r.symbol) + '">Paper trade</button></div>' +
     "</div>";
 }
 
-/* ---- Swing */
+/* ---- Swing: three setups a page */
 function viewSwing(){
   var p = st.pre, key = st.swing, list = p[key] || [], mult = p.regime && p.regime.size_mult, pb = key === "pullbacks";
-  var rows = list.map(function(x){
+  var cards = list.map(function(x, i){
     var q = qty(x.entry, x.entry - x.stop, mult);
-    return '<article class="stock"><div class="head" style="cursor:default"><span><span class="sym">' + esc(x.symbol) + '</span><span class="ind">' + esc(indOf(x.industry)) + "</span></span>" +
+    return '<article class="stock glass"><div class="head"><span><span class="sym">' + esc(x.symbol) + '</span><span class="ind">' + esc(indOf(x.industry)) + "</span></span>" +
       '<span class="px">' + rs(x.price) + '<small class="' + tone(x.chg1) + '">' + pc(x.chg1) + "</small></span></div>" +
       '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
       '<div class="levels"><div><span>Setup above</span><b>' + rs(x.entry) + "</b></div><div><span>Stop</span><b>" + rs(x.stop) + "</b></div>" +
       "<div><span>Position</span><b>" + n(q) + "</b></div><div><span>Target 2R</span><b>" + rs(x.t1) + "</b></div>" +
       "<div><span>Target 3R</span><b>" + rs(x.t2) + "</b></div><div><span>Stop distance</span><b>" + (ok(x.risk_pct) ? x.risk_pct.toFixed(1) + "%" : "–") + "</b></div></div>" +
-      (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(w) + "</div>"; }).join("") + "</article>";
-  }).join("");
-  return "<h2>Swing setups</h2>" +
-    '<div class="seg-ctl" role="group" aria-label="Setup"><button type="button" data-swing="pullbacks" aria-pressed="' + pb + '">Pullbacks ' + (p.pullbacks || []).length + "</button>" +
-    '<button type="button" data-swing="bases" aria-pressed="' + !pb + '">Tight bases ' + (p.bases || []).length + "</button></div>" +
-    '<p class="lede">' + (pb ? "Leaders in an uptrend that dipped to their 20-day average on light volume. The setup is valid only if price trades above yesterday's high." :
-                               "Narrow 10-day ranges near 52-week highs with volume drying up. The setup is valid only on a break above the 10-day high.") +
-    " Typical holding period 2 to 10 days.</p>" +
-    (rows ? '<div class="ledger">' + rows + "</div>" : '<div class="empty"><p>No stocks fit this setup today.</p></div>');
+      (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(w) + "</div>"; }).join("") +
+      '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="swing:' + key + ":" + i + '">Paper trade</button></div></article>';
+  });
+  if (!cards.length) return [page(pb ? "Pullbacks" : "Tight bases", '<div class="empty"><p>No stocks fit this setup today.</p></div>')];
+  var lede = '<p class="lede">' + (pb ? "Uptrend leaders that dipped to their 20-day average on light volume. Valid only if price trades above yesterday's high." :
+    "Narrow 10-day ranges near 52-week highs with volume drying up. Valid only on a break above the 10-day high.") + " Typical holding 2 to 10 days.</p>";
+  return chunk(cards, 3).map(function(c, k){ return page((pb ? "Pullbacks " : "Tight bases ") + (k * 3 + 1) + "–" + (k * 3 + c.length), (k === 0 ? lede : "") + c.join(""), list.length + " in all"); });
 }
 
-/* ---- Settings */
-function viewSettings(){
-  var perm = "Notification" in window ? Notification.permission : "unsupported";
-  function num(id, label, help, val, step){
-    return '<div class="field"><label for="' + id + '">' + label + "<small>" + help + '</small></label><input id="' + id + '" type="number" inputmode="decimal" step="' + step + '" value="' + val + '"></div>';
-  }
-  return "<h2>Capital</h2>" +
-    num("s-capital", "Capital", "Used only to size suggested positions. Stays on this phone.", S.capital, 1000) +
-    num("s-risk", "Risk per trade", "Percent of capital between entry and stop.", S.risk, 0.1) +
-    num("s-maxpos", "Largest position", "Percent of capital in one stock.", S.maxpos, 5) +
-    num("s-loss", "Daily stop", "Losing trades after which the checklist says stop.", S.lossR, 1) +
-    '<p class="note">Suggested positions across the app update as soon as you change a value.</p>' +
-    "<h2>Notifications</h2>" +
-    '<div class="field"><label for="s-push">Notifications on this phone<small>' +
-      (S.push ? "Arrive even when the app is closed. Your capital never leaves the phone." :
-       perm === "denied" ? "Blocked for this site. Allow notifications in your browser's site settings first." :
-       "Sent from GitHub on trading days, even when the app is closed.") +
-    '</small></label><button class="switch" id="s-push" type="button" role="switch" aria-checked="' + !!S.push + '" aria-label="Notifications on this phone"' + (st.pushBusy ? " disabled" : "") + "></button></div>" +
-    (st.pushNote ? '<div class="warn">' + esc(st.pushNote) + "</div>" : "") +
-    (S.push ? KINDS.map(function(k){
-      return '<div class="field sub"><label for="k-' + k[0] + '">' + k[1] + "<small>" + k[2] + '</small></label><button class="switch" id="k-' + k[0] +
-        '" data-kind="' + k[0] + '" type="button" role="switch" aria-checked="' + !!S.kinds[k[0]] + '" aria-label="' + k[1] + '"></button></div>';
-    }).join("") + '<p class="note"><button class="btn ghost" id="s-sample" type="button">Show a sample</button></p>' +
-      '<p class="note">On Xiaomi, Oppo, Vivo or Realme phones, allow Chrome to run in the background (battery settings) so breakout alerts aren\'t delayed.</p>' : "") +
-    "<h2>Data</h2>" +
-    '<div class="field"><label for="s-demo">Sample data<small>Made-up prices for trying the app.</small></label><button class="switch" id="s-demo" type="button" role="switch" aria-checked="' + (S.source === "demo") + '" aria-label="Sample data"></button></div>' +
-    '<p class="note">The screener runs on GitHub every weekday: the full screen at about 9:12 AM, the live scan every 5 minutes from 9:30 to 11:00, the square-off reminder at 3:15 and a preview around 7 PM. ' +
-    "It reads NSE (F&amp;O list, open interest, flows, results, pre-open) and Yahoo Finance (prices). A screening aid, not investment advice.</p>" +
-    viewGetApp() + viewTermsSettings();
+/* ---- Test: list chips, then Overview, Stocks and the paper trades */
+var STATUS_T = {target:["up", "Target hit"], stop:["down", "Stopped out"], eod:["", "Closed at end of day"], time:["", "Closed after max days"],
+                manual:["", "Closed by hand"], open:["gold", "Open"], waiting:["", "Waiting for the date"], nodata:["", "No prices yet"], invalid:["down", "Check entry and stop"]};
+function testToolbar(){
+  var l = curList();
+  return '<div class="chips" role="group" aria-label="Watchlists">' + T.lists.map(function(x){
+    return '<button class="chip" type="button" data-list="' + x.id + '" aria-pressed="' + (x.id === l.id) + '" aria-label="' + esc(x.name) + ", " + x.symbols.length + ' stocks">' + esc(x.name) + "<i>" + x.symbols.length + "</i></button>";
+  }).join("") + (T.lists.length < MAX_LISTS ? '<button class="chip" type="button" id="t-newlist" aria-label="New watchlist">＋ New</button>' : "") + "</div>";
 }
-/* ---- Get the app (like Fovea: Android browsers download the real app) */
+function viewTest(){
+  var l = curList();
+  if (!PX.tried && !PX.loading && st.base) loadTestPrices();
+  if (!st.base && !PX.err) PX.err = "Prices for results arrive with the first published screen.";
+  var trades = T.trades.filter(function(t){ return t.listId === l.id; });
+  var res = {}; T.trades.forEach(function(t){ res[t.id] = resultOf(t); });
+  var mine = trades.map(function(t){ return res[t.id]; }), all = T.trades.map(function(t){ return res[t.id]; });
+  var sm = PaperEngine.summarize(mine), sa = PaperEngine.summarize(all);
+  function stats(s){
+    return '<div class="stats"><div class="fact"><b>' + s.closed + "</b><span>Closed</span></div>" +
+      '<div class="fact"><b>' + (s.winRate == null ? "–" : Math.round(s.winRate) + "%") + "</b><span>Win rate</span></div>" +
+      '<div class="fact"><b class="' + tone(s.avgR) + '">' + rr(s.avgR) + "</b><span>Average</span></div>" +
+      '<div class="fact"><b class="' + tone(s.totalR) + '">' + rr(s.totalR) + "</b><span>Total closed</span></div>" +
+      '<div class="fact"><b>' + s.open + "</b><span>Open</span></div>" +
+      '<div class="fact"><b class="' + tone(s.openR) + '">' + (s.open ? rr(s.openR) : "–") + "</b><span>Open now</span></div></div>";
+  }
+  var asOf = PX.meta && PX.meta.updated ? "Prices up to " + niceDate(PX.meta.updated) + " " + hmOf(PX.meta.updated) + "." : "";
+  var overview = '<div class="glass tile"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><b style="font:600 17px var(--cond)">' + esc(l.name) + "</b>" +
+      '<span class="inline"><button class="btn ghost small" type="button" id="t-rename">Rename</button>' +
+      (T.lists.length > MIN_LISTS ? '<button class="btn ghost small" type="button" id="t-dellist">Delete</button>' : "") + "</span></div>" +
+      '<p class="muted small" style="margin:4px 0 10px">' + l.symbols.length + " of " + MAX_STOCKS + " stocks, " + trades.length + " paper trades</p>" + stats(sm) + "</div>" +
+    '<div class="glass tile"><p class="muted small" style="margin:0 0 8px">All watchlists</p>' + stats(sa) + "</div>" +
+    '<p class="note">R is the result measured in units of the risk between entry and stop: +2R means twice what the stop would have cost. ' +
+      "Paper results are hypothetical: they ignore brokerage, taxes, slippage and liquidity, and do not predict real results. " + esc(asOf) + "</p>" +
+    (PX.err ? '<div class="warn">' + esc(PX.err) + "</div>" : "");
+
+  var rows = l.symbols.map(function(s){
+    var lp = lastPrice(s);
+    return '<div class="wl-row"><div><span class="sym">' + esc(s) + '</span><span class="ind">' + (lp ? rs(lp.price) + ' <span class="' + tone(lp.chg) + '">' + pc(lp.chg) + "</span>" : "no price yet") + "</span></div>" +
+      '<button class="btn small" type="button" data-trade="' + esc(s) + '">Paper trade</button>' +
+      '<button class="x" type="button" data-unwatch="' + esc(s) + '" aria-label="Remove ' + esc(s) + '">✕</button></div>';
+  }).join("");
+  var add = l.symbols.length < MAX_STOCKS
+    ? '<form class="inline" id="t-addform" style="margin-top:10px"><input type="text" id="t-addsym" list="t-uni" placeholder="Add a stock, e.g. RELIANCE" autocomplete="off" autocapitalize="characters" style="flex:1">' +
+      '<datalist id="t-uni">' + universe().map(function(s){ return "<option value=\"" + esc(s) + "\">"; }).join("") + "</datalist>" +
+      '<button class="btn" type="submit">Add</button></form>'
+    : '<p class="note">This watchlist is full (' + MAX_STOCKS + " stocks). Remove one to add another, or use another watchlist.</p>";
+  var stocks = '<div class="glass tile">' + (rows || '<p class="muted" style="margin:4px 0">No stocks yet. Add up to ' + MAX_STOCKS + " F&amp;O stocks to practise on.</p>") + add + "</div>";
+
+  var order = trades.slice().sort(function(a, b){
+    var oa = res[a.id].status === "open" ? 0 : 1, ob = res[b.id].status === "open" ? 0 : 1;
+    return oa - ob || (b.date + b.time).localeCompare(a.date + a.time);
+  });
+  var tcards = order.map(function(t){ return tradeCard(t, res[t.id]); });
+  var pages = [page("Overview", overview), page("Stocks", stocks, l.symbols.length + " / " + MAX_STOCKS)];
+  if (!tcards.length) pages.push(page("Paper trades", '<div class="empty"><p>No paper trades in this watchlist yet. On the Stocks page tap Paper trade, or use Paper trade on any setup in Intraday, Live or Swing.</p></div>'));
+  chunk(tcards, 2).forEach(function(c, k, all){ pages.push(page("Paper trades" + (all.length > 1 ? " " + (k + 1) + "/" + all.length : ""), c.join(""), trades.length)); });
+  pages.push(page("Backup", '<div class="glass tile"><p style="margin:0 0 10px">' + (signedIn() ? "Your watchlists and paper trades are saved to your profile and appear on any device you sign in on." :
+      "Your watchlists and paper trades are saved on this phone only. Create a profile in Settings to use them on any device.") + "</p>" +
+    '<div class="inline"><button class="btn ghost small" type="button" id="t-export">Save a backup file</button>' +
+    '<label class="btn ghost small" style="display:inline-flex;align-items:center">Restore from file<input type="file" id="t-import" accept="application/json" hidden></label></div></div>'));
+  return pages;
+}
+function tradeCard(t, r){
+  var long = t.side === "long", sp = STATUS_T[r.status] || ["", r.status];
+  var when = niceDate(t.date) + " " + t.time;
+  var line;
+  if (["target", "stop", "eod", "time", "manual"].indexOf(r.status) >= 0)
+    line = sp[1] + " at <b>" + rs(r.exitPrice) + "</b> on " + esc(niceDate(r.exitDate)) + (r.exitTime && r.exitTime !== "day" ? " " + esc(r.exitTime) : "") +
+      ': <b class="' + tone(r.r) + '">' + rr(r.r) + "</b>, " + '<span class="' + tone(r.pct) + '">' + pc(r.pct) + "</span> (" + (r.pts >= 0 ? "+" : "−") + n(Math.abs(r.pts), 2) + " a share).";
+  else if (r.status === "open")
+    line = "Now <b>" + rs(r.last) + "</b> (" + esc(niceDate(r.lastDate)) + (r.lastTime && r.lastTime !== "15:30" ? " " + esc(r.lastTime) : "") + '): <b class="' + tone(r.r) + '">' + rr(r.r) + "</b> open, " +
+      '<span class="' + tone(r.pct) + '">' + pc(r.pct) + "</span>.";
+  else line = esc(sp[1]) + ".";
+  var extra = r.r != null && r.status !== "invalid" ? '<span class="muted small">Best ' + rr(r.mfeR) + ", worst " + rr(r.maeR) + " during the trade.</span>" : "";
+  return '<div class="stock glass"><div class="head"><span><span class="sym">' + esc(t.symbol) + '</span><span class="side ' + (long ? "long" : "short") + '">' + (long ? "Long" : "Short") + "</span>" +
+      '<span class="status ' + (sp[0] === "up" ? "go" : sp[0] === "down" ? "fail" : sp[0] === "gold" ? "weak" : "") + '">' + esc(sp[1]) + "</span>" +
+      '<span class="ind">' + (t.type === "intraday" ? "Intraday" : "Swing, up to " + (t.maxDays || 10) + " days") + ", entered " + esc(when) + "</span></span></div>" +
+    '<div class="levels"><div><span>Entry</span><b>' + rs(t.entry) + "</b></div><div><span>Stop</span><b>" + rs(t.stop) + "</b></div>" +
+      "<div><span>Target</span><b>" + (ok(t.target) ? rs(t.target) : "–") + "</b></div><div><span>Position</span><b>" + n(t.qty) + "</b></div>" +
+      "<div><span>Exit</span><b>" + (r.exitPrice != null ? rs(r.exitPrice) : "–") + "</b></div><div><span>Result</span><b class=\"" + tone(r.r) + '">' + rr(r.r) + "</b></div></div>" +
+    '<div class="result">' + line + (extra ? "<br>" + extra : "") + "</div>" +
+    (r.entryOk === false ? '<div class="warn">That entry price did not trade at that time. Check the date, time and price.</div>' : "") +
+    (r.approx ? '<div class="warn">Approximate: 15-minute prices were not available for part of this trade.</div>' : "") +
+    r.notes.filter(function(x){ return !/No 15-minute/.test(x); }).map(function(x){ return '<p class="muted small" style="margin:6px 0 0">' + esc(x) + "</p>"; }).join("") +
+    (t.note ? '<p class="muted small" style="margin:6px 0 0">Note: ' + esc(t.note) + "</p>" : "") +
+    '<div class="row-actions">' + (r.status === "open" || r.status === "waiting" || r.status === "nodata" ? '<button class="btn ghost small" type="button" data-closetrade="' + t.id + '">Close by hand</button>' : "") +
+      '<button class="btn ghost small" type="button" data-edittrade="' + t.id + '">Edit</button>' +
+      '<button class="btn ghost small" type="button" data-deltrade="' + t.id + '">Delete</button></div></div>';
+}
+
+/* paper trade form */
+function openSheet(html){ $("#sheet-in").innerHTML = html; $("#sheet").hidden = false; var f = $("#sheet-in input,#sheet-in select"); if (f) setTimeout(function(){ f.focus(); }, 50); }
+function closeSheet(){ $("#sheet").hidden = true; $("#sheet-in").innerHTML = ""; }
+$("#sheet").addEventListener("click", function(e){ if (e.target.id === "sheet") closeSheet(); });
+document.addEventListener("keydown", function(e){ if (e.key === "Escape" && !$("#sheet").hidden) closeSheet(); });
+function nowTime(){ var t = ist(); return t.mins < 555 ? "09:15" : t.mins > 930 ? "15:15" : t.hm; }
+function tradeForm(pre){
+  // pre: {symbol, side, type, entry, stop, target, id (edit), listId}
+  var t = ist(), lp = lastPrice(pre.symbol), atr = atrOf(pre.symbol);
+  ["entry", "stop", "target"].forEach(function(k){ if (ok(pre[k])) pre[k] = Math.round(pre[k] * 20) / 20; });   // to the 5-paisa tick
+  var entry = ok(pre.entry) ? pre.entry : lp && lp.price;
+  var side = pre.side || "long", type = pre.type || "intraday", s = side === "short" ? -1 : 1;
+  var stop = ok(pre.stop) ? pre.stop : ok(entry) && ok(atr) ? Math.round((entry - s * atr * (type === "intraday" ? 0.5 : 1.5)) * 20) / 20 : null;
+  var target = ok(pre.target) ? pre.target : ok(entry) && ok(stop) ? Math.round((entry + s * 2 * Math.abs(entry - stop)) * 20) / 20 : null;
+  var q = pre.qty || (ok(entry) && ok(stop) ? qty(entry, Math.abs(entry - stop), 1) : "");
+  var lists = T.lists.map(function(l){ return '<option value="' + l.id + '"' + (l.id === (pre.listId || st.list) ? " selected" : "") + ">" + esc(l.name) + " (" + l.symbols.length + ")</option>"; }).join("");
+  openSheet('<h3>' + (pre.id ? "Edit paper trade" : "Paper trade") + ": " + esc(pre.symbol) + "</h3>" +
+    '<p class="muted small" style="margin:0">Note the exact entry as you would have placed it. For practice only; no order is sent anywhere.</p>' +
+    '<form id="tf" class="form" novalidate>' +
+      '<label class="full">Watchlist<select class="input" name="listId">' + lists + "</select></label>" +
+      '<label>Side<select class="input" name="side"><option value="long"' + (side === "long" ? " selected" : "") + '>Long</option><option value="short"' + (side === "short" ? " selected" : "") + ">Short</option></select></label>" +
+      '<label>Type<select class="input" name="type"><option value="intraday"' + (type === "intraday" ? " selected" : "") + '>Intraday</option><option value="swing"' + (type === "swing" ? " selected" : "") + ">Swing</option></select></label>" +
+      '<label>Entry date<input type="date" name="date" value="' + esc(pre.date || t.date) + '" max="' + t.date + '"></label>' +
+      '<label>Entry time (IST)<input type="time" name="time" min="09:15" max="15:30" value="' + esc(pre.time || nowTime()) + '"></label>' +
+      '<label>Entry price<input type="number" name="entry" step="0.05" inputmode="decimal" value="' + (ok(entry) ? entry : "") + '"></label>' +
+      '<label>Stop<input type="number" name="stop" step="0.05" inputmode="decimal" value="' + (ok(stop) ? stop : "") + '"></label>' +
+      '<label>Target (optional)<input type="number" name="target" step="0.05" inputmode="decimal" value="' + (ok(target) ? target : "") + '"></label>' +
+      '<label>Position (shares)<input type="number" name="qty" step="1" min="1" inputmode="numeric" value="' + esc(q) + '"></label>' +
+      '<label class="full" id="tf-days"' + (type === "swing" ? "" : " hidden") + '>Close after this many days if neither level is hit<input type="number" name="maxDays" min="1" max="30" value="' + (pre.maxDays || 10) + '"></label>' +
+      '<label class="full">Note (optional)<input type="text" name="note" maxlength="140" value="' + esc(pre.note || "") + '"></label>' +
+    "</form>" +
+    '<p class="muted small" id="tf-sugg"></p><p class="form-err" id="tf-err" hidden></p>' +
+    '<div class="gate-actions"><button class="btn ghost" type="button" id="tf-cancel">Cancel</button><button class="btn gold" type="button" id="tf-save">Save paper trade</button></div>');
+  var f = $("#tf").elements;
+  function sugg(){
+    var e = +f.entry.value, sp = +f.stop.value;
+    $("#tf-sugg").textContent = e > 0 && sp > 0 && e !== sp ? "Suggested position from your capital settings: " + qty(e, Math.abs(e - sp), 1) + " shares." : "";
+  }
+  f.type.onchange = function(){ $("#tf-days").hidden = f.type.value !== "swing"; };
+  f.entry.oninput = f.stop.oninput = sugg; sugg();
+  $("#tf-cancel").onclick = closeSheet;
+  $("#tf-save").onclick = function(){
+    var v = {listId:f.listId.value, side:f.side.value, type:f.type.value, date:f.date.value, time:f.time.value, entry:+f.entry.value, stop:+f.stop.value,
+             target:f.target.value === "" ? null : +f.target.value, qty:Math.floor(+f.qty.value), maxDays:Math.max(1, Math.min(30, +f.maxDays.value || 10)), note:f.note.value.trim()};
+    var s2 = v.side === "short" ? -1 : 1, err = "";
+    if (!/^\d{4}-\d\d-\d\d$/.test(v.date) || v.date > ist().date) err = "Pick an entry date that isn't in the future.";
+    else if (!/^\d\d:\d\d$/.test(v.time) || v.time < "09:15" || v.time > "15:30") err = "Entry time must be between 09:15 and 15:30.";
+    else if (!(v.entry > 0)) err = "Enter the exact entry price.";
+    else if (!(v.stop > 0) || s2 * (v.entry - v.stop) <= 0) err = v.side === "long" ? "For a long trade the stop must be below the entry." : "For a short trade the stop must be above the entry.";
+    else if (v.target != null && s2 * (v.target - v.entry) <= 0) err = v.side === "long" ? "For a long trade the target must be above the entry." : "For a short trade the target must be below the entry.";
+    else if (!(v.qty > 0)) err = "Enter the position in shares.";
+    var dest = T.lists.filter(function(l){ return l.id === v.listId; })[0];
+    if (!err && dest.symbols.indexOf(pre.symbol) < 0 && dest.symbols.length >= MAX_STOCKS) err = dest.name + " is full (" + MAX_STOCKS + " stocks). Pick another watchlist.";
+    if (err){ $("#tf-err").textContent = err; $("#tf-err").hidden = false; return; }
+    if (dest.symbols.indexOf(pre.symbol) < 0){ dest.symbols.push(pre.symbol); dest.updatedAt = Date.now(); }
+    var now = Date.now();
+    if (pre.id){ var tr = T.trades.filter(function(x){ return x.id === pre.id; })[0]; Object.assign(tr, v, {updatedAt:now}); }
+    else T.trades.push(Object.assign({id:uid(), symbol:pre.symbol, exit:null, createdAt:now, updatedAt:now}, v));
+    touchT(); closeSheet(); st.list = v.listId; toast("Paper trade saved");
+    if (st.tab !== "test") setTab("test"); else render();
+    loadTestPrices();
+  };
+}
+function closeForm(id){
+  var t = T.trades.filter(function(x){ return x.id === id; })[0], lp = lastPrice(t.symbol), now = ist();
+  openSheet("<h3>Close " + esc(t.symbol) + " by hand</h3>" +
+    '<p class="muted small" style="margin:0">Note the exact exit. If the stop or target was hit before this time, that result still counts.</p>' +
+    '<form id="cf" class="form" novalidate><label>Exit date<input type="date" name="date" value="' + now.date + '" min="' + t.date + '" max="' + now.date + '"></label>' +
+    '<label>Exit time (IST)<input type="time" name="time" min="09:15" max="15:30" value="' + nowTime() + '"></label>' +
+    '<label class="full">Exit price<input type="number" name="price" step="0.05" inputmode="decimal" value="' + (lp ? lp.price : "") + '"></label></form>' +
+    '<p class="form-err" id="cf-err" hidden></p>' +
+    '<div class="gate-actions"><button class="btn ghost" type="button" id="cf-cancel">Cancel</button><button class="btn gold" type="button" id="cf-save">Close trade</button></div>');
+  var f = $("#cf").elements;
+  $("#cf-cancel").onclick = closeSheet;
+  $("#cf-save").onclick = function(){
+    var v = {price:+f.price.value, date:f.date.value, time:f.time.value}, err = "";
+    if (!(v.price > 0)) err = "Enter the exit price.";
+    else if (!v.date || v.date < t.date || v.date > ist().date) err = "The exit date must be between the entry date and today.";
+    else if (v.date === t.date && v.time <= t.time) err = "The exit must be after the entry time.";
+    if (err){ $("#cf-err").textContent = err; $("#cf-err").hidden = false; return; }
+    t.exit = v; t.updatedAt = Date.now(); touchT(); closeSheet(); render();
+  };
+}
+function practiceFrom(ref){
+  var p = ref.split(":"), pre;
+  if (p[0] === "intra"){ var x = st.pre[p[1]][+p[2]], s = p[1] === "longs" ? 1 : -1;
+    pre = {symbol:x.symbol, side:s === 1 ? "long" : "short", type:"intraday", entry:x.price, stop:+(x.price - s * x.est_stop_dist).toFixed(2), target:+(x.price + s * 2 * x.est_stop_dist).toFixed(2)}; }
+  else if (p[0] === "live"){ var r = st.orb.rows.filter(function(y){ return y.symbol === p[1]; })[0];
+    pre = {symbol:r.symbol, side:r.side, type:"intraday", entry:r.entry, stop:r.stop, target:r.t1, time:r.trigger_time && r.trigger_time > "09:15" ? r.trigger_time : null}; }
+  else { var w = st.pre[p[1]][+p[2]]; pre = {symbol:w.symbol, side:"long", type:"swing", entry:w.entry, stop:w.stop, target:w.t1}; }
+  pre.qty = qty(pre.entry, Math.abs(pre.entry - pre.stop), st.pre.regime && st.pre.regime.size_mult);
+  if (!PX.daily) loadTestPrices();
+  tradeForm(pre);
+}
+function exportT(){
+  var blob = new Blob([JSON.stringify({app:"Opening Bell", kind:"paper-trades", saved:new Date().toISOString(), data:T}, null, 1)], {type:"application/json"});
+  var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "opening-bell-paper-trades-" + ist().date + ".json";
+  document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function importT(file){
+  var rd = new FileReader();
+  rd.onload = function(){
+    try { var j = JSON.parse(rd.result), d = j.data || j; if (!d.lists || !d.trades) throw 0;
+      T = mergeT(T, d); touchT(); render(); toast("Backup restored"); } catch(e){ toast("That file isn't an Opening Bell backup."); }
+  };
+  rd.readAsText(file);
+}
+
+/* ---- Settings: profile, capital, notifications, app, terms */
 var APK_URL = "https://github.com/ViktorPapa469/ViktorPapa469.github.io/releases/download/opening-bell/OpeningBell.apk";
 function inAndroidApp(){
   try { if (params.get("app") === "android") sessionStorage.setItem("ob-android", "1"); } catch(e){}
   try { return sessionStorage.getItem("ob-android") === "1" || document.referrer.indexOf("android-app://") === 0; } catch(e){ return false; }
 }
-function viewGetApp(){
-  var android = /Android/.test(navigator.userAgent || "");
-  var body;
-  if (inAndroidApp()) body = '<p class="note">You are using the Opening Bell Android app. Updates arrive automatically with the website.</p>';
-  else if (android) body = '<div class="field"><label>Android app<small>Installs Opening Bell like any other app, with its own icon and notifications.</small></label>' +
-      '<button class="btn" id="s-apk" type="button">Download</button></div><p class="note" id="apk-note" hidden></p>';
-  else if (isIOS()) body = '<p class="note">On iPhone, open this page in Safari, tap Share, then Add to Home Screen.</p>';
-  else body = '<p class="note">On an Android phone, open this page in Chrome to download the app. On iPhone, use Safari\'s Share menu and Add to Home Screen.</p>' +
-      '<p class="note"><button class="btn ghost" id="s-install" type="button" hidden>Add to this device</button></p>';
-  return "<h2>Get the app</h2>" + body;
+function viewSettings(){
+  var perm = "Notification" in window ? Notification.permission : "unsupported";
+  function num(id, label, help, val, step){
+    return '<div class="field"><label for="' + id + '">' + label + "<small>" + help + '</small></label><input id="' + id + '" type="number" inputmode="decimal" step="' + step + '" value="' + val + '"></div>';
+  }
+  var c = cred(), prof;
+  if (signedIn()) prof = '<div class="glass tile"><p style="margin:0 0 4px">Signed in as <b>' + esc(c.email) + "</b></p>" +
+      '<p class="muted small" style="margin:0 0 10px">Your capital settings, watchlists and paper trades are saved to your profile and appear on any device where you sign in with this email.</p>' +
+      '<div class="inline"><button class="btn ghost small" type="button" id="p-out">Sign out</button><button class="btn ghost small" type="button" id="p-del">Delete profile</button></div></div>';
+  else prof = '<div class="glass tile"><p style="margin:0 0 10px">Sign in with your email to use your capital settings, watchlists and paper trades on any device. Only your email is needed, with a password to protect it.</p>' +
+      '<form class="stack" id="p-form" novalidate><input type="email" id="p-email" placeholder="Email" autocomplete="email" required>' +
+      '<input type="password" id="p-pw" placeholder="Password (6 or more characters)" autocomplete="current-password" minlength="6" required>' +
+      '<div class="inline"><button class="btn gold" type="button" id="p-create"' + (st.authBusy ? " disabled" : "") + '>Create profile</button>' +
+      '<button class="btn ghost" type="button" id="p-in"' + (st.authBusy ? " disabled" : "") + '>Sign in</button>' +
+      '<button class="linkish small muted" type="button" id="p-reset">Forgot password</button></div></form>' +
+      '<p class="note">If you use Fovea with this email, sign in with the same password: the two apps share one sign-in.</p></div>';
+  prof += st.authNote ? '<div class="warn">' + esc(st.authNote) + "</div>" : "";
+
+  var capital = '<div class="glass tile">' +
+    num("s-capital", "Capital", "Used only to size suggested positions." + (signedIn() ? " Saved to your profile." : " Stays on this phone."), S.capital, 1000) +
+    num("s-risk", "Risk per trade", "Percent of capital between entry and stop.", S.risk, 0.1) +
+    num("s-maxpos", "Largest position", "Percent of capital in one stock.", S.maxpos, 5) +
+    num("s-loss", "Daily stop", "Losing trades after which the checklist says stop.", S.lossR, 1) + "</div>" +
+    '<p class="note">Suggested positions across the app update as soon as you change a value.</p>';
+
+  var notif = '<div class="glass tile"><div class="field"><label for="s-push">Notifications on this phone<small>' +
+      (S.push ? "Arrive even when the app is closed." : perm === "denied" ? "Blocked for this site. Allow notifications in your browser's site settings first." :
+       "Sent from GitHub on trading days, even when the app is closed.") +
+    '</small></label><button class="switch" id="s-push" type="button" role="switch" aria-checked="' + !!S.push + '" aria-label="Notifications on this phone"' + (st.pushBusy ? " disabled" : "") + "></button></div>" +
+    (S.push ? KINDS.map(function(k){
+      return '<div class="field sub"><label for="k-' + k[0] + '">' + k[1] + "<small>" + k[2] + '</small></label><button class="switch" id="k-' + k[0] +
+        '" data-kind="' + k[0] + '" type="button" role="switch" aria-checked="' + !!S.kinds[k[0]] + '" aria-label="' + k[1] + '"></button></div>';
+    }).join("") : "") + "</div>" +
+    (st.pushNote ? '<div class="warn">' + esc(st.pushNote) + "</div>" : "") +
+    (S.push ? '<div class="inline"><button class="btn ghost small" id="s-sample" type="button">Show a sample</button></div>' +
+      '<p class="note">On Xiaomi, Oppo, Vivo or Realme phones, allow Chrome (or the Opening Bell app) to run in the background so breakout alerts aren\'t delayed.</p>' : "");
+
+  var android = /Android/.test(navigator.userAgent || ""), getApp;
+  if (inAndroidApp()) getApp = '<p style="margin:0">You are using the Opening Bell Android app. Updates arrive automatically with the website.</p>';
+  else if (android) getApp = '<div class="field"><label>Android app<small>Installs Opening Bell like any other app, with its own icon and notifications.</small></label>' +
+    '<button class="btn gold" id="s-apk" type="button">Download</button></div><p class="note" id="apk-note" hidden></p>';
+  else if (isIOS()) getApp = '<p style="margin:0">On iPhone, open this page in Safari, tap Share, then Add to Home Screen.</p>';
+  else getApp = '<p style="margin:0 0 8px">On an Android phone, open this page in Chrome to download the app. On iPhone, use Safari\'s Share menu and Add to Home Screen.</p>' +
+    '<button class="btn ghost small" id="s-install" type="button" hidden>Add to this device</button>';
+  var app = '<div class="glass tile">' + getApp + "</div>" +
+    '<div class="glass tile"><div class="field"><label for="s-demo">Sample data<small>Made-up prices for trying the app.</small></label><button class="switch" id="s-demo" type="button" role="switch" aria-checked="' + (S.source === "demo") + '" aria-label="Sample data"></button></div></div>' +
+    '<p class="note">The screener runs on GitHub every weekday: the full screen at about 9:12 AM, the live scan every 5 minutes from 9:30 to 11:00, the square-off reminder at 3:15 and a preview around 7 PM. ' +
+    "It reads NSE (F&amp;O list, open interest, flows, results, pre-open) and Yahoo Finance (prices).</p>";
+
+  var last = consentLog()[0];
+  var terms = '<div class="glass tile"><p style="margin:0 0 8px">' + (last ? "You accepted version " + esc(last.terms) + " on " + esc(new Date(last.at).toLocaleString("en-IN", {dateStyle:"medium", timeStyle:"short", timeZone:"Asia/Kolkata"})) + ". " : "") +
+      'Opening Bell is a screener for market study, not investment advice. The developer is not registered with SEBI. <a href="terms.html" target="_blank" rel="noopener">Read the terms and privacy notice</a>.</p></div>' +
+    '<div class="glass tile"><div class="field"><label>Withdraw consent<small>Turns off notifications, clears this phone\'s settings and paper trades, and stops the app until you accept again.</small></label>' +
+    '<button class="btn ghost small" id="s-withdraw" type="button">Withdraw</button></div></div>';
+
+  return [page("Profile", prof), page("Capital", capital), page("Notifications", notif), page("App and data", app), page("Terms and privacy", terms)];
 }
+
+/* ================================================================== events */
+var bip = null;
+addEventListener("beforeinstallprompt", function(e){ e.preventDefault(); bip = e; var x = $("#s-install"); if (x) x.hidden = false; });
 function apkGet(){
   var p = $("#apk-note");
   if (p){ p.textContent = "The app is downloading. When it finishes, open OpeningBell.apk from your notifications or Downloads and tap Install. If Android asks, allow installing from this browser."; p.hidden = false; }
   toast("Downloading Opening Bell…");
   location.href = APK_URL;
 }
-/* ---- Terms and privacy */
-function viewTermsSettings(){
-  var last = consentLog()[0];
-  return "<h2>Terms and privacy</h2>" +
-    '<p class="note">' + (last ? "You accepted version " + esc(last.terms) + " on " + esc(new Date(last.at).toLocaleString("en-IN", {dateStyle:"medium", timeStyle:"short", timeZone:"Asia/Kolkata"})) + ". " : "") +
-      'Opening Bell is a screener for market study, not investment advice. The developer is not registered with SEBI. <a href="terms.html" target="_blank" rel="noopener">Read the terms and privacy notice</a>.</p>' +
-    '<div class="field"><label>Withdraw consent<small>Turns off notifications, clears this phone\'s settings and stops the app until you accept again.</small></label>' +
-    '<button class="btn ghost" id="s-withdraw" type="button">Withdraw</button></div>';
-}
-
-/* ------------------------------------------------------------------ events */
-var bip = null;
-addEventListener("beforeinstallprompt", function(e){ e.preventDefault(); bip = e; var x = $("#s-install"); if (x) x.hidden = false; });
-
 function bindView(){
+  var x;
   document.querySelectorAll("[data-open]").forEach(function(b){
     b.onclick = function(){ var lv = $("#lv" + b.dataset.open), open = lv.hidden; lv.hidden = !open; b.setAttribute("aria-expanded", open); };
   });
   document.querySelectorAll("[data-side]").forEach(function(b){ b.onclick = function(){ st.side = b.dataset.side; render(); }; });
   document.querySelectorAll("[data-swing]").forEach(function(b){ b.onclick = function(){ st.swing = b.dataset.swing; render(); }; });
+  document.querySelectorAll("[data-practice]").forEach(function(b){ b.onclick = function(){ practiceFrom(b.dataset.practice); }; });
+  if ((x = $("#tryDemo"))) x.onclick = function(){ S.source = "demo"; saveS(); load(); };
   [["s-capital","capital"],["s-risk","risk"],["s-maxpos","maxpos"],["s-loss","lossR"]].forEach(function(p){
     var el = document.getElementById(p[0]); if (!el) return;
-    el.onchange = function(){ var v = parseFloat(el.value); if (ok(v) && v > 0){ S[p[1]] = v; saveS(); render(); } else el.value = S[p[1]]; };
+    el.onchange = function(){ var v = parseFloat(el.value); if (ok(v) && v > 0){ S[p[1]] = v; changedS(); render(); } else el.value = S[p[1]]; };
   });
-  var a = $("#s-push");
-  if (a) a.onclick = function(){ if (S.push) pushOff(); else pushOn(); };
+  if ((x = $("#s-push"))) x.onclick = function(){ if (S.push) pushOff(); else pushOn(); };
   document.querySelectorAll("[data-kind]").forEach(function(b){
-    b.onclick = function(){ S.kinds[b.dataset.kind] = !S.kinds[b.dataset.kind]; saveS(); render(); pushKinds(); };
+    b.onclick = function(){ S.kinds[b.dataset.kind] = !S.kinds[b.dataset.kind]; changedS(); render(); pushKinds(); };
   });
-  var sm = $("#s-sample"); if (sm) sm.onclick = pushSample;
-  var d = $("#s-demo");
-  if (d) d.onclick = function(){ S.source = S.source === "demo" ? "live" : "demo"; saveS(); load(); };
-  var ins = $("#s-install");
-  if (ins){ ins.hidden = !bip; ins.onclick = function(){ if (bip){ bip.prompt(); bip = null; ins.hidden = true; } }; }
-  var apk = $("#s-apk"); if (apk) apk.onclick = apkGet;
-  var wd = $("#s-withdraw"); if (wd) wd.onclick = withdraw;
+  if ((x = $("#s-sample"))) x.onclick = pushSample;
+  if ((x = $("#s-demo"))) x.onclick = function(){ S.source = S.source === "demo" ? "live" : "demo"; saveS(); load(); };
+  var ins = $("#s-install"); if (ins){ ins.hidden = !bip; ins.onclick = function(){ if (bip){ bip.prompt(); bip = null; ins.hidden = true; } }; }
+  if ((x = $("#s-apk"))) x.onclick = apkGet;
+  if ((x = $("#s-withdraw"))) x.onclick = withdraw;
+  // profile
+  function creds(){ return [($("#p-email").value || "").trim(), $("#p-pw").value || ""]; }
+  if ((x = $("#p-create"))) x.onclick = function(){ var c = creds(); if (!c[0] || c[1].length < 6){ st.authNote = "Enter your email and a password of at least 6 characters."; render(); return; } createProfile(c[0], c[1]); };
+  if ((x = $("#p-in"))) x.onclick = function(){ var c = creds(); if (!c[0] || !c[1]){ st.authNote = "Enter your email and password."; render(); return; } signIn(c[0], c[1]); };
+  if ((x = $("#p-reset"))) x.onclick = function(){ resetPassword(creds()[0]); };
+  if ((x = $("#p-out"))) x.onclick = signOut;
+  if ((x = $("#p-del"))) x.onclick = deleteProfile;
+  // test
+  document.querySelectorAll("[data-list]").forEach(function(b){ b.onclick = function(){ st.list = b.dataset.list; render(); }; });
+  if ((x = $("#t-newlist"))) x.onclick = function(){
+    if (T.lists.length >= MAX_LISTS) return;
+    var name = (prompt("Name for the new watchlist", "Watchlist " + (T.lists.length + 1)) || "").trim().slice(0, 30); if (!name) return;
+    var l = {id:uid(), name:name, symbols:[], updatedAt:Date.now()}; T.lists.push(l); st.list = l.id; touchT(); render();
+  };
+  if ((x = $("#t-rename"))) x.onclick = function(){
+    var l = curList(), name = (prompt("Rename watchlist", l.name) || "").trim().slice(0, 30); if (!name) return;
+    l.name = name; l.updatedAt = Date.now(); touchT(); render();
+  };
+  if ((x = $("#t-dellist"))) x.onclick = function(){
+    var l = curList(), cnt = T.trades.filter(function(t){ return t.listId === l.id; }).length;
+    if (!confirm("Delete " + l.name + (cnt ? " and its " + cnt + " paper trades" : "") + "?")) return;
+    T.deleted.push(l.id); T.trades.filter(function(t){ return t.listId === l.id; }).forEach(function(t){ T.deleted.push(t.id); });
+    T.trades = T.trades.filter(function(t){ return t.listId !== l.id; }); T.lists = T.lists.filter(function(y){ return y.id !== l.id; });
+    st.list = T.lists[0].id; touchT(); render();
+  };
+  if ((x = $("#t-addform"))) x.onsubmit = function(e){
+    e.preventDefault();
+    var l = curList(), s = ($("#t-addsym").value || "").trim().toUpperCase(), uni = universe();
+    if (!s) return;
+    if (uni.length && uni.indexOf(s) < 0){ toast(s + " isn't in the F&O list the app has prices for."); return; }
+    if (l.symbols.indexOf(s) >= 0){ toast(s + " is already in " + l.name + "."); return; }
+    if (l.symbols.length >= MAX_STOCKS){ toast(l.name + " is full."); return; }
+    l.symbols.push(s); l.updatedAt = Date.now(); touchT(); render();
+  };
+  document.querySelectorAll("[data-unwatch]").forEach(function(b){ b.onclick = function(){
+    var l = curList(); l.symbols = l.symbols.filter(function(s){ return s !== b.dataset.unwatch; }); l.updatedAt = Date.now(); touchT(); render(); }; });
+  document.querySelectorAll("[data-trade]").forEach(function(b){ b.onclick = function(){ tradeForm({symbol:b.dataset.trade, listId:st.list}); }; });
+  document.querySelectorAll("[data-closetrade]").forEach(function(b){ b.onclick = function(){ closeForm(b.dataset.closetrade); }; });
+  document.querySelectorAll("[data-edittrade]").forEach(function(b){ b.onclick = function(){
+    var t = T.trades.filter(function(y){ return y.id === b.dataset.edittrade; })[0]; tradeForm(Object.assign({}, t)); }; });
+  document.querySelectorAll("[data-deltrade]").forEach(function(b){ b.onclick = function(){
+    if (!confirm("Delete this paper trade?")) return;
+    T.deleted.push(b.dataset.deltrade); T.trades = T.trades.filter(function(t){ return t.id !== b.dataset.deltrade; }); touchT(); render(); }; });
+  if ((x = $("#t-export"))) x.onclick = exportT;
+  var imp = $("#t-import"); if (imp) imp.onchange = function(){ if (imp.files[0]) importT(imp.files[0]); };
 }
 function setTab(name){
-  if (!/^(plan|intraday|live|swing|settings)$/.test(name || "")) return;
+  if (!/^(plan|intraday|live|swing|test|settings)$/.test(name || "")) return;
   st.tab = name;
   document.querySelectorAll("nav.tabs [data-tab]").forEach(function(x){ x.setAttribute("aria-selected", x.dataset.tab === name); });
-  render(); scrollTo(0, 0);
+  render();
+  if (name === "test") loadTestPrices();
 }
 document.querySelectorAll("nav.tabs [data-tab]").forEach(function(b){ b.onclick = function(){ setTab(b.dataset.tab); }; });
 if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", function(e){
@@ -900,19 +1432,23 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("mess
   if (m.type === "ob-open") setTab(m.tab);
   if (m.type === "ob-push" && !st.loading) load();
 });
-$("#reload").onclick = function(){ load(st.day === st.latest ? null : st.day); };
+$("#reload").onclick = function(){ PX.reset(); load(st.day === st.latest ? null : st.day); };
 
 /* refresh: every 2 min in the morning session, else every 15 min; and when the app comes back */
 function due(){
   var t = ist(), fast = !t.weekend && t.mins >= 535 && t.mins <= 670;
   return Date.now() - st.loadedAt > (fast ? 120e3 : 900e3);
 }
-setInterval(function(){ drawClock(); if (!document.hidden && !st.loading && (!st.day || st.day === st.latest) && due()) load(); }, 30e3);
+setInterval(function(){
+  drawClock();
+  if (!document.hidden && !st.loading && $("#sheet").hidden && (!st.day || st.day === st.latest) && due()){ PX.reset(); load(); }
+}, 30e3);
 var hiddenAt = 0, REASK_AFTER = 30 * 60e3;   // coming back after 30 minutes away counts as a new visit: accept again
 document.addEventListener("visibilitychange", function(){
   if (document.hidden){ hiddenAt = Date.now(); return; }
-  if (hiddenAt && Date.now() - hiddenAt > REASK_AFTER && !document.body.classList.contains("locked")){ lockApp(); gateShow(); return; }
-  drawClock(); if (Date.now() - st.loadedAt > 60e3 && (!st.day || st.day === st.latest)) load();
+  if (hiddenAt && Date.now() - hiddenAt > REASK_AFTER && !document.body.classList.contains("locked")){ closeSheet(); lockApp(); gateShow(); return; }
+  drawClock();
+  if (Date.now() - st.loadedAt > 60e3 && (!st.day || st.day === st.latest) && $("#sheet").hidden){ load(); pullProfile(false); }
 });
 
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost"))
@@ -920,7 +1456,8 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 
 if (params.has("demo")){ S.source = "demo"; }
 inAndroidApp();   // remember "opened from the Android app" before the address is tidied below
-if (params.get("tab")){ setTab(params.get("tab")); history.replaceState(null, "", location.pathname + (params.has("demo") ? "?demo" : "")); }
+if (params.get("tab")){ st.tab = params.get("tab"); document.querySelectorAll("nav.tabs [data-tab]").forEach(function(x){ x.setAttribute("aria-selected", x.dataset.tab === st.tab); }); }
+if (params.has("tab") || params.has("app")) history.replaceState(null, "", location.pathname + (params.has("demo") ? "?demo" : ""));
 gateStart();
 </script>
 </body>

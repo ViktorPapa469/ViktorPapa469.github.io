@@ -53,6 +53,11 @@ service cloud.firestore {
       }
     }
 
+    // Opening Bell profiles: capital settings, watchlists and paper trades, for people signed in with an email.
+    match /trade_profiles/{uid} {
+      allow read, write: if me(uid) && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+
     // Fovea accounts: each signed-in person reads and writes only their own saved progress.
     match /sync/{uid}/{rest=**} {
       allow read, write: if me(uid);

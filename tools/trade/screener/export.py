@@ -104,3 +104,66 @@ def _dump(path, obj):
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(obj, fh, ensure_ascii=False, separators=(",", ":"))
     os.replace(tmp, path)
+
+
+# ------------------------------------------------------------------ prices for paper-trade results
+DAILY_KEEP = 90       # trading days of daily bars published
+INTRADAY_KEEP = 30    # calendar days of 15-minute files kept
+
+
+def _r(x):
+    return None if x is None or (isinstance(x, float) and (math.isnan(x) or math.isinf(x))) else round(float(x), 2)
+
+
+def write_daily_prices(out_dir, daily, generated):
+    """prices/daily.json: one shared date list and, per symbol, [opens, highs, lows, closes] aligned to it."""
+    dates = sorted({d for df in daily.values() for d in df.index[-DAILY_KEEP:]})[-DAILY_KEEP:]
+    idx = pd.DatetimeIndex(dates)
+    syms = {}
+    for s, df in sorted(daily.items()):
+        sub = df.reindex(idx)
+        syms[s] = [[_r(x) for x in sub[c]] for c in ("open", "high", "low", "close")]
+    os.makedirs(os.path.join(out_dir, "prices"), exist_ok=True)
+    _dump(os.path.join(out_dir, "prices", "daily.json"),
+          {"schema": SCHEMA, "updated": generated, "dates": [d.strftime("%Y-%m-%d") for d in idx], "symbols": syms})
+    _prices_meta(out_dir, generated)
+
+
+def write_intraday_prices(out_dir, bars, generated):
+    """prices/intraday/<date>.json: 15-minute bars per trading day (times are bar starts, IST)."""
+    by_day = {}
+    for s, df in bars.items():
+        for day, g in df.groupby(df.index.date):
+            by_day.setdefault(day, {})[s] = g
+    folder = os.path.join(out_dir, "prices", "intraday")
+    os.makedirs(folder, exist_ok=True)
+    for day, symbols in by_day.items():
+        times = sorted({t.strftime("%H:%M") for g in symbols.values() for t in g.index})
+        out = {}
+        for s, g in sorted(symbols.items()):
+            g = g.copy()
+            g.index = [t.strftime("%H:%M") for t in g.index]
+            g = g[~g.index.duplicated(keep="last")].reindex(times)
+            out[s] = [[_r(x) for x in g[c]] for c in ("open", "high", "low", "close")]
+        _dump(os.path.join(folder, f"{day.isoformat()}.json"),
+              {"schema": SCHEMA, "updated": generated, "date": day.isoformat(), "times": times, "symbols": out})
+    cutoff = (dt.date.today() - dt.timedelta(days=INTRADAY_KEEP)).isoformat()
+    for f in os.listdir(folder):
+        if f[:10] < cutoff:
+            os.remove(os.path.join(folder, f))
+    _prices_meta(out_dir, generated)
+    return sorted(by_day)
+
+
+def _prices_meta(out_dir, generated):
+    base = os.path.join(out_dir, "prices")
+    folder = os.path.join(base, "intraday")
+    days = sorted((f[:10] for f in os.listdir(folder) if f.endswith(".json")), reverse=True) if os.path.isdir(folder) else []
+    daily = None
+    try:
+        with open(os.path.join(base, "daily.json"), encoding="utf-8") as fh:
+            d = json.load(fh)
+        daily = d["dates"][-1] if d.get("dates") else None
+    except (OSError, ValueError, KeyError):
+        pass
+    _dump(os.path.join(base, "meta.json"), {"schema": SCHEMA, "updated": generated, "daily_to": daily, "intraday_days": days})

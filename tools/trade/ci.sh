@@ -24,8 +24,10 @@ publish() {  # the trade-data branch always holds a single commit with the conte
   rm -rf "$PUB/.git"
 }
 notify() { [ "$NOTIFY" = 1 ] && python push.py "$1" "$PUB" || true; }
+bars() { python prices.py intraday "$PUB" || true; }   # 15-minute prices for paper-trade results
 screen() {  # announced as "screen ready" in the morning, or as a preview when built after the close (push.py decides)
   python run.py premarket --no-browser --json "$PUB" || return 1
+  [ "$(hhmm)" -ge 1530 ] && bars   # after the close: the full day's 15-minute prices
   notify screen
   publish "screen $(date '+%F %H:%M')"
 }
@@ -38,10 +40,10 @@ echo "mode: $MODE, IST now $(date '+%a %F %H:%M')"
 case "$MODE" in
   premarket) screen ;;
   orb)
-    python run.py orb --no-browser --json "$PUB"; notify breakouts; publish "scan $(date '+%H:%M')" ;;
+    python run.py orb --no-browser --json "$PUB"; bars; notify breakouts; publish "scan $(date '+%H:%M')" ;;
   squareoff)
     wait_until 1514
-    notify squareoff; publish "square-off reminder $(date '+%H:%M')" ;;
+    bars; notify squareoff; publish "square-off reminder $(date '+%H:%M')" ;;
   morning)
     wait_until 0910
     screen || echo "::warning::morning screen failed; the breakout scan will retry it"
@@ -49,6 +51,7 @@ case "$MODE" in
     empty=0
     while [ "$(hhmm)" -le 1100 ]; do
       python run.py orb --no-browser --json "$PUB"; code=$?
+      bars
       notify screen      # only does something if the screen above failed and the scan rebuilt it
       notify breakouts
       publish "scan $(date '+%H:%M')"

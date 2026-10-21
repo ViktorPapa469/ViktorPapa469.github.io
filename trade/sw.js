@@ -5,7 +5,7 @@
    - Notifications pushed from GitHub (see tools/trade/push.py). Breakout alerts carry entry and stop; the quantity is
      worked out here from the capital and risk the app saved on this phone, so they never leave it. */
 var SHELL = 'ob-shell-1', DATA = 'ob-data-1', PREFS = 'ob-prefs';
-var CORE = ['./', 'terms.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
+var CORE = ['./', 'terms.html', 'paper.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', function (e) {
   self.skipWaiting();
