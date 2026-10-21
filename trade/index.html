@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0E141B">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Opening Bell">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icon-192.png">
@@ -30,10 +30,10 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-html{background:var(--bg);height:100%}
-/* iPhone home-screen app (iOS 26, WebKit bug 301108): with the see-through status bar iOS makes the page shorter than
-   the screen, leaving an empty band under the tab bar. A page at least as tall as the screen gets the full height. */
-@media (display-mode: standalone){ html{min-height:min(100lvh, calc(100% + env(safe-area-inset-top)))} }
+/* iPhone home-screen app: with the see-through status bar, iOS 26 (WebKit bug 301108) sizes the page short and leaves a
+   band under the tab bar that the page can't draw in. The status bar is now solid black, which avoids it once the app is
+   added to the home screen again; until then the band takes the tab bar's colour so it reads as part of the bar. */
+html{background:#0F151D;height:100%}
 body{margin:0;height:100%;color:var(--ink);font:400 15px/1.45 var(--sans);font-variant-numeric:tabular-nums;
   -webkit-text-size-adjust:100%;overflow:hidden;background:var(--bg)}
 body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
