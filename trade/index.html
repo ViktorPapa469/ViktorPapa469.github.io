@@ -10,6 +10,23 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Opening Bell">
+<script>
+  /* iPhone home-screen apps with the see-through status bar: iOS can size the page shorter than the screen
+     (by about the status bar's height), leaving an empty band under the tab bar and everything sitting high.
+     Measure the gap and stretch the layout over it. Does nothing in Safari, on Android or when there's no gap. */
+  (function(){
+    function fit(){
+      var gap = 0;
+      if (navigator.standalone === true){
+        var tall = window.innerHeight >= window.innerWidth, full = tall ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
+        gap = Math.round(full - window.innerHeight);
+        if (gap < 2 || gap > 140) gap = 0;
+      }
+      document.documentElement.style.setProperty("--ios-gap", gap + "px");
+    }
+    fit(); addEventListener("resize", fit); addEventListener("orientationchange", function(){ setTimeout(fit, 300); });
+  })();
+</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -30,10 +47,10 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-html{background:var(--bg);height:100%}
+html{background:var(--bg);height:calc(100% + var(--ios-gap, 0px))}
 body{margin:0;height:100%;color:var(--ink);font:400 15px/1.45 var(--sans);font-variant-numeric:tabular-nums;
   -webkit-text-size-adjust:100%;overflow:hidden;background:var(--bg)}
-body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+body::before{content:"";position:fixed;inset:0 0 calc(0px - var(--ios-gap, 0px)) 0;z-index:-1;pointer-events:none;
   background:
     radial-gradient(110% 55% at 0% 0%, rgba(40,128,100,.26), transparent 62%),
     radial-gradient(90% 45% at 100% 100%, rgba(242,179,61,.11), transparent 60%),
@@ -215,7 +232,7 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .result b{font-weight:600}
 
 /* tab bar */
-nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;border-radius:18px 18px 0 0;border-bottom:0;
+nav.tabs{position:fixed;left:0;right:0;bottom:calc(0px - var(--ios-gap, 0px));z-index:5;border-radius:18px 18px 0 0;border-bottom:0;
   display:flex;justify-content:center;padding:4px 4px calc(4px + env(safe-area-inset-bottom));background:rgba(16,23,31,.72)}
 nav.tabs .in{display:flex;width:100%;max-width:620px}
 nav.tabs button{flex:1;border:0;background:none;padding:7px 0 5px;cursor:pointer;color:var(--ink3);font-size:11px;
@@ -226,7 +243,7 @@ nav.tabs button[aria-selected=true]::before{content:"";position:absolute;top:0;w
 nav.tabs .dot{position:absolute;top:5px;left:calc(50% + 7px);width:7px;height:7px;border-radius:50%;background:var(--gold)}
 
 /* sheet (forms) and toast */
-#sheet{position:fixed;inset:0;z-index:15;display:flex;align-items:flex-end;justify-content:center;background:rgba(5,8,12,.55)}
+#sheet{position:fixed;inset:0 0 calc(0px - var(--ios-gap, 0px)) 0;z-index:15;display:flex;align-items:flex-end;justify-content:center;background:rgba(5,8,12,.55)}
 #sheet .in{width:100%;max-width:620px;max-height:92%;overflow-y:auto;border-radius:22px 22px 0 0;border-bottom:0;
   padding:16px 16px calc(16px + env(safe-area-inset-bottom));background:rgba(22,30,40,.92)}
 #sheet h3{font:600 18px/1.2 var(--cond);margin:0 0 4px}
@@ -235,12 +252,12 @@ nav.tabs .dot{position:absolute;top:5px;left:calc(50% + 7px);width:7px;height:7p
 .form label.full{grid-column:1 / -1}
 .form input,.form select,.form textarea{width:100%;font-size:15px}
 .form-err{color:var(--down);font-size:13px;margin:8px 0 0}
-.toast{position:fixed;left:50%;bottom:calc(var(--tabh) + 18px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:30;
+.toast{position:fixed;left:50%;bottom:calc(var(--tabh) + 18px + env(safe-area-inset-bottom) - var(--ios-gap, 0px));transform:translateX(-50%);z-index:30;
   background:rgba(232,237,241,.95);color:#0E141B;padding:9px 14px;border-radius:12px;font-size:13.5px;max-width:90vw}
 
 /* terms gate: nothing else is shown or loaded until the terms are accepted */
 body.locked .app, body.locked nav.tabs{display:none}
-#gate{position:fixed;inset:0;z-index:20;display:flex;justify-content:center}
+#gate{position:fixed;inset:0 0 calc(0px - var(--ios-gap, 0px)) 0;z-index:20;display:flex;justify-content:center}
 .gate-in{width:100%;max-width:620px;display:flex;flex-direction:column;height:100%;
   padding:calc(14px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom))}
 .gate-in h1{font:600 21px/1.2 var(--cond);margin:0 0 6px}
