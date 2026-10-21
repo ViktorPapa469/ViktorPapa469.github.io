@@ -882,12 +882,13 @@ function render(){
   var b = [], t = ist();
   if (st.error) b.push('<div class="banner err">' + esc(st.error) + "</div>");
   if (st.pre && st.tab !== "settings" && st.tab !== "test"){
-    if (st.pre.demo) b.push('<div class="banner">Sample data with made-up prices. Switch it off in Settings.</div>');
+    if (st.pre.demo) b.push('<div class="banner">Sample data: made-up prices for trying the app. <button class="linkish" id="demoOff" type="button"><b>Switch to real data</b></button></div>');
     else if (st.day !== st.latest) b.push('<div class="banner">Viewing an earlier day: ' + esc(niceDate(st.day)) + ".</div>");
     else if (st.pre.date > t.date) b.push('<div class="banner">Preview for ' + esc(niceDate(st.pre.date)) + ", from the last close. Final screen about 9:12.</div>");
     else if (st.pre.date < t.date && !t.weekend && t.mins >= 560) b.push('<div class="banner">Today\'s screen hasn\'t arrived yet; showing ' + esc(niceDate(st.pre.date)) + ".</div>");
   }
   $("#banners").innerHTML = b.join("");
+  var off = $("#demoOff"); if (off) off.onclick = function(){ S.source = "live"; saveS(); PX.reset(); load(); toast("Showing real data"); };
 
   var tb = "", pages;
   if (st.tab === "settings") pages = viewSettings();
