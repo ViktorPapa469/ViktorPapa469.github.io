@@ -1,23 +1,16 @@
 rules_version = '2';
-// Opening Bell's Firestore security rules, for its own Firebase project (separate from Fovea's).
-// Paste the whole file in the Firebase console: Firestore Database -> Rules -> replace everything -> Publish.
 service cloud.firestore {
   match /databases/{database}/documents {
-
     function me(uid) { return request.auth != null && request.auth.uid == uid; }
 
-    // Notifications: each phone saves its own push address and which alerts it wants.
-    // The sender on GitHub lists them with the public web key; a push address is useless without the private push key,
-    // which only GitHub holds.
+    /* Notifications: each phone saves its own push address and alert choices. The GitHub sender lists them. */
     match /trade_alerts/{uid} {
       allow create, update, delete: if me(uid);
       allow list: if true;
       allow get: if me(uid);
     }
 
-    // Terms acceptance: evidence that a device accepted a version of the terms. The latest acceptance can be written by
-    // its own device; each acceptance is also logged once and can never be changed or deleted from an app.
-    // Nobody can read them from an app; the owner reads them in the console.
+    /* Terms acceptance records: written by the device, never changed or deleted from an app. */
     match /trade_consents/{uid} {
       allow create, update: if me(uid);
       allow read, delete: if false;
@@ -27,12 +20,12 @@ service cloud.firestore {
       }
     }
 
-    // Profiles: capital settings, watchlists and paper trades, for people signed in with an email.
+    /* Profiles: capital settings, watchlists and paper trades, for people signed in with an email. */
     match /trade_profiles/{uid} {
       allow read, write: if me(uid) && request.auth.token.firebase.sign_in_provider == 'password';
     }
 
-    // Everything else stays closed.
+    /* Everything else stays closed. */
     match /{path=**} {
       allow read, write: if false;
     }
