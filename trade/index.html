@@ -508,7 +508,8 @@ function pushSave(sub){
 function pushWhy(e){
   var m = String((e && e.message) || e || "");
   if (/PERMISSION_DENIED|^403/.test(m)) return "Firebase refused the request. The updated rules (tools/firebase/firestore.rules) need publishing in the Firebase console.";
-  if (/OPERATION_NOT_ALLOWED/.test(m)) return "Email/Password sign-in is switched off in Firebase. Turn it on in the Firebase console: Authentication, Sign-in method, Email/Password.";
+  if (/OPERATION_NOT_ALLOWED/.test(m) && /[Pp]assword sign-in is disabled/.test(m)) return "Email/Password sign-in is switched off in Firebase. Turn it on in the Firebase console: Authentication, Sign-in method, Email/Password.";
+  if (/OPERATION_NOT_ALLOWED/.test(m)) return "Firebase didn't allow this (" + (m.match(/"message":\s*"([^"]+)"/) || [0, "OPERATION_NOT_ALLOWED"])[1] + ").";
   if (/ADMIN_ONLY/.test(m)) return "Anonymous sign-in is switched off in Firebase. Turn it on in the Firebase console: Authentication, Sign-in method, Anonymous.";
   if (/NotAllowedError|denied/i.test(m)) return "Notifications are blocked for this site. Allow them in your browser's site settings, then try again.";
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "No internet connection. Try again when you're online.";
@@ -556,7 +557,7 @@ function pushSample(){
 function signedIn(){ var c = cred(); return !!(c && c.email); }
 function authWhy(e){
   var m = String((e && e.message) || e || "");
-  if (/EMAIL_EXISTS/.test(m)) return "This email already has a profile. Use Sign in instead.";
+  if (/EMAIL_EXISTS|CREDENTIAL_ALREADY_IN_USE/.test(m)) return "This email already has a profile. Use Sign in instead.";
   if (/INVALID_LOGIN_CREDENTIALS|INVALID_PASSWORD|EMAIL_NOT_FOUND/.test(m)) return "The email or password is not right.";
   if (/WEAK_PASSWORD/.test(m)) return "Use a password of at least 6 characters.";
   if (/INVALID_EMAIL|MISSING_EMAIL/.test(m)) return "That doesn't look like an email address.";
@@ -568,7 +569,9 @@ function authWhy(e){
 function createProfile(email, pw){
   st.authBusy = true; st.authNote = ""; render();
   return fbAuth().then(function(a){
-    return fetch(ID_URL + "/accounts:update?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/json"},
+    // Firebase's own SDK links an email to an anonymous id through accounts:signUp with the id token; unlike
+    // accounts:update, this is allowed when the project has email enumeration protection switched on.
+    return fetch(ID_URL + "/accounts:signUp?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/json"},
       body:JSON.stringify({idToken:a.tok, email:email, password:pw, returnSecureToken:true})}).then(jsonOrThrow);
   }).then(function(r){
     setCred({uid:r.localId, refresh:r.refreshToken, email:r.email}, r.idToken, +r.expiresIn);
