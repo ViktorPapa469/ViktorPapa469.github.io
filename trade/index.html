@@ -508,7 +508,8 @@ function pushSave(sub){
 function pushWhy(e){
   var m = String((e && e.message) || e || "");
   if (/PERMISSION_DENIED|^403/.test(m)) return "Firebase refused the request. The updated rules (tools/firebase/firestore.rules) need publishing in the Firebase console.";
-  if (/ADMIN_ONLY|OPERATION_NOT_ALLOWED/.test(m)) return "This sign-in method is switched off in Firebase.";
+  if (/OPERATION_NOT_ALLOWED/.test(m)) return "Email/Password sign-in is switched off in Firebase. Turn it on in the Firebase console: Authentication, Sign-in method, Email/Password.";
+  if (/ADMIN_ONLY/.test(m)) return "Anonymous sign-in is switched off in Firebase. Turn it on in the Firebase console: Authentication, Sign-in method, Anonymous.";
   if (/NotAllowedError|denied/i.test(m)) return "Notifications are blocked for this site. Allow them in your browser's site settings, then try again.";
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "No internet connection. Try again when you're online.";
   return "Something went wrong (" + m.slice(0, 80) + ").";
