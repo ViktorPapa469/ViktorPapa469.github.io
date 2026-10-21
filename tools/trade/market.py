@@ -17,6 +17,7 @@ import datetime as dt
 import io
 import json
 import os
+import re
 import sys
 import time
 
@@ -31,21 +32,34 @@ from screener.data_live import LiveData, now_ist, UA  # noqa: E402
 
 np.seterr(all="ignore")
 MIN_BARS = 30
+FUND = re.compile(r"\bETF\b|EXCHANGE TRADED|EXHNGE|MUTUAL FUND|\bMF\b|\bBEES\b|\bFUND\b|\bINVIT\b|\bREIT\b", re.I)
 
 
 def log(msg):
     print(f"[{now_ist():%H:%M:%S}] {msg}", flush=True)
 
 
-def nse_list(live):
-    raw = live.nse.archive("/content/equities/EQUITY_L.csv").decode("utf-8", "ignore")
+def _nse_csv(live, path):
+    raw = live.nse.archive(path).decode("utf-8", "ignore")
     df = pd.read_csv(io.StringIO(raw))
     df.columns = [c.strip().upper() for c in df.columns]
-    df["SERIES"] = df["SERIES"].astype(str).str.strip()
-    df = df[df["SERIES"].isin(["EQ", "BE", "BZ", "SM", "ST"])]
-    out = pd.DataFrame({"symbol": df["SYMBOL"].str.strip(), "name": df["NAME OF COMPANY"].str.strip(),
-                        "isin": df["ISIN NUMBER"].str.strip(), "exchange": "NSE"})
+    if "SERIES" in df:
+        df = df[df["SERIES"].astype(str).str.strip().isin(["EQ", "BE", "BZ", "SM", "ST"])]
+    return pd.DataFrame({"symbol": df["SYMBOL"].astype(str).str.strip(), "name": df["NAME OF COMPANY"].astype(str).str.strip(),
+                         "isin": df["ISIN NUMBER"].astype(str).str.strip(), "exchange": "NSE"})
+
+
+def nse_list(live):
+    """Main board (EQUITY_L.csv) plus the SME platform (SME_EQUITY_L.csv, if it can be fetched)."""
+    out = _nse_csv(live, "/content/equities/EQUITY_L.csv")
+    try:
+        sme = _nse_csv(live, "/emerge/corporates/content/SME_EQUITY_L.csv")
+        out = pd.concat([out, sme[~sme["symbol"].isin(out["symbol"])]], ignore_index=True)
+        log(f"NSE SME list: {len(sme)} equities")
+    except Exception as e:
+        log(f"WARN: NSE SME list unavailable ({str(e)[:100]})")
     out["yahoo"] = out["symbol"] + ".NS"
+    out["alt"] = None
     return out
 
 
@@ -66,9 +80,12 @@ def bse_list():
         except Exception:
             continue
         df = df[df["FinInstrmTp"].astype(str).str.upper() == "STK"]
-        out = pd.DataFrame({"symbol": df["TckrSymb"].astype(str).str.strip(), "name": df["FinInstrmNm"].astype(str).str.strip(),
+        df = df[~df["FinInstrmNm"].astype(str).str.contains(FUND)]
+        code = df["FinInstrmId"].astype(str).str.strip().str.replace(r"\.0$", "", regex=True)
+        tick = df["TckrSymb"].astype(str).str.strip()
+        out = pd.DataFrame({"symbol": tick, "name": df["FinInstrmNm"].astype(str).str.strip(),
                             "isin": df["ISIN"].astype(str).str.strip(), "exchange": "BSE",
-                            "yahoo": df["FinInstrmId"].astype(str).str.strip() + ".BO"})
+                            "yahoo": tick + ".BO", "alt": code + ".BO"})   # Yahoo knows most BSE stocks by ticker, some by code
         log(f"BSE bhavcopy {d}: {len(out)} equities")
         return out
     raise RuntimeError("BSE bhavcopy unavailable")
@@ -131,22 +148,33 @@ def main():
         if days is not None and -2 <= days <= 3:
             ev[e["symbol"]] = "Results just out" if days < 0 else "Results today" if days == 0 else f"Results in {days}d"
 
-    results, schema, done = {}, None, 0
-    tickers = list(todo["yahoo"])
-    meta = todo.set_index("yahoo")
+    from screener.data_live import _completed_daily
+    results, schema, done, nodata, timed_out = {}, None, 0, 0, False
+    todo = todo.drop_duplicates("yahoo")
+    rows = list(todo.itertuples(index=False))
     step = 240
-    for i in range(0, len(tickers), step):
+    for i in range(0, len(rows), step):
         if time.time() - started > max_min * 60:
             log(f"WARN: time limit reached after {done} stocks; publishing what was analysed")
+            timed_out = True
             break
-        raw = live._download(tickers[i:i + step], period="1y", interval="1d")
+        chunk = rows[i:i + step]
+        raw = live._download([x.yahoo for x in chunk], period="1y", interval="1d")
+        miss = [x for x in chunk if x.yahoo not in raw and isinstance(x.alt, str) and x.alt]
+        if miss:
+            alt = live._download([x.alt for x in miss], period="1y", interval="1d")
+            for x in miss:
+                if x.alt in alt:
+                    raw[x.yahoo] = alt[x.alt]
+        meta = {x.yahoo: x for x in chunk}
         for t, df in raw.items():
             try:
-                from screener.data_live import _completed_daily
                 df = _completed_daily(df)
                 if len(df) < MIN_BARS:
+                    nodata += 1
                     continue
-                m = meta.loc[t]
+                m = meta[t]
+                m = {"symbol": m.symbol, "name": m.name, "exchange": m.exchange}
                 sym = m["symbol"]
                 f = analysis.stock_features(df, nifty["close"])
                 f.update({"industry": industries.get(sym, "Other"), "buildup": "", "oi_chg_pct": np.nan,
@@ -164,7 +192,8 @@ def main():
                 done += 1
             except Exception as e:  # noqa: BLE001 - one odd stock never stops the rest
                 log(f"WARN: {t} skipped ({str(e)[:80]})")
-        log(f"analysed {done} of {len(tickers)}")
+        nodata += len(chunk) - len(raw)
+        log(f"analysed {done} of {len(rows)}")
 
     if not results:
         return log("WARN: no stocks analysed; market analysis not published")
@@ -184,7 +213,10 @@ def main():
     names = dict(zip(allst["symbol"], allst["name"]))
     index += [[sym, names.get(sym), "NSE F&O", "fno"] for sym in sorted(fno)]
     export._dump(os.path.join(out, "rules.json"), {"schema": 1, "groups": schema})
-    export._dump(os.path.join(out, "index.json"), {"schema": 1, "updated": stamp, "as_of": as_of, "stocks": index})
+    counts = {"listed": len(allst), "fno": len(fno), "to_check": len(rows), "analysed": len(results),
+              "nse": sum(1 for x in results.values() if x["x"] == "NSE"), "bse": sum(1 for x in results.values() if x["x"] == "BSE"),
+              "no_data": nodata, "timed_out": timed_out}
+    export._dump(os.path.join(out, "index.json"), {"schema": 1, "updated": stamp, "as_of": as_of, "counts": counts, "stocks": index})
     log(f"market analysis: {len(results)} stocks (+{len(fno)} F&O in analysis.json), {len(by)} files, "
         f"{(time.time() - started) / 60:.1f} min")
 
