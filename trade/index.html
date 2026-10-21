@@ -182,6 +182,14 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .wl-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
 .wl-row:last-child{border-bottom:0}
 .wl-row .sym{font-size:17px}
+.wl-head{display:flex;align-items:baseline;gap:10px;margin:0 0 10px}
+.wl-head b{font:600 18px/1.2 var(--cond)}
+.wl-head .btn{margin-left:auto}
+.wl-stock{padding:8px 0;border-bottom:1px solid var(--line)}
+.wl-stock:last-child{border-bottom:0}
+.wl-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.wl-top .sym{font-size:17px}
+.wl-sum{font-size:12.5px;margin-top:3px}
 .x{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:none;color:var(--ink2);cursor:pointer}
 .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 10px}
 .result{margin-top:8px;padding:8px 10px;border-radius:11px;background:rgba(0,0,0,.22);font-size:13px}
@@ -892,9 +900,9 @@ function render(){
 
   var b = [], t = ist();
   if (st.error) b.push('<div class="banner err">' + esc(st.error) + "</div>");
-  if (st.pre && st.tab !== "settings" && st.tab !== "test"){
-    if (st.pre.demo) b.push('<div class="banner">Sample data: made-up prices for trying the app. <button class="linkish" id="demoOff" type="button"><b>Switch to real data</b></button></div>');
-    else if (st.day !== st.latest) b.push('<div class="banner">Viewing an earlier day: ' + esc(niceDate(st.day)) + ".</div>");
+  if (st.pre && st.pre.demo && st.tab !== "settings") b.push('<div class="banner">Sample data: made-up prices for trying the app. <button class="linkish" id="demoOff" type="button"><b>Switch to real data</b></button></div>');
+  if (st.pre && !st.pre.demo && st.tab !== "settings" && st.tab !== "test"){
+    if (st.day !== st.latest) b.push('<div class="banner">Viewing an earlier day: ' + esc(niceDate(st.day)) + ".</div>");
     else if (st.pre.date > t.date) b.push('<div class="banner">Preview for ' + esc(niceDate(st.pre.date)) + ", from the last close. Final screen about 9:12.</div>");
     else if (st.pre.date < t.date && !t.weekend && t.mins >= 560) b.push('<div class="banner">Today\'s screen hasn\'t arrived yet; showing ' + esc(niceDate(st.pre.date)) + ".</div>");
   }
@@ -1125,37 +1133,52 @@ function viewTest(){
       '<div class="fact"><b class="' + tone(s.openR) + '">' + (s.open ? rr(s.openR) : "–") + "</b><span>Open now</span></div></div>";
   }
   var asOf = PX.meta && PX.meta.updated ? "Prices up to " + niceDate(PX.meta.updated) + " " + hmOf(PX.meta.updated) + "." : "";
-  var overview = '<div class="glass tile"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><b style="font:600 17px var(--cond)">' + esc(l.name) + "</b>" +
-      '<span class="inline"><button class="btn ghost small" type="button" id="t-rename">Rename</button>' +
-      (T.lists.length > MIN_LISTS ? '<button class="btn ghost small" type="button" id="t-dellist">Delete</button>' : "") + "</span></div>" +
-      '<p class="muted small" style="margin:4px 0 10px">' + l.symbols.length + " of " + MAX_STOCKS + " stocks, " + trades.length + " paper trades</p>" + stats(sm) + "</div>" +
-    '<div class="glass tile"><p class="muted small" style="margin:0 0 8px">All watchlists</p>' + stats(sa) + "</div>" +
-    '<p class="note">R is the result measured in units of the risk between entry and stop: +2R means twice what the stop would have cost. ' +
-      "Paper results are hypothetical: they ignore brokerage, taxes, slippage and liquidity, and do not predict real results. " + esc(asOf) + "</p>" +
-    (PX.err ? '<div class="warn">' + esc(PX.err) + "</div>" : "");
-
-  var rows = l.symbols.map(function(s){
-    var lp = lastPrice(s);
-    return '<div class="wl-row"><div><span class="sym">' + esc(s) + '</span><span class="ind">' + (lp ? rs(lp.price) + ' <span class="' + tone(lp.chg) + '">' + pc(lp.chg) + "</span>" : "no price yet") + "</span></div>" +
-      '<button class="btn small" type="button" data-trade="' + esc(s) + '">Paper trade</button>' +
-      '<button class="x" type="button" data-unwatch="' + esc(s) + '" aria-label="Remove ' + esc(s) + '">✕</button></div>';
+  function strip(s){   // the compact summary at the top of a watchlist
+    return '<div class="stats"><div class="fact"><b>' + (s.closed + s.open) + "</b><span>Paper trades</span></div>" +
+      '<div class="fact"><b>' + (s.winRate == null ? "–" : Math.round(s.winRate) + "%") + "</b><span>Win rate (" + s.closed + " closed)</span></div>" +
+      '<div class="fact"><b class="' + tone(s.totalR) + '">' + rr(s.totalR) + "</b><span>Total closed</span></div>" +
+      '<div class="fact"><b class="' + tone(s.avgR) + '">' + rr(s.avgR) + "</b><span>Average</span></div>" +
+      '<div class="fact"><b>' + s.open + "</b><span>Open</span></div>" +
+      '<div class="fact"><b class="' + tone(s.openR) + '">' + (s.open ? rr(s.openR) : "–") + "</b><span>Open now</span></div></div>";
+  }
+  function stockLine(sym){   // what this watchlist's paper trades in one stock add up to
+    var ts = trades.filter(function(t){ return t.symbol === sym; });
+    if (!ts.length) return '<span class="muted">No paper trades yet</span>';
+    var rsx = ts.map(function(t){ return res[t.id]; }), sx = PaperEngine.summarize(rsx);
+    var latest = ts.slice().sort(function(a, b){ return (b.date + b.time).localeCompare(a.date + a.time); })[0], lr = res[latest.id];
+    var lab = STATUS_T[lr.status] || ["", lr.status];
+    var bits = [ts.length + (ts.length === 1 ? " trade" : " trades")];
+    if (sx.open) bits.push(sx.open + ' open <b class="' + tone(sx.openR) + '">' + rr(sx.openR) + "</b>");
+    if (sx.closed) bits.push(sx.closed + ' closed <b class="' + tone(sx.totalR) + '">' + rr(sx.totalR) + "</b>");
+    return bits.join(", ") + '<br><span class="muted">Latest: ' + (latest.side === "short" ? "short" : "long") + " " + esc(niceDate(latest.date)) + ", " + esc(lab[1].toLowerCase()) + "</span>";
+  }
+  var rows = l.symbols.map(function(sym){
+    var lp = lastPrice(sym);
+    return '<div class="wl-stock"><div class="wl-top"><span><span class="sym">' + esc(sym) + "</span>" +
+        '<span class="ind">' + (lp ? rs(lp.price) + ' <span class="' + tone(lp.chg) + '">' + pc(lp.chg) + "</span>" : "no price yet") + "</span></span>" +
+        '<button class="btn small" type="button" data-trade="' + esc(sym) + '">Paper trade</button></div>' +
+      '<div class="wl-sum">' + stockLine(sym) + "</div></div>";
   }).join("");
-  var add = l.symbols.length < MAX_STOCKS
-    ? '<form class="inline" id="t-addform" style="margin-top:10px"><input type="text" id="t-addsym" list="t-uni" placeholder="Add a stock, e.g. RELIANCE" autocomplete="off" autocapitalize="characters" style="flex:1">' +
-      '<datalist id="t-uni">' + universe().map(function(s){ return "<option value=\"" + esc(s) + "\">"; }).join("") + "</datalist>" +
-      '<button class="btn" type="submit">Add</button></form>'
-    : '<p class="note">This watchlist is full (' + MAX_STOCKS + " stocks). Remove one to add another, or use another watchlist.</p>";
-  var stocks = '<div class="glass tile">' + (rows || '<p class="muted" style="margin:4px 0">No stocks yet. Add up to ' + MAX_STOCKS + " F&amp;O stocks to practise on.</p>") + add + "</div>";
+  var others = {};   // trades in this list for stocks that were since removed from it
+  trades.forEach(function(t){ if (l.symbols.indexOf(t.symbol) < 0) others[t.symbol] = 1; });
+  var watch = '<div class="glass tile"><div class="wl-head"><b>' + esc(l.name) + '</b><span class="muted small">' + l.symbols.length + " of " + MAX_STOCKS + " stocks</span>" +
+      '<button class="btn ghost small" type="button" id="t-manage">Manage</button></div>' + strip(sm) + "</div>" +
+    '<div class="glass tile">' + (rows || '<p class="muted" style="margin:4px 0">No stocks yet. Tap <b>Manage</b> to add up to ' + MAX_STOCKS + " F&amp;O stocks, or use Paper trade on any setup in Intraday, Live or Swing.</p>") +
+      (Object.keys(others).length ? '<p class="note" style="margin-bottom:0">Also traded here earlier: ' + esc(Object.keys(others).join(", ")) + ".</p>" : "") + "</div>" +
+    (PX.err ? '<div class="warn">' + esc(PX.err) + "</div>" : "");
+  var allPage = '<div class="glass tile"><p class="muted small" style="margin:0 0 8px">All ' + T.lists.length + " watchlists</p>" + strip(sa) + "</div>" +
+    '<p class="note">R is the result measured in units of the risk between entry and stop: +2R means twice what the stop would have cost. ' +
+      "Paper results are hypothetical: they ignore brokerage, taxes, slippage and liquidity, and do not predict real results. " + esc(asOf) + "</p>";
 
   var order = trades.slice().sort(function(a, b){
     var oa = res[a.id].status === "open" ? 0 : 1, ob = res[b.id].status === "open" ? 0 : 1;
     return oa - ob || (b.date + b.time).localeCompare(a.date + a.time);
   });
   var tcards = order.map(function(t){ return tradeCard(t, res[t.id]); });
-  var pages = [page("Overview", overview), page("Stocks", stocks, l.symbols.length + " / " + MAX_STOCKS)];
-  if (!tcards.length) pages.push(page("Paper trades", '<div class="empty"><p>No paper trades in this watchlist yet. On the Stocks page tap Paper trade, or use Paper trade on any setup in Intraday, Live or Swing.</p></div>'));
+  var pages = [page("Watchlist", watch)];
+  if (!tcards.length) pages.push(page("Paper trades", '<div class="empty"><p>No paper trades in this watchlist yet. Tap Paper trade next to a stock, or on any setup in Intraday, Live or Swing.</p></div>'));
   chunk(tcards, 2).forEach(function(c, k, all){ pages.push(page("Paper trades" + (all.length > 1 ? " " + (k + 1) + "/" + all.length : ""), c.join(""), trades.length)); });
-  pages.push(page("Backup", '<div class="glass tile"><p style="margin:0 0 10px">' + (signedIn() ? "Your watchlists and paper trades are saved to your profile and appear on any device you sign in on." :
+  pages.push(page("All watchlists and backup", allPage + '<div class="glass tile"><p style="margin:0 0 10px">' + (signedIn() ? "Your watchlists and paper trades are saved to your profile and appear on any device you sign in on." :
       "Your watchlists and paper trades are saved on this phone only. Create a profile in Settings to use them on any device.") + "</p>" +
     '<div class="inline"><button class="btn ghost small" type="button" id="t-export">Save a backup file</button>' +
     '<label class="btn ghost small" style="display:inline-flex;align-items:center">Restore from file<input type="file" id="t-import" accept="application/json" hidden></label></div></div>'));
@@ -1187,6 +1210,66 @@ function tradeCard(t, r){
     '<div class="row-actions">' + (r.status === "open" || r.status === "waiting" || r.status === "nodata" ? '<button class="btn ghost small" type="button" data-closetrade="' + t.id + '">Close by hand</button>' : "") +
       '<button class="btn ghost small" type="button" data-edittrade="' + t.id + '">Edit</button>' +
       '<button class="btn ghost small" type="button" data-deltrade="' + t.id + '">Delete</button></div></div>';
+}
+
+/* manage a watchlist: name, stocks, clear, delete */
+function manageList(){
+  var l = curList(), msg = "";
+  function draw(){
+    var n = function(sym){ return T.trades.filter(function(t){ return t.listId === l.id && t.symbol === sym; }).length; };
+    var rows = l.symbols.map(function(sym, i){
+      return '<div class="wl-row"><div><span class="sym">' + esc(sym) + '</span><span class="ind">' + (n(sym) ? n(sym) + (n(sym) === 1 ? " paper trade" : " paper trades") : "no paper trades") + "</span></div>" +
+        '<span class="inline">' + (i > 0 ? '<button class="x" type="button" data-up="' + i + '" aria-label="Move ' + esc(sym) + ' up">↑</button>' : "") +
+        '<button class="x" type="button" data-rm="' + esc(sym) + '" aria-label="Remove ' + esc(sym) + '">✕</button></span></div>';
+    }).join("");
+    openSheet("<h3>Manage watchlist</h3>" +
+      '<form class="form" id="mf" novalidate><label class="full">Name<input type="text" name="name" maxlength="30" value="' + esc(l.name) + '"></label></form>' +
+      '<p class="muted small" style="margin:12px 0 4px">Stocks (' + l.symbols.length + " of " + MAX_STOCKS + ")</p>" +
+      (rows || '<p class="muted small">No stocks yet.</p>') +
+      (l.symbols.length < MAX_STOCKS
+        ? '<form class="inline" id="m-add" style="margin-top:10px"><input type="text" id="m-sym" list="m-uni" placeholder="Add a stock, e.g. RELIANCE" autocomplete="off" autocapitalize="characters" style="flex:1">' +
+          '<datalist id="m-uni">' + universe().map(function(x){ return "<option value=\"" + esc(x) + "\">"; }).join("") + "</datalist>" +
+          '<button class="btn" type="submit">Add</button></form>'
+        : '<p class="note">Full: remove a stock to add another.</p>') +
+      (msg ? '<p class="form-err">' + esc(msg) + "</p>" : "") +
+      '<p class="note">Removing a stock keeps its paper trades. Clearing removes the stocks and the paper trades of this watchlist.</p>' +
+      '<div class="inline"><button class="btn ghost small" type="button" id="m-clear">Clear watchlist</button>' +
+        (T.lists.length > MIN_LISTS ? '<button class="btn ghost small" type="button" id="m-del">Delete watchlist</button>' : "") + "</div>" +
+      '<div class="gate-actions"><button class="btn gold" type="button" id="m-done">Done</button></div>');
+    var nameEl = $("#mf").elements.name;
+    function saveName(){ var v = nameEl.value.trim().slice(0, 30); if (v && v !== l.name){ l.name = v; l.updatedAt = Date.now(); touchT(); } }
+    nameEl.onchange = saveName;
+    $("#m-done").onclick = function(){ saveName(); closeSheet(); render(); };
+    document.querySelectorAll("[data-rm]").forEach(function(b){ b.onclick = function(){
+      saveName(); l.symbols = l.symbols.filter(function(x){ return x !== b.dataset.rm; }); l.updatedAt = Date.now(); touchT(); msg = ""; draw(); }; });
+    document.querySelectorAll("[data-up]").forEach(function(b){ b.onclick = function(){
+      saveName(); var i = +b.dataset.up, a = l.symbols; a.splice(i - 1, 0, a.splice(i, 1)[0]); l.updatedAt = Date.now(); touchT(); draw(); }; });
+    var add = $("#m-add");
+    if (add) add.onsubmit = function(e){
+      e.preventDefault(); saveName();
+      var sym = ($("#m-sym").value || "").trim().toUpperCase(), uni = universe();
+      if (!sym) return;
+      if (uni.length && uni.indexOf(sym) < 0) msg = sym + " isn't in the F&O list the app has prices for.";
+      else if (l.symbols.indexOf(sym) >= 0) msg = sym + " is already in this watchlist.";
+      else { l.symbols.push(sym); l.updatedAt = Date.now(); touchT(); msg = ""; }
+      draw(); var f = $("#m-sym"); if (f) f.focus();
+    };
+    $("#m-clear").onclick = function(){
+      var cnt = T.trades.filter(function(t){ return t.listId === l.id; }).length;
+      if (!confirm("Clear " + l.name + "? This removes its " + l.symbols.length + " stocks" + (cnt ? " and " + cnt + " paper trades" : "") + ".")) return;
+      T.trades.filter(function(t){ return t.listId === l.id; }).forEach(function(t){ T.deleted.push(t.id); });
+      T.trades = T.trades.filter(function(t){ return t.listId !== l.id; }); l.symbols = []; l.updatedAt = Date.now(); touchT(); draw();
+    };
+    var del = $("#m-del");
+    if (del) del.onclick = function(){
+      var cnt = T.trades.filter(function(t){ return t.listId === l.id; }).length;
+      if (!confirm("Delete " + l.name + (cnt ? " and its " + cnt + " paper trades" : "") + "?")) return;
+      T.deleted.push(l.id); T.trades.filter(function(t){ return t.listId === l.id; }).forEach(function(t){ T.deleted.push(t.id); });
+      T.trades = T.trades.filter(function(t){ return t.listId !== l.id; }); T.lists = T.lists.filter(function(y){ return y.id !== l.id; });
+      st.list = T.lists[0].id; touchT(); closeSheet(); render();
+    };
+  }
+  draw();
 }
 
 /* paper trade form */
@@ -1417,28 +1500,7 @@ function bindView(){
     var name = (prompt("Name for the new watchlist", "Watchlist " + (T.lists.length + 1)) || "").trim().slice(0, 30); if (!name) return;
     var l = {id:uid(), name:name, symbols:[], updatedAt:Date.now()}; T.lists.push(l); st.list = l.id; touchT(); render();
   };
-  if ((x = $("#t-rename"))) x.onclick = function(){
-    var l = curList(), name = (prompt("Rename watchlist", l.name) || "").trim().slice(0, 30); if (!name) return;
-    l.name = name; l.updatedAt = Date.now(); touchT(); render();
-  };
-  if ((x = $("#t-dellist"))) x.onclick = function(){
-    var l = curList(), cnt = T.trades.filter(function(t){ return t.listId === l.id; }).length;
-    if (!confirm("Delete " + l.name + (cnt ? " and its " + cnt + " paper trades" : "") + "?")) return;
-    T.deleted.push(l.id); T.trades.filter(function(t){ return t.listId === l.id; }).forEach(function(t){ T.deleted.push(t.id); });
-    T.trades = T.trades.filter(function(t){ return t.listId !== l.id; }); T.lists = T.lists.filter(function(y){ return y.id !== l.id; });
-    st.list = T.lists[0].id; touchT(); render();
-  };
-  if ((x = $("#t-addform"))) x.onsubmit = function(e){
-    e.preventDefault();
-    var l = curList(), s = ($("#t-addsym").value || "").trim().toUpperCase(), uni = universe();
-    if (!s) return;
-    if (uni.length && uni.indexOf(s) < 0){ toast(s + " isn't in the F&O list the app has prices for."); return; }
-    if (l.symbols.indexOf(s) >= 0){ toast(s + " is already in " + l.name + "."); return; }
-    if (l.symbols.length >= MAX_STOCKS){ toast(l.name + " is full."); return; }
-    l.symbols.push(s); l.updatedAt = Date.now(); touchT(); render();
-  };
-  document.querySelectorAll("[data-unwatch]").forEach(function(b){ b.onclick = function(){
-    var l = curList(); l.symbols = l.symbols.filter(function(s){ return s !== b.dataset.unwatch; }); l.updatedAt = Date.now(); touchT(); render(); }; });
+  if ((x = $("#t-manage"))) x.onclick = manageList;
   document.querySelectorAll("[data-trade]").forEach(function(b){ b.onclick = function(){ tradeForm({symbol:b.dataset.trade, listId:st.list}); }; });
   document.querySelectorAll("[data-closetrade]").forEach(function(b){ b.onclick = function(){ closeForm(b.dataset.closetrade); }; });
   document.querySelectorAll("[data-edittrade]").forEach(function(b){ b.onclick = function(){
