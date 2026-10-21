@@ -62,7 +62,7 @@ self.addEventListener('fetch', function(e){
   var r = e.request;
   if (r.method !== 'GET') return;
   var url = new URL(r.url);
-  if (url.origin === self.location.origin && /^\/trade(\/|$)/.test(url.pathname)) return;   // Opening Bell (/trade/) handles itself
+  if (url.origin === self.location.origin && /^\/(trade|opening-?bell)/i.test(url.pathname)) return;   // Opening Bell (/trade/, any spelling) handles itself
   if (url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com'){ e.respondWith(mediaFirst(r).catch(function(){ return fetch(r); })); return; }
   if (url.origin !== self.location.origin) return;
   if (r.headers.get('range')) return;                        // video players ask for pieces; let the browser handle those directly
