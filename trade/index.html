@@ -786,7 +786,8 @@ function verifyShow(justSent){
   $("#gate-body").innerHTML = stepsAt(2) +
     '<h1 id="gate-h">Confirm your email</h1>' +
     '<div class="glass tile"><p style="margin:0 0 8px">' + (justSent ? "We've sent a link to" : "Your email isn't confirmed yet. We sent a link to") + " <b>" + esc(c.email || "") + "</b>.</p>" +
-      '<p class="muted small" style="margin:0">Open that email, tap the link, then come back here and tap <b>I\'ve confirmed</b>. If it isn\'t in your inbox, look in Spam or Promotions.</p></div>' +
+      '<p class="muted small" style="margin:0">Open that email, tap the link, then come back here and tap <b>I\'ve confirmed</b>. If it isn\'t in your inbox, look in Spam or Promotions.</p>' +
+      '<p class="muted small" style="margin:8px 0 0">It comes from <b>noreply@opening-bell-4fdc9.firebaseapp.com</b>. In Gmail, search <b>from:firebaseapp.com</b> or open <b>All mail</b>. It can take a few minutes.</p></div>' +
     '<p class="form-err" id="v-err" hidden></p>' +
     '<div class="gate-actions"><button class="btn gold" id="v-check" type="button">I\'ve confirmed</button></div>' +
     '<div class="inline" style="margin-top:10px"><button class="btn ghost small" id="v-resend" type="button">Send the link again</button>' +
