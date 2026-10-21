@@ -1,0 +1,57 @@
+name: Opening Bell screener
+
+# Runs the NSE screener in tools/trade on weekdays and publishes the data for the phone app at
+#   https://viktorpapa469.github.io/trade/
+# The data goes to the trade-data branch (one commit, replaced each time), so main and the website build are untouched.
+#   ~8:47 IST  morning: screen published ~9:10 after the pre-open, then breakout scans every 5 min from 9:31 to 11:00
+#   ~7:07 PM   preview of the next session's screen from the day's close
+# GitHub can start scheduled runs several minutes late; the morning run starts early to absorb that.
+# Optional secrets TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID send the screen and each breakout to Telegram.
+on:
+  schedule:
+    - cron: '17 3 * * 1-5'    # 08:47 IST, Mon-Fri
+    - cron: '37 13 * * 1-5'   # 19:07 IST, Mon-Fri
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'auto (by time of day), premarket (screen only), orb (one breakout scan), morning'
+        default: auto
+  push:
+    branches: [main]
+    paths: ['.github/workflows/trade.yml', 'tools/trade/**']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: trade-screener
+  cancel-in-progress: false
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 170
+    env:
+      TZ: Asia/Kolkata
+      GH_TOKEN: ${{ github.token }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      # a push (new code) just refreshes the screen; schedules and manual runs follow the time of day
+      MODE: ${{ github.event_name == 'push' && 'premarket' || github.event.inputs.mode || 'auto' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/trade
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: tools/trade/requirements.txt
+      - run: pip install -r tools/trade/requirements.txt
+      - name: Bring in the data published so far
+        run: |
+          mkdir -p pub
+          if git fetch -q --depth 1 origin trade-data 2>/dev/null; then git archive FETCH_HEAD | tar -x -C pub; fi
+          ls -la pub
+      - name: Screen and publish
+        run: bash tools/trade/ci.sh

@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Opening Bell</title>
+<meta name="description" content="Morning watchlist and opening-range breakout alerts for NSE F&O stocks.">
+<meta name="theme-color" content="#EDF0EA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151B22" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Opening Bell">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EDF0EA; --sheet:#F8FAF6; --ink:#18212B; --ink2:#5A6570; --rule:#D3D9CF;
+  --up:#11744F; --up-soft:#D9EEE3; --down:#B8371F; --down-soft:#F6DDD6;
+  --gold:#A8730A; --gold-bar:#E0A21C; --gold-soft:#F5E6BE; --focus:#2B5BD1;
+  --cond:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#151B22; --sheet:#1D252E; --ink:#E8ECE6; --ink2:#97A2AB; --rule:#2C3640;
+  --up:#45C08A; --up-soft:#173628; --down:#FF7A5C; --down-soft:#3D1D16;
+  --gold:#F2B33D; --gold-bar:#F2B33D; --gold-soft:#3A2E14; --focus:#8EAEFF; color-scheme:dark;
+}}
+*{box-sizing:border-box}
+html{background:var(--paper)}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 15px/1.5 var(--sans);
+  font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%;
+  padding:env(safe-area-inset-top) 0 calc(72px + env(safe-area-inset-bottom))}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+[hidden]{display:none!important}
+main{max-width:600px;margin:0 auto;padding:0 16px}
+.up{color:var(--up)}.down{color:var(--down)}
+.muted{color:var(--ink2)}
+.small{font-size:13px}
+
+/* top bar */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0 6px}
+.brand{font:700 20px/1 var(--cond);letter-spacing:.01em}
+.fresh{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2)}
+.fresh button{border:1px solid var(--rule);background:var(--sheet);border-radius:999px;padding:4px 10px;cursor:pointer}
+.fresh select{border:1px solid var(--rule);background:var(--sheet);border-radius:999px;padding:4px 8px;max-width:150px}
+
+/* session clock: the one bold element */
+.clock{margin:8px 0 4px;padding:14px 0 10px}
+.phase{font:600 22px/1.2 var(--cond);margin:0}
+.todo{margin:4px 0 14px;color:var(--ink2);max-width:60ch}
+.strip{position:relative;display:flex;height:30px;border-radius:6px;overflow:hidden;background:var(--sheet);border:1px solid var(--rule)}
+.seg{position:relative;border-right:1px solid var(--rule);display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:var(--ink2);white-space:nowrap;overflow:hidden}
+.seg:last-child{border-right:0}
+.seg.pre{background:repeating-linear-gradient(135deg,transparent 0 5px,var(--rule) 5px 6px)}
+.seg.win{background:var(--gold-soft);color:var(--ink)}
+.seg.past{opacity:.55}
+.now{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1.5px;background:var(--gold-bar);border-radius:2px;
+  box-shadow:0 0 0 2px var(--paper)}
+.ticks{position:relative;height:18px;font-size:11px;color:var(--ink2)}
+.ticks span{position:absolute;transform:translateX(-50%);top:3px}
+.ticks span:first-child{transform:none}.ticks span:last-child{transform:translateX(-100%)}
+
+.banner{margin:10px 0;padding:10px 12px;border-radius:10px;background:var(--gold-soft);font-size:14px}
+.banner.err{background:var(--down-soft)}
+
+/* sections */
+h2{font:600 17px/1.3 var(--sans);margin:26px 0 8px;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+h2 .count{font-weight:400;font-size:14px;color:var(--ink2)}
+.lede{margin:0 0 10px;color:var(--ink2);font-size:14px;max-width:62ch}
+
+.regime{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.pill{display:inline-block;font-size:13px;font-weight:600;padding:2px 10px;border-radius:999px;background:var(--rule)}
+.pill.up{background:var(--up-soft);color:var(--up)}.pill.down{background:var(--down-soft);color:var(--down)}
+.pill.gold{background:var(--gold-soft);color:var(--gold)}
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 12px;margin:14px 0 4px}
+.fact b{display:block;font-weight:600;font-size:17px}
+.fact > span{font-size:12px;color:var(--ink2)}
+.cues{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;margin-top:10px;color:var(--ink2)}
+.cues b{font-weight:600}
+
+/* sector bars */
+.sector{display:grid;grid-template-columns:minmax(0,1fr) 34% 58px;gap:10px;align-items:center;padding:5px 0;font-size:14px}
+.sector .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.track{position:relative;height:8px}
+.track::before{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--rule)}
+.track i{position:absolute;top:0;height:100%;border-radius:3px}
+.sector .v{text-align:right}
+
+/* segmented control */
+.seg-ctl{display:flex;background:var(--sheet);border:1px solid var(--rule);border-radius:999px;padding:3px;margin:6px 0 8px}
+.seg-ctl button{flex:1;border:0;background:none;padding:7px 4px;border-radius:999px;cursor:pointer;font-size:14px;color:var(--ink2)}
+.seg-ctl button[aria-pressed=true]{background:var(--ink);color:var(--paper);font-weight:600}
+
+/* ledger rows */
+.ledger{border-top:1px solid var(--rule)}
+.stock{border-bottom:1px solid var(--rule);padding:12px 0}
+.head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;width:100%;background:none;border:0;padding:0;text-align:left;cursor:pointer}
+.sym{font:700 21px/1.1 var(--cond);letter-spacing:.01em}
+.ind{display:block;font-size:12px;color:var(--ink2);margin-top:1px}
+.px{text-align:right;white-space:nowrap;font-weight:500}
+.px small{display:block;font-size:13px;font-weight:500}
+.why{margin:6px 0 0;font-size:14px;color:var(--ink2)}
+.score{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--ink2)}
+.score .bar{flex:1;height:4px;background:var(--rule);border-radius:2px;overflow:hidden}
+.score .bar i{display:block;height:100%;background:var(--ink2)}
+.plan{margin-top:8px;font-size:14px}
+.plan b{font-weight:600}
+.warn{margin-top:8px;padding:7px 10px;border-radius:8px;background:var(--gold-soft);font-size:13px}
+.status{font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;margin-left:6px;vertical-align:3px;background:var(--rule);font-family:var(--sans)}
+.status.go{background:var(--up-soft);color:var(--up)}.status.fail{background:var(--down-soft);color:var(--down)}
+.status.weak{background:var(--gold-soft);color:var(--gold)}
+.side{font:600 12px/1 var(--sans);padding:3px 7px;border-radius:5px;margin-left:6px;vertical-align:4px}
+.side.long{background:var(--up-soft);color:var(--up)}.side.short{background:var(--down-soft);color:var(--down)}
+.levels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;margin-top:10px;background:var(--rule);border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+.levels div{background:var(--sheet);padding:7px 10px}
+.levels span{display:block;font-size:11px;color:var(--ink2)}
+.levels b{font-weight:600;font-size:15px}
+
+/* live tickets */
+.ticket{background:var(--sheet);border:1px solid var(--rule);border-radius:14px;padding:14px;margin:10px 0}
+.ticket.hot{border-color:var(--gold-bar);box-shadow:0 0 0 1px var(--gold-bar)}
+.ticket .levels{background:var(--rule);border-color:var(--rule)}
+.ticket .levels div{background:var(--paper)}
+.live-head{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 4px}
+
+.events .ev{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--rule);font-size:14px}
+.rules{margin:0;padding-left:20px}.rules li{margin:5px 0}
+.empty{padding:28px 4px;color:var(--ink2)}
+.empty p{margin:0 0 12px;max-width:52ch}
+.btn{border:0;background:var(--ink);color:var(--paper);border-radius:10px;padding:10px 16px;font-weight:600;cursor:pointer}
+.btn.ghost{background:none;color:var(--ink);border:1px solid var(--rule)}
+
+/* settings */
+.field{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--rule)}
+.field label{flex:1}
+.field small{display:block;color:var(--ink2);font-size:12px}
+.field input[type=number]{width:120px;text-align:right;padding:8px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--sheet)}
+.switch{width:46px;height:28px;border-radius:999px;border:0;background:var(--rule);position:relative;cursor:pointer;flex:none}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--sheet);transition:left .15s}
+.switch[aria-checked=true]{background:var(--up)}
+.switch[aria-checked=true]::after{left:21px}
+.note{font-size:13px;color:var(--ink2);margin:14px 0}
+.note a{color:inherit}
+
+/* tab bar */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--sheet);border-top:1px solid var(--rule);
+  display:flex;justify-content:center;padding:4px 0 calc(4px + env(safe-area-inset-bottom))}
+nav.tabs .in{display:flex;width:100%;max-width:600px}
+nav.tabs button{flex:1;border:0;background:none;padding:8px 2px 6px;cursor:pointer;color:var(--ink2);font-size:12px;
+  display:flex;flex-direction:column;align-items:center;gap:3px;position:relative}
+nav.tabs svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+nav.tabs button[aria-selected=true]{color:var(--ink);font-weight:600}
+nav.tabs .dot{position:absolute;top:5px;left:calc(50% + 8px);width:8px;height:8px;border-radius:50%;background:var(--gold-bar)}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--paper);
+  padding:9px 14px;border-radius:10px;font-size:14px;z-index:9;max-width:90vw}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <span class="brand">Opening Bell</span>
+    <span class="fresh"><span id="fresh"></span><button id="reload" type="button">Refresh</button></span>
+  </header>
+
+  <section class="clock" aria-live="polite">
+    <p class="phase" id="phase"></p>
+    <p class="todo" id="todo"></p>
+    <div class="strip" id="strip"></div>
+    <div class="ticks" id="ticks"></div>
+  </section>
+
+  <div id="banners"></div>
+  <div id="view"></div>
+</main>
+
+<nav class="tabs" aria-label="Sections"><div class="in" role="tablist">
+  <button role="tab" data-tab="plan" aria-selected="true"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6"/></svg>Plan</button>
+  <button role="tab" data-tab="intraday"><svg viewBox="0 0 24 24"><path d="M7 4v16M7 8h-2v6h2M17 4v16M17 9h-2v7h2M12 6v12M12 10h-2v4h2"/></svg>Intraday</button>
+  <button role="tab" data-tab="live"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Live<i class="dot" id="liveDot" hidden></i></button>
+  <button role="tab" data-tab="swing"><svg viewBox="0 0 24 24"><path d="M3 17c4 0 4-10 9-10s5 6 9 6"/></svg>Swing</button>
+  <button role="tab" data-tab="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/></svg>Settings</button>
+</div></nav>
+
+<script>
+"use strict";
+/* ------------------------------------------------------------------ settings */
+var DEF = {capital:500000, risk:0.5, maxpos:100, lossR:3, alerts:false, source:"live"};
+var S = (function(){ try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem("ob-settings") || "{}")); } catch(e){ return Object.assign({}, DEF); } })();
+function saveS(){ try { localStorage.setItem("ob-settings", JSON.stringify(S)); } catch(e){} }
+
+var st = {tab:"plan", side:"longs", swing:"pullbacks", pre:null, orb:null, days:[], day:null, latest:null,
+          loading:false, error:null, noData:false, loadedAt:0, base:""};
+
+/* ------------------------------------------------------------------ helpers */
+function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+function ok(x){ return typeof x === "number" && isFinite(x); }
+function rs(x, d){ if (!ok(x)) return "–"; d = d == null ? 2 : d; return "₹" + x.toLocaleString("en-IN", {minimumFractionDigits:d, maximumFractionDigits:d}); }
+function n(x, d){ return ok(x) ? x.toLocaleString("en-IN", {minimumFractionDigits:d||0, maximumFractionDigits:d||0}) : "–"; }
+function pc(x, d){ if (!ok(x)) return "–"; d = d == null ? 2 : d; return (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(d) + "%"; }
+function tone(x){ return !ok(x) || x === 0 ? "" : x > 0 ? "up" : "down"; }
+function $(s){ return document.querySelector(s); }
+function indOf(x){ return x && x !== "Other" ? x : ""; }
+
+function ist(){
+  var f = new Intl.DateTimeFormat("en-GB", {timeZone:"Asia/Kolkata", year:"numeric", month:"2-digit", day:"2-digit",
+                                            hour:"2-digit", minute:"2-digit", weekday:"short", hourCycle:"h23"});
+  var p = {}; f.formatToParts(new Date()).forEach(function(x){ p[x.type] = x.value; });
+  return {date:p.year + "-" + p.month + "-" + p.day, mins:+p.hour * 60 + +p.minute, wd:p.weekday,
+          hm:p.hour + ":" + p.minute, weekend:p.weekday === "Sat" || p.weekday === "Sun"};
+}
+function niceDate(iso){
+  if (!iso) return "";
+  var d = new Date(iso.slice(0, 10) + "T12:00:00+05:30");
+  return d.toLocaleDateString("en-IN", {weekday:"short", day:"numeric", month:"short", timeZone:"Asia/Kolkata"});
+}
+function hmOf(iso){ return iso ? iso.slice(11, 16) : ""; }
+
+/* position sizing lives on the phone, never in the published data */
+function riskAmt(mult){ return S.capital * S.risk / 100 * (ok(mult) ? mult : 1); }
+function qty(entry, perShare, mult){
+  if (!ok(entry) || !ok(perShare) || perShare <= 0) return 0;
+  var q = Math.floor(riskAmt(mult) / perShare), cap = Math.floor(S.capital * S.maxpos / 100 / entry);
+  return Math.max(0, Math.min(q, cap));
+}
+function lots(q, lot){ return ok(lot) && lot > 0 && q >= lot ? " (" + (q / lot).toFixed(1) + " lots)" : ""; }
+
+/* ------------------------------------------------------------------ session clock */
+var SEGS = [
+  {from:540, to:555, w:12, cls:"pre", label:"Pre-open"},
+  {from:555, to:570, w:13, cls:"", label:"Range"},
+  {from:570, to:660, w:33, cls:"win", label:"Breakout window"},
+  {from:660, to:915, w:30, cls:"", label:"Midday"},
+  {from:915, to:930, w:12, cls:"", label:"Close"}
+];
+var TICKS = [[540,"9:00"],[570,"9:30"],[660,"11:00"],[915,"3:15"],[930,"3:30"]];
+function posOf(m){
+  var x = 0;
+  for (var i = 0; i < SEGS.length; i++){ var s = SEGS[i];
+    if (m <= s.to){ return x + s.w * Math.max(0, (m - s.from) / (s.to - s.from)); } x += s.w; }
+  return 100;
+}
+function phaseText(t){
+  var m = t.mins;
+  if (t.weekend) return ["Market closed", "Weekend. The next screen arrives around 9:12 on Monday, with a preview on Friday evening."];
+  if (m < 540) return ["Before the open", "Read the plan. The screen refreshes at about 9:12 with pre-open gaps."];
+  if (m < 555) return ["Pre-open auction", "Opening prices are being set. No orders yet."];
+  if (m < 570) return ["Opening range forming", "Don't trade the first 15 minutes. Live starts checking breakouts at 9:30."];
+  if (m < 660) return ["Breakout window", "Act only on names marked Triggered in Live, with the stop placed at once."];
+  if (m < 915) return ["Midday", "Manage open trades. No new breakouts from this list after 11:00."];
+  if (m < 930) return ["Square off", "Close intraday positions before your broker's auto square-off."];
+  return ["Market closed", "Tomorrow's preview arrives around 7 PM, the final screen at about 9:12."];
+}
+function drawClock(){
+  var t = ist(), p = phaseText(t);
+  $("#phase").textContent = p[0];
+  $("#todo").textContent = p[1];
+  var html = SEGS.map(function(s){
+    var past = !t.weekend && t.mins >= s.to;
+    return '<div class="seg ' + s.cls + (past ? " past" : "") + '" style="width:' + s.w + '%">' + (s.w > 12 ? esc(s.label) : "") + "</div>";
+  }).join("");
+  if (!t.weekend && t.mins >= 540 && t.mins <= 930) html += '<i class="now" style="left:' + posOf(t.mins).toFixed(2) + '%" title="Now ' + t.hm + ' IST"></i>';
+  $("#strip").innerHTML = html;
+  $("#strip").setAttribute("aria-label", "Trading session, now " + t.hm + " IST");
+  $("#ticks").innerHTML = TICKS.map(function(k){ return '<span style="left:' + posOf(k[0]) + '%">' + k[1] + "</span>"; }).join("");
+}
+
+/* ------------------------------------------------------------------ data */
+var params = new URLSearchParams(location.search);
+function demoBase(){ return new URL("demo/", location.href).href; }
+function getJSON(url){
+  return fetch(url, {cache:"no-store"}).then(function(r){
+    if (!r.ok){ var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
+    return r.json();
+  });
+}
+function resolveBase(){
+  if (S.source === "demo") return Promise.resolve(demoBase());
+  if (params.get("data")) return Promise.resolve(new URL(params.get("data"), location.href).href);
+  var host = location.hostname;
+  if (!/\.github\.io$/.test(host)) return Promise.resolve(demoBase());
+  var owner = host.split(".")[0];
+  var raw = "https://raw.githubusercontent.com/" + owner + "/" + host + "/";
+  // Ask GitHub which commit holds the latest data, then read that exact commit (the plain branch link can lag ~5 min).
+  return fetch("https://api.github.com/repos/" + owner + "/" + host + "/commits/trade-data",
+               {headers:{Accept:"application/vnd.github.sha"}, cache:"no-store"})
+    .then(function(r){
+      if (r.status === 404 || r.status === 422){ var e = new Error("nodata"); e.nodata = true; throw e; }
+      return r.ok ? r.text() : "";
+    })
+    .then(function(sha){ sha = (sha || "").trim(); return raw + (/^[0-9a-f]{40}$/.test(sha) ? sha : "trade-data") + "/"; })
+    .catch(function(e){ if (e.nodata) throw e; return raw + "trade-data/"; });
+}
+function load(day){
+  st.loading = true; st.error = null; render();
+  return resolveBase().then(function(base){
+    st.base = base;
+    return getJSON(base + "index.json").catch(function(){ return null; }).then(function(idx){
+      st.days = idx && idx.days ? idx.days : [];
+      st.latest = st.days[0] || null;
+      var hist = day && day !== st.latest;
+      var preU = hist ? base + "history/" + day + "_premarket.json" : base + "premarket.json";
+      var orbU = hist ? base + "history/" + day + "_orb.json" : base + "orb.json";
+      return Promise.all([getJSON(preU), getJSON(orbU).catch(function(){ return null; })]);
+    });
+  }).then(function(r){
+    st.pre = r[0]; st.orb = r[1] && r[1].date === r[0].date ? r[1] : null;
+    st.day = st.pre.date; st.noData = false; st.loadedAt = Date.now();
+    checkAlerts();
+  }).catch(function(e){
+    if (e.nodata || e.status === 404){ st.noData = true; st.pre = null; st.orb = null; }
+    else st.error = "Couldn't reach the data (" + (e.message || "network error") + "). Showing what was loaded before.";
+  }).then(function(){ st.loading = false; render(); });
+}
+
+/* ------------------------------------------------------------------ alerts while the app is open */
+function seenKey(){ return "ob-seen-" + (st.orb ? st.orb.date : ""); }
+function checkAlerts(){
+  var o = st.orb; if (!o || !o.rows) return;
+  var seen; try { seen = JSON.parse(localStorage.getItem(seenKey()) || "[]"); } catch(e){ seen = []; }
+  var fresh = o.rows.filter(function(r){ return r.status === "TRIGGERED" && seen.indexOf(r.symbol) < 0; });
+  $("#liveDot").hidden = !o.rows.some(function(r){ return r.status === "TRIGGERED"; });
+  if (!fresh.length) return;
+  fresh.forEach(function(r){ seen.push(r.symbol); });
+  try { localStorage.setItem(seenKey(), JSON.stringify(seen)); } catch(e){}
+  if (!S.alerts || o.date !== ist().date) return;          // only alert for today's scan
+  fresh.forEach(function(r){
+    var q = qty(r.entry, Math.abs(r.entry - r.stop), o.size_mult);
+    var body = (r.side === "long" ? "Buy" : "Short") + " above " + rs(r.entry) + ", stop " + rs(r.stop) + ", qty " + q;
+    notify(r.symbol + " triggered " + (r.trigger_time || ""), body);
+  });
+}
+function notify(title, body){
+  if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+  if (!("Notification" in window) || Notification.permission !== "granted"){ toast(title); return; }
+  if (navigator.serviceWorker && navigator.serviceWorker.ready){
+    navigator.serviceWorker.ready.then(function(reg){ reg.showNotification(title, {body:body, icon:"icon-192.png", tag:title}); })
+      .catch(function(){ new Notification(title, {body:body}); });
+  } else new Notification(title, {body:body});
+}
+function toast(msg){
+  var t = document.createElement("div"); t.className = "toast"; t.setAttribute("role", "status"); t.textContent = msg;
+  document.body.appendChild(t); setTimeout(function(){ t.remove(); }, 3200);
+}
+
+/* ------------------------------------------------------------------ rendering */
+function render(){
+  drawClock();
+  // freshness + history picker
+  var f = $("#fresh");
+  if (st.loading) f.textContent = "Loading…";
+  else if (st.pre){
+    var last = st.orb && st.orb.generated > st.pre.generated ? st.orb.generated : st.pre.generated;
+    var opts = st.days.length > 1 ? '<select id="day" aria-label="Day">' + st.days.map(function(d){
+      return '<option value="' + d + '"' + (d === st.day ? " selected" : "") + ">" + esc(niceDate(d)) + "</option>"; }).join("") + "</select>" : "";
+    f.innerHTML = opts + "<span>Updated " + esc(hmOf(last)) + "</span>";
+    var sel = $("#day"); if (sel) sel.onchange = function(){ load(this.value === st.latest ? null : this.value); };
+  } else f.textContent = "";
+
+  // banners
+  var b = [], t = ist();
+  if (st.error) b.push('<div class="banner err">' + esc(st.error) + "</div>");
+  if (st.pre){
+    if (st.pre.demo) b.push('<div class="banner">Sample data with made-up prices. Switch to live data in Settings.</div>');
+    else if (st.day !== st.latest) b.push('<div class="banner">Viewing an earlier day: ' + esc(niceDate(st.day)) + ".</div>");
+    else if (st.pre.date > t.date) b.push('<div class="banner">Preview for ' + esc(niceDate(st.pre.date)) + ", built from the last close. The 9:12 run adds pre-open gaps and the latest flows.</div>");
+    else if (st.pre.date < t.date && !t.weekend && t.mins >= 560) b.push('<div class="banner">Today\'s screen hasn\'t arrived yet. Showing the list for ' + esc(niceDate(st.pre.date)) + ". GitHub sometimes starts scheduled runs late.</div>");
+    if ((st.pre.notes || []).length) b.push('<div class="banner small">Unavailable this run: ' + esc(st.pre.notes.join(", ")) + ". The rest of the screen still applies.</div>");
+  }
+  $("#banners").innerHTML = b.join("");
+
+  var v = $("#view");
+  if (st.noData){ v.innerHTML = emptyState(); bindEmpty(); return; }
+  if (!st.pre){ v.innerHTML = st.loading ? '<div class="empty"><p>Loading the latest screen…</p></div>' : '<div class="empty"><p>No data loaded yet.</p></div>'; if (st.tab !== "settings") return; }
+  v.innerHTML = ({plan:viewPlan, intraday:viewIntraday, live:viewLive, swing:viewSwing, settings:viewSettings})[st.tab]();
+  bindView();
+}
+
+function emptyState(){
+  if (st.tab === "settings") return viewSettings();
+  return '<div class="empty"><p><b>Your first screen arrives on the next trading morning at about 9:12.</b></p>' +
+    "<p>GitHub runs the screener on weekday mornings and publishes it here. Until then you can look around with sample data.</p>" +
+    '<button class="btn" id="tryDemo" type="button">Show sample data</button></div>';
+}
+function bindEmpty(){ var x = $("#tryDemo"); if (x) x.onclick = function(){ S.source = "demo"; saveS(); load(); }; bindView(); }
+
+/* ---- Plan */
+function viewPlan(){
+  var p = st.pre, r = p.regime || {};
+  var cls = r.label === "Uptrend" ? "up" : r.label === "Downtrend" ? "down" : "gold";
+  var facts = [
+    ["Nifty 50", n(r.nifty), r.nifty_chg],
+    ["Bank Nifty", n(r.bank), r.bank_chg],
+    ["India VIX", ok(r.vix) ? r.vix.toFixed(2) : "–", r.vix_chg, true]
+  ];
+  if (p.preopen) facts.push(["Pre-open up / down", p.preopen.adv + " / " + p.preopen.dec, p.preopen.avg]);
+  (p.fii_dii || []).forEach(function(f){ facts.push([f.category + " net", '<span class="' + tone(f.net_cr) + '">' + (f.net_cr > 0 ? "+" : "") + n(f.net_cr) + " cr</span>", null]); });
+  var fh = facts.map(function(f){
+    var sub = f[2] == null ? "" : ' <span class="' + tone(f[3] ? -f[2] : f[2]) + '">' + pc(f[2]) + "</span>";
+    return '<div class="fact"><b>' + f[1] + "</b><span>" + esc(f[0]) + sub + "</span></div>";
+  }).join("");
+  var cues = (p.cues || []).map(function(c){ return "<span>" + esc(c.name) + ' <b class="' + tone(c.chg_pct) + '">' + pc(c.chg_pct) + "</b></span>"; }).join("");
+  var ra = riskAmt(r.size_mult);
+
+  var secs = p.sectors || [], mx = secs.reduce(function(m, s){ return Math.max(m, Math.abs(s.score || 0)); }, 0) || 1;
+  var sh = secs.map(function(s){
+    var w = Math.abs(s.score) / mx * 50, left = s.score >= 0 ? 50 : 50 - w;
+    return '<div class="sector"><span class="name">' + esc(s.name) + ' <span class="muted small">' + s.n + "</span></span>" +
+      '<span class="track"><i style="left:' + left.toFixed(1) + "%;width:" + w.toFixed(1) + "%;background:var(--" + (s.score >= 0 ? "up" : "down") + ')"></i></span>' +
+      '<span class="v ' + tone(s.rs20) + '">' + pc(s.rs20, 1) + "</span></div>";
+  }).join("") || '<p class="muted">No sector data.</p>';
+
+  var ev = (p.events || []).map(function(e){
+    return '<div class="ev"><span><b>' + esc(e.symbol) + '</b> <span class="muted">' + esc(e.purpose) + "</span></span><span class=muted>" + esc(niceDate(e.date)) + "</span></div>";
+  }).join("") || '<p class="muted">No F&amp;O results in the next few days.</p>';
+
+  return '<h2>Market</h2><div class="regime"><span class="pill ' + cls + '">' + esc(r.label || "Unknown") + "</span>" +
+    '<span class="muted small">Risk ' + rs(ra, 0) + " a trade" + (r.size_mult < 1 ? " (size × " + r.size_mult + ")" : "") + "</span></div>" +
+    '<p style="margin:8px 0 0">' + esc(r.bias || "") + "</p>" +
+    '<div class="facts">' + fh + "</div>" + (cues ? '<div class="cues">' + cues + "</div>" : "") +
+    '<h2>Sector strength <span class="count">vs Nifty, 20 days</span></h2>' + sh +
+    '<h2>Results coming up</h2><div class="events">' + ev + "</div>" +
+    "<h2>Today's rules</h2><ol class=\"rules\">" +
+      "<li>No trades before 9:30. Let the opening range form.</li>" +
+      "<li>Risk " + rs(ra, 0) + " per trade. Stop for the day after losing " + rs(ra * S.lossR, 0) + " (" + S.lossR + " losing trades).</li>" +
+      "<li>Book half at 1.5R and trail the rest. Never average down.</li>" +
+      "<li>If Nifty is stuck inside its own opening range, sit out.</li>" +
+      "<li>Skip stocks with results today unless trading the reaction after 10:00.</li></ol>" +
+    '<p class="note">' + n(p.meta && p.meta.universe) + " F&amp;O stocks screened, " + n(p.meta && p.meta.liquid) +
+      " liquid enough to trade. Prices to the close of " + esc(niceDate(p.as_of)) + ". Built " + esc(niceDate(p.generated)) + " at " + esc(hmOf(p.generated)) + ".</p>";
+}
+
+/* ---- Intraday */
+function orbFor(sym){ return st.orb && st.orb.rows ? st.orb.rows.filter(function(r){ return r.symbol === sym; })[0] : null; }
+var STATUS = {"TRIGGERED":["go","Triggered"], "TRIGGERED (weak RS)":["weak","Triggered, weak"], "FAILED":["fail","Failed"],
+              "WAITING":["","Waiting"], "RANGE FORMING":["","Range forming"], "NO DATA":["","No data"]};
+function statusPill(s){ var x = STATUS[s]; return x ? '<span class="status ' + x[0] + '">' + x[1] + "</span>" : ""; }
+
+function viewIntraday(){
+  var p = st.pre, list = p[st.side] || [], mult = p.regime && p.regime.size_mult, isLong = st.side === "longs";
+  var rows = list.map(function(x, i){
+    var counter = (x.warnings || []).some(function(w){ return /counter-trend/i.test(w); });
+    var q = qty(x.price, x.est_stop_dist, (mult || 1) * (counter ? 0.5 : 1));
+    var o = orbFor(x.symbol);
+    return '<article class="stock"><button class="head" type="button" data-open="' + i + '" aria-expanded="false">' +
+      '<span><span class="sym">' + esc(x.symbol) + "</span>" + (o ? statusPill(o.status) : "") + '<span class="ind">' + esc([indOf(x.industry), ok(x.lot) ? "lot " + x.lot : ""].filter(Boolean).join(", ")) + "</span></span>" +
+      '<span class="px">' + rs(x.price) + '<small class="' + tone(x.chg1) + '">' + pc(x.chg1) + "</small></span></button>" +
+      '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
+      '<div class="plan">' + (isLong ? "Buy above the 9:30 range high" : "Short below the 9:30 range low") +
+        ". Stop about " + rs(x.est_stop_dist) + " away, qty <b>" + n(q) + "</b>" + lots(q, x.lot) + ".</div>" +
+      (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(w) + "</div>"; }).join("") +
+      '<div class="levels" id="lv' + i + '" hidden>' +
+        '<div><span>Prev high</span><b>' + rs(x.pdh) + "</b></div>" +
+        '<div><span>Prev low</span><b>' + rs(x.pdl) + "</b></div>" +
+        '<div><span>Daily ATR</span><b>' + rs(x.atr) + "</b></div>" +
+        '<div><span>Pre-open gap</span><b class="' + tone(x.gap_pct) + '">' + pc(x.gap_pct) + "</b></div>" +
+        '<div><span>Score</span><b>' + n(x.score) + "</b></div>" +
+        '<div><span>Risk</span><b>' + rs(q * x.est_stop_dist, 0) + "</b></div></div>" +
+      "</article>";
+  }).join("");
+  return '<h2>Intraday watchlist</h2>' +
+    '<div class="seg-ctl" role="group" aria-label="Side"><button type="button" data-side="longs" aria-pressed="' + isLong + '">Longs ' + (p.longs || []).length + "</button>" +
+    '<button type="button" data-side="shorts" aria-pressed="' + !isLong + '">Shorts ' + (p.shorts || []).length + "</button></div>" +
+    '<p class="lede">' + (isLong ? "Strongest liquid F&O stocks, ranked. Wait for a break of the 15-minute high with price above VWAP." :
+                                   "Weakest liquid F&O stocks, ranked. Wait for a break of the 15-minute low with price below VWAP.") +
+    " Tap a stock for its levels.</p>" +
+    (rows ? '<div class="ledger">' + rows + "</div>" : '<div class="empty"><p>No stocks qualify on this side today. That is a signal too: fewer trades.</p></div>');
+}
+
+/* ---- Live */
+function viewLive(){
+  var o = st.orb, t = ist();
+  if (!o){
+    var msg = st.pre && st.pre.date > t.date ? "The live scan starts at 9:30 on " + niceDate(st.pre.date) + "." :
+              t.mins < 570 && !t.weekend ? "The live scan starts at 9:30 and refreshes every 5 minutes until 11:00." :
+              "No live scan for this day.";
+    return '<div class="empty"><p>' + esc(msg) + "</p><p>Keep this tab open and turn on alerts in Settings to be told when a stock triggers.</p></div>";
+  }
+  var mult = o.size_mult;
+  var head = '<div class="live-head"><div class="fact"><b class="' + tone(o.nifty_chg) + '">' + pc(o.nifty_chg) + "</b><span>Nifty since open</span></div>" +
+    (o.nifty_above_vwap == null ? "" : '<div class="fact"><b>' + (o.nifty_above_vwap ? "Above" : "Below") + "</b><span>Nifty vs VWAP</span></div>") +
+    '<div class="fact"><b>' + esc(o.bars_to || "–") + "</b><span>Prices up to</span></div></div>";
+  var notes = (o.notes || []).map(function(x){ return '<p class="muted">' + esc(x) + "</p>"; }).join("");
+  var groups = [["Triggered", function(r){ return /^TRIGGERED/.test(r.status); }],
+                ["Waiting for a break", function(r){ return r.status === "WAITING" || r.status === "RANGE FORMING"; }],
+                ["Failed or no data", function(r){ return r.status === "FAILED" || r.status === "NO DATA"; }]];
+  var body = groups.map(function(g){
+    var rows = (o.rows || []).filter(g[1]); if (!rows.length) return "";
+    return "<h2>" + g[0] + ' <span class="count">' + rows.length + "</span></h2>" + rows.map(function(r){ return ticket(r, mult); }).join("");
+  }).join("");
+  return "<h2>Opening-range scan</h2>" + head + notes + (body || '<div class="empty"><p>Nothing on the watchlist to scan.</p></div>') +
+    '<p class="note">Prices from Yahoo Finance can lag a few minutes. Confirm on your broker\'s chart before placing an order.</p>';
+}
+function ticket(r, mult){
+  var long = r.side === "long", hot = r.status === "TRIGGERED";
+  var top = '<div class="head" style="cursor:default"><span><span class="sym">' + esc(r.symbol) + '</span><span class="side ' + (long ? "long" : "short") + '">' + (long ? "Long" : "Short") + "</span>" + statusPill(r.status) +
+    '<span class="ind">' + esc(indOf(r.industry)) + "</span></span>" +
+    (ok(r.last) ? '<span class="px">' + rs(r.last) + '<small class="' + tone(r.chg) + '">' + pc(r.chg) + "</small></span>" : "") + "</div>";
+  var info = ok(r.orh) ? '<p class="why">Range ' + rs(r.orl) + " to " + rs(r.orh) + ", VWAP " + rs(r.vwap) + (ok(r.rs) ? ", " + pc(r.rs) + " vs Nifty" : "") + "</p>" : "";
+  if (!ok(r.entry)) return '<div class="stock">' + top + info + "</div>";
+  var q = qty(r.entry, Math.abs(r.entry - r.stop), mult);
+  return '<div class="ticket' + (hot ? " hot" : "") + '">' + top + info +
+    '<div class="levels"><div><span>Entry</span><b>' + rs(r.entry) + "</b></div><div><span>Stop</span><b>" + rs(r.stop) + "</b></div>" +
+    "<div><span>Qty</span><b>" + n(q) + "</b></div><div><span>Target 1.5R</span><b>" + rs(r.t1) + "</b></div>" +
+    "<div><span>Target 3R</span><b>" + rs(r.t2) + "</b></div><div><span>Since</span><b>" + esc(r.trigger_time || "–") + "</b></div></div>" +
+    '<p class="why">' + n(q) + " shares" + (ok(r.lot) && r.lot > 0 && q >= r.lot ? ", " + (q / r.lot).toFixed(1) + " lots" : "") +
+      ", risking " + rs(q * Math.abs(r.entry - r.stop), 0) + "</p>" +
+    (r.extended ? '<div class="warn">Already more than 1R past entry. Don\'t chase; wait for a pullback toward VWAP or skip.</div>' : "") +
+    (r.status === "TRIGGERED (weak RS)" ? '<div class="warn">Broke out but isn\'t beating Nifty. Half size or skip.</div>' : "") +
+    "</div>";
+}
+
+/* ---- Swing */
+function viewSwing(){
+  var p = st.pre, key = st.swing, list = p[key] || [], mult = p.regime && p.regime.size_mult, pb = key === "pullbacks";
+  var rows = list.map(function(x){
+    var q = qty(x.entry, x.entry - x.stop, mult);
+    return '<article class="stock"><div class="head" style="cursor:default"><span><span class="sym">' + esc(x.symbol) + '</span><span class="ind">' + esc(indOf(x.industry)) + "</span></span>" +
+      '<span class="px">' + rs(x.price) + '<small class="' + tone(x.chg1) + '">' + pc(x.chg1) + "</small></span></div>" +
+      '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
+      '<div class="levels"><div><span>Buy above</span><b>' + rs(x.entry) + "</b></div><div><span>Stop</span><b>" + rs(x.stop) + "</b></div>" +
+      "<div><span>Qty</span><b>" + n(q) + "</b></div><div><span>Target 2R</span><b>" + rs(x.t1) + "</b></div>" +
+      "<div><span>Target 3R</span><b>" + rs(x.t2) + "</b></div><div><span>Risk</span><b>" + (ok(x.risk_pct) ? x.risk_pct.toFixed(1) + "%" : "–") + "</b></div></div>" +
+      (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(w) + "</div>"; }).join("") + "</article>";
+  }).join("");
+  return "<h2>Swing setups</h2>" +
+    '<div class="seg-ctl" role="group" aria-label="Setup"><button type="button" data-swing="pullbacks" aria-pressed="' + pb + '">Pullbacks ' + (p.pullbacks || []).length + "</button>" +
+    '<button type="button" data-swing="bases" aria-pressed="' + !pb + '">Tight bases ' + (p.bases || []).length + "</button></div>" +
+    '<p class="lede">' + (pb ? "Leaders in an uptrend that dipped to their 20-day average on light volume. Buy only if price trades above yesterday's high." :
+                               "Narrow 10-day ranges near 52-week highs with volume drying up. Buy only on a break above the 10-day high.") +
+    " Hold 2 to 10 days.</p>" +
+    (rows ? '<div class="ledger">' + rows + "</div>" : '<div class="empty"><p>No stocks fit this setup today.</p></div>');
+}
+
+/* ---- Settings */
+function viewSettings(){
+  var perm = "Notification" in window ? Notification.permission : "unsupported";
+  function num(id, label, help, val, step){
+    return '<div class="field"><label for="' + id + '">' + label + "<small>" + help + '</small></label><input id="' + id + '" type="number" inputmode="decimal" step="' + step + '" value="' + val + '"></div>';
+  }
+  return "<h2>Money and risk</h2>" +
+    num("s-capital", "Trading capital", "In rupees. Stays on this phone.", S.capital, 1000) +
+    num("s-risk", "Risk per trade", "Percent of capital lost if the stop is hit.", S.risk, 0.1) +
+    num("s-maxpos", "Largest position", "Percent of capital in one stock.", S.maxpos, 5) +
+    num("s-loss", "Daily stop", "Stop trading after this many losing trades.", S.lossR, 1) +
+    '<p class="note">At these settings each trade risks ' + rs(riskAmt(1), 0) + ". Quantities across the app update as soon as you change a value.</p>" +
+    "<h2>Alerts</h2>" +
+    '<div class="field"><label for="s-alerts">Breakout alerts<small>' +
+      (perm === "denied" ? "Notifications are blocked for this site in your browser settings." :
+       perm === "unsupported" ? "This browser can't show notifications; you'll get a vibration and a message instead." :
+       "A notification and vibration when a stock triggers, while the app is open.") +
+    '</small></label><button class="switch" id="s-alerts" type="button" role="switch" aria-checked="' + !!S.alerts + '" aria-label="Breakout alerts"></button></div>' +
+    '<p class="note">For alerts with the app closed, add a Telegram bot: put <b>TELEGRAM_BOT_TOKEN</b> and <b>TELEGRAM_CHAT_ID</b> under the repository\'s Settings, Secrets and variables, Actions.</p>' +
+    "<h2>Data</h2>" +
+    '<div class="field"><label for="s-demo">Sample data<small>Made-up prices for trying the app.</small></label><button class="switch" id="s-demo" type="button" role="switch" aria-checked="' + (S.source === "demo") + '" aria-label="Sample data"></button></div>' +
+    '<p class="note">The screener runs on GitHub every weekday: a preview around 7 PM, the full screen at about 9:12 AM, and the live scan every 5 minutes from 9:30 to 11:00. ' +
+    "It reads NSE (F&amp;O list, open interest, flows, results, pre-open) and Yahoo Finance (prices). A screening aid, not investment advice.</p>" +
+    '<p class="note"><button class="btn ghost" id="s-install" type="button" hidden>Add to home screen</button></p>';
+}
+
+/* ------------------------------------------------------------------ events */
+var bip = null;
+addEventListener("beforeinstallprompt", function(e){ e.preventDefault(); bip = e; var x = $("#s-install"); if (x) x.hidden = false; });
+
+function bindView(){
+  document.querySelectorAll("[data-open]").forEach(function(b){
+    b.onclick = function(){ var lv = $("#lv" + b.dataset.open), open = lv.hidden; lv.hidden = !open; b.setAttribute("aria-expanded", open); };
+  });
+  document.querySelectorAll("[data-side]").forEach(function(b){ b.onclick = function(){ st.side = b.dataset.side; render(); }; });
+  document.querySelectorAll("[data-swing]").forEach(function(b){ b.onclick = function(){ st.swing = b.dataset.swing; render(); }; });
+  [["s-capital","capital"],["s-risk","risk"],["s-maxpos","maxpos"],["s-loss","lossR"]].forEach(function(p){
+    var el = document.getElementById(p[0]); if (!el) return;
+    el.onchange = function(){ var v = parseFloat(el.value); if (ok(v) && v > 0){ S[p[1]] = v; saveS(); render(); } else el.value = S[p[1]]; };
+  });
+  var a = $("#s-alerts");
+  if (a) a.onclick = function(){
+    if (S.alerts){ S.alerts = false; saveS(); render(); return; }
+    var go = function(){ S.alerts = true; saveS(); render(); toast("Alerts on while the app is open"); };
+    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().then(go, go); else go();
+  };
+  var d = $("#s-demo");
+  if (d) d.onclick = function(){ S.source = S.source === "demo" ? "live" : "demo"; saveS(); load(); };
+  var ins = $("#s-install");
+  if (ins){ ins.hidden = !bip; ins.onclick = function(){ if (bip){ bip.prompt(); bip = null; ins.hidden = true; } }; }
+}
+document.querySelectorAll("nav.tabs [data-tab]").forEach(function(b){
+  b.onclick = function(){
+    st.tab = b.dataset.tab;
+    document.querySelectorAll("nav.tabs [data-tab]").forEach(function(x){ x.setAttribute("aria-selected", x === b); });
+    render(); scrollTo(0, 0);
+  };
+});
+$("#reload").onclick = function(){ load(st.day === st.latest ? null : st.day); };
+
+/* refresh: every 2 min in the morning session, else every 15 min; and when the app comes back */
+function due(){
+  var t = ist(), fast = !t.weekend && t.mins >= 535 && t.mins <= 670;
+  return Date.now() - st.loadedAt > (fast ? 120e3 : 900e3);
+}
+setInterval(function(){ drawClock(); if (!document.hidden && !st.loading && (!st.day || st.day === st.latest) && due()) load(); }, 30e3);
+document.addEventListener("visibilitychange", function(){ if (!document.hidden){ drawClock(); if (Date.now() - st.loadedAt > 60e3 && (!st.day || st.day === st.latest)) load(); } });
+
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost"))
+  navigator.serviceWorker.register("sw.js", {scope:"./"}).catch(function(){});
+
+if (params.has("demo")){ S.source = "demo"; }
+render();
+load();
+</script>
+</body>
+</html>
