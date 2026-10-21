@@ -33,31 +33,6 @@ service cloud.firestore {
       allow get: if me(uid);
     }
 
-    // Opening Bell (/trade/) notifications: each phone saves its own push address and which alerts it wants.
-    // The sender on GitHub lists them with the public web key, exactly like the reminders above.
-    match /trade_alerts/{uid} {
-      allow create, update, delete: if me(uid);
-      allow list: if true;
-      allow get: if me(uid);
-    }
-
-    // Opening Bell terms acceptance: evidence that a device accepted a version of the terms.
-    // The latest acceptance can be written by its own device; each acceptance is also logged once and can never be
-    // changed or deleted from an app. Nobody can read them from an app; the owner reads them in the console.
-    match /trade_consents/{uid} {
-      allow create, update: if me(uid);
-      allow read, delete: if false;
-      match /accepts/{id} {
-        allow create: if me(uid);
-        allow read, update, delete: if false;
-      }
-    }
-
-    // Opening Bell profiles: capital settings, watchlists and paper trades, for people signed in with an email.
-    match /trade_profiles/{uid} {
-      allow read, write: if me(uid) && request.auth.token.firebase.sign_in_provider == 'password';
-    }
-
     // Fovea accounts: each signed-in person reads and writes only their own saved progress.
     match /sync/{uid}/{rest=**} {
       allow read, write: if me(uid);

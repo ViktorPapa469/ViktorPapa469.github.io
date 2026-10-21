@@ -441,16 +441,26 @@ function checkAlerts(){
   toast(fresh.map(function(r){ return r.symbol; }).join(", ") + " triggered. See Live.");
 }
 
-/* ================================================================== Firebase (same project as Fovea): sign-in, Firestore */
-var FB = {apiKey:"AIzaSyAjuDlySp9coYIyI4KVFd0o7t2sqV3n5Ew", projectId:"fovea-25d37"};
+/* ================================================================== Firebase: sign-in, Firestore */
+/* Opening Bell's own Firebase project (separate from Fovea's: its own sign-ins, profiles and records) */
+var FB = {apiKey:"AIzaSyA7xZWmVuaRYNpyCHi5jVMnSIwDK-6mCL0", projectId:"opening-bell-4fdc9"};
 var VAPID_PUB = "BHQOqFb3wH3PKsfhYO-8V2FXzjjvAHIY5FHzRFTBCbX7zrBl1qUF0aDUQAVCmktDlgcNI9EClocjpr4-8jFVCSM";
 var ID_URL = "https://identitytoolkit.googleapis.com/v1", TOK_URL = "https://securetoken.googleapis.com/v1", FS_URL = "https://firestore.googleapis.com/v1";
 var FS_DOCS = FS_URL + "/projects/" + FB.projectId + "/databases/(default)/documents/";
 function isIOS(){ return /iPad|iPhone|iPod/.test(navigator.userAgent || "") || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
 function standalone(){ return (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true; }
 function jsonOrThrow(r){ return r.text().then(function(t){ if (!r.ok) throw new Error(r.status + " " + t.slice(0, 200)); return t ? JSON.parse(t) : {}; }); }
-function cred(){ try { return JSON.parse(localStorage.getItem("ob-fb") || "null"); } catch(e){ return null; } }
+function cred(){
+  var c; try { c = JSON.parse(localStorage.getItem("ob-fb") || "null"); } catch(e){ c = null; }
+  if (c && c.project !== FB.projectId){   // from the time Opening Bell shared Fovea's sign-in: start fresh in its own project
+    if (c.email) st.authNote = "Opening Bell now has its own sign-in, separate from Fovea. Please create your profile again: your settings, watchlists and paper trades on this phone are kept and will be saved to it.";
+    try { localStorage.removeItem("ob-fb"); } catch(e){}
+    return null;
+  }
+  return c;
+}
 function setCred(c, tok, exp){
+  c.project = FB.projectId;
   try { localStorage.setItem("ob-fb", JSON.stringify(c)); } catch(e){}
   fbTok = tok || null; fbExp = tok ? Date.now() + (exp || 3600) * 1000 : 0;
 }
@@ -491,7 +501,7 @@ function fsReq(method, path, body){
 
 /* ================================================================== push notifications
    The phone subscribes on this app's own helper (sw.js, scope /trade/) and saves the push address in Firestore
-   trade_alerts/{id}; tools/trade/push.py on GitHub sends to it. Same push key as Fovea. */
+   trade_alerts/{id}; tools/trade/push.py on GitHub sends to it. */
 function pushCan(){ return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && (location.protocol === "https:" || location.hostname === "localhost"); }
 function b64u(s){ s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; var b = atob(s), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
 function myReg(){ return navigator.serviceWorker.register("sw.js", {scope:"./"}).then(function(){ return navigator.serviceWorker.ready; }); }
@@ -506,7 +516,7 @@ function pushSave(sub){
   return fsReq("PATCH", "trade_alerts/{uid}", {fields:{endpoint:fv(j.endpoint), p256dh:fv(j.keys.p256dh), auth:fv(j.keys.auth), on:fv(true),
                                    kinds:fv(S.kinds), terms:fv(TERMS.version), device:fv(isIOS() ? "iPhone" : /Android/.test(navigator.userAgent) ? "Android" : "Computer"),
                                    updatedAt:fv(new Date())}})
-    .then(function(){ S.pushEp = j.endpoint; S.pushAt = Date.now(); S.pushTerms = TERMS.version; saveS(); });
+    .then(function(){ S.pushEp = j.endpoint; S.pushAt = Date.now(); S.pushTerms = TERMS.version; S.pushProject = FB.projectId; saveS(); });
 }
 function pushWhy(e){
   var m = String((e && e.message) || e || "");
@@ -542,7 +552,7 @@ function pushRenew(){   // phones replace their push address now and then; keep 
   if (Notification.permission !== "granted"){ S.push = false; saveS(); st.pushNote = "Notifications were turned off because this site lost permission to show them."; return; }
   myReg().then(function(reg){ return reg.pushManager.getSubscription(); }).then(function(s){
     if (!s) return pushSub().then(pushSave);
-    if (s.endpoint !== S.pushEp || S.pushTerms !== TERMS.version || Date.now() - S.pushAt > 7 * 864e5) return pushSave(s);
+    if (s.endpoint !== S.pushEp || S.pushTerms !== TERMS.version || S.pushProject !== FB.projectId || Date.now() - S.pushAt > 7 * 864e5) return pushSave(s);
   }).catch(function(){});
 }
 function pushSample(){
@@ -555,7 +565,8 @@ function pushSample(){
 
 /* ================================================================== profile: email sign-in, synced across devices
    Only an email (and a password to protect it) is asked for. Signing up adds the email to this device's existing id,
-   so its terms records and notifications carry on. The profile (trade_profiles/{id}) holds capital settings,
+   so its terms records and notifications carry on. Opening Bell has its own Firebase project, so these sign-ins are
+   separate from Fovea's. The profile (trade_profiles/{id}) holds capital settings,
    watchlists and paper trades; without a profile they stay on this phone only. */
 function signedIn(){ var c = cred(); return !!(c && c.email); }
 function authWhy(e){
@@ -606,7 +617,7 @@ function resetPassword(email){
   if (!email){ st.authNote = "Type your email first, then tap Forgot password."; render(); return; }
   fetch(ID_URL + "/accounts:sendOobCode?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/json"},
     body:JSON.stringify({requestType:"PASSWORD_RESET", email:email})}).then(jsonOrThrow)
-    .then(function(){ st.authNote = "If that email has a profile, a reset link is on its way. The email may mention Fovea, which shares the sign-in service."; },
+    .then(function(){ st.authNote = "If that email has a profile, a reset link is on its way. Check your spam folder if it doesn't arrive."; },
           function(e){ st.authNote = authWhy(e); }).then(render);
 }
 function clearLocalProfile(){
@@ -1307,7 +1318,7 @@ function viewSettings(){
       '<div class="inline"><button class="btn gold" type="button" id="p-create"' + (st.authBusy ? " disabled" : "") + '>Create profile</button>' +
       '<button class="btn ghost" type="button" id="p-in"' + (st.authBusy ? " disabled" : "") + '>Sign in</button>' +
       '<button class="linkish small muted" type="button" id="p-reset">Forgot password</button></div></form>' +
-      '<p class="note">If you use Fovea with this email, sign in with the same password: the two apps share one sign-in.</p></div>';
+      '<p class="note">Opening Bell profiles are separate from Fovea: an email used in Fovea needs its own Opening Bell profile and password.</p></div>';
   prof += st.authNote ? '<div class="warn">' + esc(st.authNote) + "</div>" : "";
 
   var capital = '<div class="glass tile">' +

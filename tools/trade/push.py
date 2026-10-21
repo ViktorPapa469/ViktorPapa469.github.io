@@ -20,7 +20,7 @@ import time
 
 import requests
 
-PROJECT = os.environ.get("FB_PROJECT", "fovea-25d37")
+PROJECT = os.environ.get("FB_PROJECT", "opening-bell-4fdc9")
 KEY = os.environ.get("FB_KEY", "")
 FS = os.environ.get("FS_BASE", "https://firestore.googleapis.com/v1")
 SITE = "https://viktorpapa469.github.io"
