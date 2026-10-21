@@ -181,4 +181,5 @@ def write_analysis(out_dir, ctx, res, generated):
         stocks[sym] = {"industry": r.industry, "price": r.price, "chg1": r.chg1, "event": r.event or None,
                        "lists": lists.get(sym, []), "groups": rule_checks(r, res["top"], res["bottom"])}
     _dump(os.path.join(out_dir, "analysis.json"), clean({"schema": SCHEMA, "date": ctx["date"], "as_of": ctx["as_of_date"],
-                                                       "generated": generated, "stocks": stocks}))
+                                                       "generated": generated, "stocks": stocks,
+                                                       "sectors": {"top": sorted(res["top"]), "bottom": sorted(res["bottom"])}}))

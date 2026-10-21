@@ -195,6 +195,17 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .ohlc .d{margin-left:auto;color:var(--ink3)}
 .chk{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:2px 8px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px}
 .chk:last-child{border-bottom:0}
+.chk.na{opacity:.6}
+.sugg{margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--glass-hi)}
+.sugg button{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline;width:100%;padding:9px 12px;background:none;border:0;border-bottom:1px solid var(--line);color:inherit;text-align:left;font:inherit;font-size:13.5px;cursor:pointer}
+.sugg button:last-child{border-bottom:0}
+.sugg button:hover,.sugg button:focus{background:var(--glass)}
+.sugg .sym{font-weight:600}.sugg .sym b,.sugg .nm b{color:var(--gold)}
+.sugg .nm{color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sugg .nm b{font-weight:600}
+.sugg .ex{font-size:11px;color:var(--ink2);white-space:nowrap}
+.an-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:6px;margin:10px 0 0}
+.an-strip > div{padding:8px 10px;border-radius:12px;display:flex;flex-direction:column;gap:2px}
+.an-strip b{font-size:18px}.an-strip span{font-size:11.5px;color:var(--ink2);line-height:1.25}
 .chk i{font-style:normal;font-weight:700;text-align:center}
 .chk .v{text-align:right;white-space:nowrap}
 .chk small{grid-column:2 / -1;color:var(--ink2);font-size:11.5px;margin-top:-2px}
@@ -917,6 +928,7 @@ function curList(){ var l = T.lists.filter(function(x){ return x.id === st.list;
 var PX = {daily:null, meta:null, intra:{}, loading:false, tried:false, err:null,
   reset:function(){ this.daily = null; this.meta = null; this.intra = {}; this.err = null; this.tried = false; AN.data = null; AN.err = null; }};
 var AN = {data:null, loading:null, err:null};   // analysis.json: each stock checked against the screener's rules
+var MK = {index:null, rules:null, loading:null, shards:{}, bySym:null};   // market/: every other NSE and BSE stock, same rules
 function loadTestPrices(){
   if (!st.base || PX.loading) return;
   PX.loading = true; PX.tried = true;
@@ -1105,11 +1117,10 @@ function viewPlan(){
       "<li>Skip stocks with results today unless studying the reaction after 10:00.</li></ol></div>" +
       '<p class="note">' + n(p.meta && p.meta.universe) + " F&amp;O stocks screened, " + n(p.meta && p.meta.liquid) +
       " liquid enough to study. Prices to the close of " + esc(niceDate(p.as_of)) + ". Built " + esc(niceDate(p.generated)) + " at " + esc(hmOf(p.generated)) + ".</p>"),
-    page("Analyse a stock", '<div class="glass tile"><p style="margin:0 0 10px">Check any F&amp;O stock against each rule the screener uses, and see which setups it meets today.</p>' +
-      '<form class="inline" id="an-form"><input type="text" id="an-sym" list="an-uni" placeholder="Stock, e.g. RELIANCE" autocomplete="off" autocapitalize="characters" style="flex:1">' +
-      '<datalist id="an-uni">' + universe().map(function(x){ return "<option value=\"" + esc(x) + "\">"; }).join("") + "</datalist>" +
-      '<button class="btn gold" type="submit">Analyse</button></form></div>' +
-      '<p class="note">You can also tap Analyse on any stock in the app. A rule check for market study, not a recommendation.</p>')
+    page("Analyse a stock", '<div class="glass tile"><p style="margin:0 0 10px">Check any NSE or BSE stock against each rule the screener uses. Each setup gets a score: the % of its checks the stock meets, counting only the checks there is data for.</p>' +
+      '<form class="inline" id="an-form"><input type="search" id="an-sym" placeholder="Symbol or company name" autocomplete="off" autocorrect="off" spellcheck="false" style="flex:1" aria-controls="an-sugg">' +
+      '<button class="btn gold" type="submit">Analyse</button></form><div class="sugg" id="an-sugg" role="listbox" hidden></div></div>' +
+      '<p class="note">You can also tap Analyse on any stock in the app. F&amp;O stocks include futures open interest; for other stocks it isn\'t available and is left out of the score. A rule check for market study, not a recommendation.</p>')
   ];
 }
 
@@ -1325,38 +1336,163 @@ function loadAnalysis(){
     function(e){ AN.loading = null; throw new Error(e.status === 404 ? "The rule check arrives with the next published screen." : "Couldn't load the rule check."); });
   return AN.loading;
 }
-function analyse(sym){
-  sym = String(sym || "").trim().toUpperCase(); if (!sym) return;
-  openSheet("<h3>" + esc(sym) + "</h3><p class=\"muted\">Checking the rules…</p>");
-  loadAnalysis().then(function(a){
-    var x = a.stocks[sym];
-    if (!x){ openSheet("<h3>" + esc(sym) + '</h3><p>This stock isn\'t in the F&amp;O list the screener checks.</p><div class="gate-actions"><button class="btn ghost" id="an-close" type="button">Close</button></div>'); $("#an-close").onclick = closeSheet; return; }
-    var groups = x.groups.map(function(g){
-      var req = g.items.filter(function(i){ return !i[4]; }), fac = g.items.filter(function(i){ return i[4]; });
-      var met = req.filter(function(i){ return i[1]; }).length;
-      function row(i){
-        var mark = i[1] === true ? '<i class="up">✓</i>' : i[1] === false ? '<i class="down">✕</i>' : '<i class="muted">–</i>';
-        return '<div class="chk">' + mark + "<span>" + esc(i[0]) + '</span><span class="v">' + esc(i[2]) + "</span><small>" + (i[4] ? "Ranks higher if " : "Needs ") + esc(i[3]) + "</small></div>";
-      }
-      return '<div class="glass tile"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;margin-bottom:4px"><b>' + esc(g.name) + "</b>" +
-        '<span class="pill ' + (g.pass ? "up" : "") + '">' + (g.pass ? "Meets the rules" : met + " of " + req.length + " rules") + "</span></div>" +
-        req.map(row).join("") +
-        (fac.length ? '<p class="muted small" style="margin:10px 0 2px">Ranking factors (not required, they decide the order)</p>' + fac.map(row).join("") : "") +
-        (/^Swing/.test(g.name) ? '<p class="muted small" style="margin:8px 0 0">Also needs the price and turnover filters above.</p>' : "") + "</div>";
-    }).join("");
-    var lists = x.lists && x.lists.length ? "On today's screen: <b>" + esc(x.lists.join(", ")) + "</b>." :
-      "Not on today's screen. A stock can meet the rules and still be left out, because only the highest-ranked ones are listed.";
-    openSheet("<h3>" + esc(sym) + ': rule check</h3><p class="muted small" style="margin:0">' + esc(indOf(x.industry) || "F&O stock") +
-        ". Prices to the close of " + esc(niceDate(a.as_of)) + ".</p>" + ohlc(sym) +
-      '<p style="margin:10px 0">' + lists + (x.event ? " " + esc(x.event) + "." : "") + "</p>" + groups +
-      '<p class="note">A rule check for market study, not a recommendation or investment advice.</p>' +
-      '<div class="gate-actions"><button class="btn ghost" id="an-close" type="button">Close</button><button class="btn gold" id="an-trade" type="button">Paper trade</button></div>');
-    $("#an-close").onclick = closeSheet;
-    $("#an-trade").onclick = function(){ closeSheet(); tradeForm({symbol:sym, listId:st.list || T.lists[0].id}); };
-  }, function(e){
-    openSheet("<h3>" + esc(sym) + "</h3><p>" + esc(e.message) + '</p><div class="gate-actions"><button class="btn ghost" id="an-close" type="button">Close</button></div>');
-    $("#an-close").onclick = closeSheet;
+/* every other NSE and BSE stock: market/index.json (names, for search), market/rules.json, market/s/<letter>.json */
+function loadMarket(){
+  if (MK.index) return Promise.resolve(MK);
+  if (!st.base) return Promise.reject(new Error("No data published yet."));
+  if (!MK.loading) MK.loading = Promise.all([getJSON(st.base + "market/index.json"), getJSON(st.base + "market/rules.json")]).then(function(r){
+    MK.index = r[0]; MK.rules = r[1]; MK.bySym = {}; MK.loading = null;
+    r[0].stocks.forEach(function(x){ MK.bySym[x[0]] = x; });
+    return MK;
+  }, function(e){ MK.loading = null; throw e; });
+  return MK.loading;
+}
+function marketShard(k){
+  if (!MK.shards[k]) MK.shards[k] = getJSON(st.base + "market/s/" + k + ".json").catch(function(e){ delete MK.shards[k]; throw e; });
+  return MK.shards[k];
+}
+/* type-ahead: stocks whose symbol or company name starts with what's typed (any word of the name) */
+function stockRows(){
+  var rows = MK.index ? MK.index.stocks.slice() : [], have = {};
+  rows.forEach(function(x){ have[x[0]] = 1; });
+  universe().forEach(function(sym){ if (!have[sym]) rows.push([sym, null, "NSE F&O", "fno"]); });
+  return rows;
+}
+function suggest(q){
+  var Q = String(q || "").trim().toUpperCase(); if (!Q) return [];
+  var out = [];
+  stockRows().forEach(function(x){
+    var sym = x[0], name = String(x[1] || "").toUpperCase(), rank = -1;
+    if (sym === Q) rank = 0;
+    else if (sym.indexOf(Q) === 0) rank = 1;
+    else if (name.indexOf(Q) === 0) rank = 2;
+    else if (Q.length >= 2 && (" " + name).indexOf(" " + Q) >= 0) rank = 3;
+    if (rank >= 0) out.push([rank, x]);
   });
+  out.sort(function(a, b){ return a[0] - b[0] || (a[1][3] === "fno" ? 0 : 1) - (b[1][3] === "fno" ? 0 : 1) || a[1][0].length - b[1][0].length || (a[1][0] < b[1][0] ? -1 : 1); });
+  return out.slice(0, 8).map(function(r){ return r[1]; });
+}
+function hl(text, Q){   // bold the typed start of the symbol or of a word in the name
+  var t = String(text || ""), U = t.toUpperCase(), i = U.indexOf(Q) === 0 ? 0 : U.indexOf(" " + Q) >= 0 ? U.indexOf(" " + Q) + 1 : -1;
+  return i < 0 || !Q ? esc(t) : esc(t.slice(0, i)) + "<b>" + esc(t.slice(i, i + Q.length)) + "</b>" + esc(t.slice(i + Q.length));
+}
+function wireSuggest(){
+  var inp = $("#an-sym"), box = $("#an-sugg"); if (!inp || !box) return;
+  function draw(){
+    var Q = inp.value.trim().toUpperCase(), rows = suggest(Q);
+    if (!rows.length){ box.hidden = true; box.innerHTML = ""; return; }
+    box.innerHTML = rows.map(function(x){
+      return '<button type="button" role="option" data-sugg="' + esc(x[0]) + '"><span class="sym">' + hl(x[0], Q) + "</span>" +
+        '<span class="nm">' + (x[1] ? hl(x[1], Q) : "") + '</span><span class="ex">' + esc(x[2]) + "</span></button>";
+    }).join("");
+    box.hidden = false;
+    box.querySelectorAll("[data-sugg]").forEach(function(b){
+      b.onmousedown = function(e){ e.preventDefault(); };   // keep the tap from blurring the input first
+      b.onclick = function(){ inp.value = b.dataset.sugg; box.hidden = true; analyse(b.dataset.sugg); };
+    });
+  }
+  inp.oninput = draw;
+  inp.onfocus = function(){ loadMarket().then(draw, function(){}); draw(); };
+  inp.onblur = function(){ setTimeout(function(){ box.hidden = true; }, 150); };
+}
+/* a typed name or symbol to symbols: exact symbol first, then company names */
+function findStocks(q){
+  var Q = q.toUpperCase(), out = [];
+  if (MK.bySym && MK.bySym[Q]) return [Q];
+  if (universe().indexOf(Q) >= 0) return [Q];
+  if (!MK.index) return [Q];
+  var words = Q.replace(/\b(LTD|LIMITED|INDIA)\b\.?/g, " ").split(/\s+/).filter(Boolean);
+  MK.index.stocks.forEach(function(x){
+    var name = String(x[1] || "").toUpperCase();
+    if (x[0].indexOf(Q) === 0 || (" " + name).indexOf(" " + Q) >= 0 || (words.length && words.every(function(w){ return (" " + name).indexOf(" " + w) >= 0; }))) out.push(x[0]);
+  });
+  return out.length ? out.slice(0, 30) : [Q];
+}
+function closeBtn(){ return '<div class="gate-actions"><button class="btn ghost" id="an-close" type="button">Close</button></div>'; }
+function anMsg(sym, msg){ openSheet("<h3>" + esc(sym) + "</h3><p>" + msg + "</p>" + closeBtn()); $("#an-close").onclick = closeSheet; }
+/* checks with data that are met, out of all checks with data (required rules and ranking factors) */
+function scoreOf(g){
+  var have = g.items.filter(function(i){ return i[1] !== null && i[1] !== undefined; });
+  var met = have.filter(function(i){ return i[1] === true; }).length;
+  return {met:met, have:have.length, na:g.items.length - have.length, pct:have.length ? Math.round(met / have.length * 100) : null};
+}
+function analyse(sym){
+  var q = String(sym || "").trim(); if (!q) return;
+  var Q = q.toUpperCase();
+  openSheet("<h3>" + esc(Q) + "</h3><p class=\"muted\">Checking the rules…</p>");
+  loadAnalysis().catch(function(){ return {stocks:{}}; }).then(function(a){
+    if (a.stocks[Q]) return showAnalysis(Q, a.stocks[Q], {fno:true, as_of:a.as_of});
+    return loadMarket().then(function(m){
+      var hits = findStocks(q);
+      if (hits.length > 1){
+        openSheet("<h3>Which stock?</h3>" + hits.map(function(h){
+          var r = m.bySym[h] || [h, "", "NSE F&O"];
+          return '<button class="wl-row" style="width:100%;background:none;border:0;color:inherit;text-align:left;cursor:pointer" type="button" data-pick="' + esc(h) + '"><div><span class="sym">' + esc(h) + '</span><span class="ind">' + esc((r[1] || "") + " · " + r[2]) + "</span></div></button>";
+        }).join("") + closeBtn());
+        $("#an-close").onclick = closeSheet;
+        document.querySelectorAll("[data-pick]").forEach(function(b){ b.onclick = function(){ analyse(b.dataset.pick); }; });
+        return;
+      }
+      var S1 = hits[0];
+      if (a.stocks[S1]) return showAnalysis(S1, a.stocks[S1], {fno:true, as_of:a.as_of});
+      var r = m.bySym[S1];
+      if (r && r[3] === "fno") return anMsg(S1, "Couldn't load the F&amp;O rule check. Check the connection and try again.");
+      if (!r) return anMsg(Q, "No NSE or BSE stock found by that symbol or name. Try the symbol as it trades on NSE, e.g. TATAMOTORS, or the BSE code for BSE-only stocks.");
+      return marketShard(r[3]).then(function(sh){
+        var x = sh[S1]; if (!x) return anMsg(S1, "No price data for this stock yet.");
+        var k = 0, groups = m.rules.groups.map(function(g, gi){
+          return {name:g.name, pass:x.g[gi], items:g.items.map(function(it){
+            var v = x.v[k++] || [null, "Not available"];
+            return [it[0], v[0] === null ? null : !!v[0], v[1], it[1], it[2]];
+          })};
+        });
+        showAnalysis(S1, {industry:x.i, price:x.p, chg1:x.c, event:x.e, lists:[], groups:groups,
+                          name:x.n, exchange:x.x, bar:{o:x.o, h:x.h, l:x.l, c:x.p, d:x.d}}, {fno:false, as_of:x.d});
+      });
+    }, function(e){
+      anMsg(Q, e && e.status === 404 ? "This stock isn't in the F&amp;O list, and the all-market check (every NSE and BSE stock) is published after the close each trading day. Try again after about 8 PM." : "Couldn't load the rule check. Check the connection and try again.");
+    });
+  }).catch(function(){ anMsg(Q, "Couldn't load the rule check. Check the connection and try again."); });
+}
+function shortName(name){
+  return ({"Liquidity filters (intraday)":"Liquidity", "Intraday long setup":"Intraday long", "Intraday short setup":"Intraday short",
+           "Swing: pullback to the 20-day average":"Swing pullback", "Swing: tight base near highs":"Swing tight base"})[name] || name;
+}
+function showAnalysis(sym, x, o){
+  var scores = x.groups.map(scoreOf);
+  var strip = '<div class="an-strip">' + x.groups.map(function(g, gi){
+    var sc = scores[gi];
+    return '<div class="glass"><b class="' + (sc.pct >= 75 ? "up" : sc.pct !== null && sc.pct < 40 ? "down" : "") + '">' + (sc.pct === null ? "–" : sc.pct + "%") + "</b><span>" + esc(shortName(g.name)) + "</span></div>";
+  }).join("") + "</div>";
+  var groups = x.groups.map(function(g, gi){
+    var req = g.items.filter(function(i){ return !i[4]; }), fac = g.items.filter(function(i){ return i[4]; }), sc = scores[gi];
+    function row(i){
+      var na = i[1] === null || i[1] === undefined;
+      var mark = i[1] === true ? '<i class="up">✓</i>' : i[1] === false ? '<i class="down">✕</i>' : '<i class="muted">–</i>';
+      return '<div class="chk' + (na ? " na" : "") + '">' + mark + "<span>" + esc(i[0]) + '</span><span class="v">' + esc(i[2]) + "</span><small>" +
+        (na ? "Not counted in the score" : (i[4] ? "Ranks higher if " : "Needs ") + esc(i[3])) + "</small></div>";
+    }
+    return '<div class="glass tile"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;margin-bottom:2px"><b>' + esc(g.name) + "</b>" +
+        '<span class="pill ' + (g.pass ? "up" : "") + '">' + (sc.pct === null ? "No data" : sc.pct + "% met") + "</span></div>" +
+      '<p class="muted small" style="margin:0 0 6px">' + sc.met + " of " + sc.have + " checks met" + (sc.na ? ", " + sc.na + " not available" : "") + ". " +
+        (g.pass ? "<b class=\"up\">Meets every required rule.</b>" : "Required rules met: " + req.filter(function(i){ return i[1] === true; }).length + " of " + req.length + ".") + "</p>" +
+      req.map(row).join("") +
+      (fac.length ? '<p class="muted small" style="margin:10px 0 2px">Ranking factors (not required, they decide the order)</p>' + fac.map(row).join("") : "") +
+      (/^Swing/.test(g.name) ? '<p class="muted small" style="margin:8px 0 0">Also needs the price and turnover filters above.</p>' : "") + "</div>";
+  }).join("");
+  var lists = !o.fno ? "Not an F&amp;O stock, so it isn't on the screen (the screener lists F&amp;O stocks only) and futures open interest isn't available. The scores count only the checks with data." :
+    x.lists && x.lists.length ? "On today's screen: <b>" + esc(x.lists.join(", ")) + "</b>." :
+    "Not on today's screen. A stock can meet the rules and still be left out, because only the highest-ranked ones are listed.";
+  var b = x.bar, line = o.fno ? ohlc(sym) : b ? '<p class="ohlc"><span>O <b>' + n(b.o, 2) + "</b></span><span>H <b>" + n(b.h, 2) + "</b></span><span>L <b>" + n(b.l, 2) + "</b></span><span>C <b>" + n(b.c, 2) + "</b></span>" +
+    '<span class="d">' + esc(niceDate(b.d)) + "</span></p>" : "";
+  var sub = o.fno ? (indOf(x.industry) || "F&O stock") + " · NSE F&O" : (x.name ? x.name + " · " : "") + (x.exchange || "") + (indOf(x.industry) ? " · " + x.industry : "");
+  openSheet("<h3>" + esc(sym) + ': rule check</h3><p class="muted small" style="margin:0">' + esc(sub) +
+      ". Prices to the close of " + esc(niceDate(o.as_of)) + ".</p>" + line + strip +
+    '<p style="margin:10px 0">' + lists + (x.event ? " " + esc(x.event) + "." : "") + "</p>" + groups +
+    '<p class="note">Scores are the share of each setup\'s checks the stock meets, counting only checks with data. A rule check for market study, not a recommendation or investment advice.</p>' +
+    '<div class="gate-actions"><button class="btn ghost" id="an-close" type="button">Close</button>' + (o.fno ? '<button class="btn gold" id="an-trade" type="button">Paper trade</button>' : "") + "</div>");
+  $("#an-close").onclick = closeSheet;
+  if (o.fno) $("#an-trade").onclick = function(){ closeSheet(); tradeForm({symbol:sym, listId:st.list || T.lists[0].id}); };
 }
 
 /* manage a watchlist: name, stocks, clear, delete */
@@ -1638,6 +1774,7 @@ function bindView(){
   if ((x = $("#t-manage"))) x.onclick = manageList;
   document.querySelectorAll("[data-analyse]").forEach(function(b){ b.onclick = function(){ analyse(b.dataset.analyse); }; });
   if ((x = $("#an-form"))) x.onsubmit = function(e){ e.preventDefault(); analyse($("#an-sym").value); };
+  wireSuggest();
   document.querySelectorAll("[data-trade]").forEach(function(b){ b.onclick = function(){ tradeForm({symbol:b.dataset.trade, listId:st.list}); }; });
   document.querySelectorAll("[data-closetrade]").forEach(function(b){ b.onclick = function(){ closeForm(b.dataset.closetrade); }; });
   document.querySelectorAll("[data-edittrade]").forEach(function(b){ b.onclick = function(){

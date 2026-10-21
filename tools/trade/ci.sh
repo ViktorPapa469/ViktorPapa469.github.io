@@ -6,6 +6,7 @@
 #   MODE=premarket  just the screen
 #   MODE=orb        one breakout scan
 #   MODE=squareoff  the 3:15 reminder (only on days the market traded)
+#   MODE=market     just the all-market analysis (every NSE and BSE stock, for the app's Analyse button)
 # NOTIFY=0 turns push notifications off (used when the workflow runs because the code changed).
 set -u
 cd "$(dirname "$0")"
@@ -30,6 +31,11 @@ screen() {  # announced as "screen ready" in the morning, or as a preview when b
   [ "$(hhmm)" -ge 1530 ] && bars   # after the close: the full day's 15-minute prices
   notify screen
   publish "screen $(date '+%F %H:%M')"
+  [ "$(hhmm)" -ge 1530 ] && market
+  return 0
+}
+market() {  # every other NSE and BSE stock against the same rules; never fails the run
+  python market.py "$PUB" --max-minutes "${MARKET_MINUTES:-60}" && publish "market analysis $(date '+%F %H:%M')" || true
 }
 
 if [ "$MODE" = auto ]; then
@@ -39,6 +45,7 @@ echo "mode: $MODE, IST now $(date '+%a %F %H:%M')"
 
 case "$MODE" in
   premarket) screen ;;
+  market) market ;;
   orb)
     python run.py orb --no-browser --json "$PUB"; bars; notify breakouts; publish "scan $(date '+%H:%M')" ;;
   squareoff)

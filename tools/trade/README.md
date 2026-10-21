@@ -94,6 +94,16 @@ the morning summary + full HTML report, and a ping for each breakout trigger.
 2. Send any message to your new bot.
 3. Open `https://api.telegram.org/bot<TOKEN>/getUpdates` and copy `"chat":{"id": ...}`.
 
+## 7a. Analyse any NSE or BSE stock
+
+After the evening screen, `market.py` checks every other listed stock (NSE main board and SME, plus BSE-only
+companies matched by ISIN from the BSE bhavcopy) against the same rules as the screener, using a year of Yahoo
+daily prices. Checks without data are marked "not available" and left out of the score: futures open interest
+for stocks outside F&O, the sector check outside the Nifty 500 industry list, and anything needing more price
+history than a new listing has. The app shows each setup as the % of its checks met, counting only checks with
+data. Output: `market/index.json` (symbols and names, for search), `market/rules.json`, `market/s/<letter>.json`.
+Run it alone with `MODE=market` (workflow input), or locally: `python market.py PUB_DIR --limit 50`.
+
 ## 7. Data sources and limits
 
 | Data | Source |

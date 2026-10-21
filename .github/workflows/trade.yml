@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'auto (by time of day), premarket (screen only), orb (one breakout scan), morning, squareoff'
+        description: 'auto (by time of day), premarket (screen only), orb (one breakout scan), morning, squareoff, market (all NSE and BSE stocks)'
         default: auto
   push:
     branches: [main]
