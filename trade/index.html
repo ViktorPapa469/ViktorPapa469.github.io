@@ -190,6 +190,14 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .wl-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .wl-top .sym{font-size:17px}
 .wl-sum{font-size:12.5px;margin-top:3px}
+.ohlc{display:flex;flex-wrap:wrap;gap:2px 11px;margin:7px 0 0;font-size:12px;color:var(--ink2)}
+.ohlc b{color:var(--ink);font-weight:500}
+.ohlc .d{margin-left:auto;color:var(--ink3)}
+.chk{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:2px 8px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px}
+.chk:last-child{border-bottom:0}
+.chk i{font-style:normal;font-weight:700;text-align:center}
+.chk .v{text-align:right;white-space:nowrap}
+.chk small{grid-column:2 / -1;color:var(--ink2);font-size:11.5px;margin-top:-2px}
 .x{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:none;color:var(--ink2);cursor:pointer}
 .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 10px}
 .result{margin-top:8px;padding:8px 10px;border-radius:11px;background:rgba(0,0,0,.22);font-size:13px}
@@ -431,7 +439,7 @@ function load(day){
     else st.error = "Couldn't reach the data (" + (e.message || "network error") + "). Showing what was loaded before.";
   }).then(function(){
     st.loading = false; render();
-    if (st.tab === "test") loadTestPrices();
+    loadTestPrices();
   });
 }
 
@@ -836,7 +844,8 @@ function curList(){ var l = T.lists.filter(function(x){ return x.id === st.list;
 
 /* prices for results */
 var PX = {daily:null, meta:null, intra:{}, loading:false, tried:false, err:null,
-  reset:function(){ this.daily = null; this.meta = null; this.intra = {}; this.err = null; this.tried = false; }};
+  reset:function(){ this.daily = null; this.meta = null; this.intra = {}; this.err = null; this.tried = false; AN.data = null; AN.err = null; }};
+var AN = {data:null, loading:null, err:null};   // analysis.json: each stock checked against the screener's rules
 function loadTestPrices(){
   if (!st.base || PX.loading) return;
   PX.loading = true; PX.tried = true;
@@ -850,7 +859,7 @@ function loadTestPrices(){
       return Promise.all(Object.keys(need).filter(function(d){ return !PX.intra[d]; }).map(function(d){
         return getJSON(base + "prices/intraday/" + d + ".json").then(function(j){ PX.intra[d] = j; }).catch(function(){});
       }));
-    }).then(function(){ PX.loading = false; if (st.tab === "test") render(); });
+    }).then(function(){ PX.loading = false; if ($("#sheet").hidden) render(); });
 }
 function pricesFor(sym){
   var D = PX.daily, idx = {}, i;
@@ -878,6 +887,22 @@ function atrOf(sym){
   for (var i = 1; i < ds.length; i++){ var a = p.daily(ds[i]), pc_ = p.daily(ds[i - 1]).c;
     tr.push(Math.max(a.h - a.l, Math.abs(a.h - pc_), Math.abs(a.l - pc_))); }
   return tr.length ? tr.reduce(function(x, y){ return x + y; }, 0) / tr.length : null;
+}
+/* latest session's open, high, low and close (or last, while the market is open) in one line */
+function addMins(t, m){ var x = +t.slice(0, 2) * 60 + +t.slice(3) + m; return ("0" + Math.floor(x / 60)).slice(-2) + ":" + ("0" + x % 60).slice(-2); }
+function ohlc(sym){
+  if (!PX.daily) return "";
+  var p = pricesFor(sym), ds = p.days(); if (!ds.length) return "";
+  var d = ds[ds.length - 1], day = p.daily(d), b = p.bars(d), o, h, l, c, label, live = false;
+  if (day){ o = day.o; h = day.h; l = day.l; c = day.c; label = niceDate(d); }
+  else if (b && b.length){
+    o = b[0].o; c = b[b.length - 1].c;
+    h = Math.max.apply(null, b.map(function(x){ return x.h; })); l = Math.min.apply(null, b.map(function(x){ return x.l; }));
+    var t = ist(); live = d === t.date && t.mins < 930;
+    label = live ? "today, to " + addMins(b[b.length - 1].t, 15) : niceDate(d);
+  } else return "";
+  return '<p class="ohlc"><span>O <b>' + n(o, 2) + "</b></span><span>H <b>" + n(h, 2) + "</b></span><span>L <b>" + n(l, 2) + "</b></span><span>" + (live ? "Last" : "C") + " <b>" + n(c, 2) + "</b></span>" +
+    '<span class="d">' + esc(label) + "</span></p>";
 }
 function universe(){ return PX.daily ? Object.keys(PX.daily.symbols).sort() : []; }
 function resultOf(t){ return PaperEngine.simulate(t, pricesFor(t.symbol), ist()); }
@@ -1008,7 +1033,12 @@ function viewPlan(){
       "<li>If Nifty is stuck inside its own opening range, sit out.</li>" +
       "<li>Skip stocks with results today unless studying the reaction after 10:00.</li></ol></div>" +
       '<p class="note">' + n(p.meta && p.meta.universe) + " F&amp;O stocks screened, " + n(p.meta && p.meta.liquid) +
-      " liquid enough to study. Prices to the close of " + esc(niceDate(p.as_of)) + ". Built " + esc(niceDate(p.generated)) + " at " + esc(hmOf(p.generated)) + ".</p>")
+      " liquid enough to study. Prices to the close of " + esc(niceDate(p.as_of)) + ". Built " + esc(niceDate(p.generated)) + " at " + esc(hmOf(p.generated)) + ".</p>"),
+    page("Analyse a stock", '<div class="glass tile"><p style="margin:0 0 10px">Check any F&amp;O stock against each rule the screener uses, and see which setups it meets today.</p>' +
+      '<form class="inline" id="an-form"><input type="text" id="an-sym" list="an-uni" placeholder="Stock, e.g. RELIANCE" autocomplete="off" autocapitalize="characters" style="flex:1">' +
+      '<datalist id="an-uni">' + universe().map(function(x){ return "<option value=\"" + esc(x) + "\">"; }).join("") + "</datalist>" +
+      '<button class="btn gold" type="submit">Analyse</button></form></div>' +
+      '<p class="note">You can also tap Analyse on any stock in the app. A rule check for market study, not a recommendation.</p>')
   ];
 }
 
@@ -1035,7 +1065,8 @@ function viewIntraday(){
         '<div><span>Daily ATR</span><b>' + rs(x.atr) + "</b></div>" +
         '<div><span>Pre-open gap</span><b class="' + tone(x.gap_pct) + '">' + pc(x.gap_pct) + "</b></div>" +
         '<div><span>Score</span><b>' + n(x.score) + "</b></div><div><span>Suggested position</span><b>" + n(q) + "</b></div></div>" +
-      '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="intra:' + st.side + ":" + i + '">Paper trade</button></div>' +
+      ohlc(x.symbol) +
+      '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="intra:' + st.side + ":" + i + '">Paper trade</button>' + anBtn(x.symbol) + "</div>" +
       "</article>";
   });
   if (!cards.length) return [page(isLong ? "Longs" : "Shorts", '<div class="empty"><p>No stocks qualify on this side today. That is a signal too: fewer trades.</p></div>')];
@@ -1074,7 +1105,7 @@ function ticket(r, mult){
     '<span class="ind">' + esc(indOf(r.industry)) + "</span></span>" +
     (ok(r.last) ? '<span class="px">' + rs(r.last) + '<small class="' + tone(r.chg) + '">' + pc(r.chg) + "</small></span>" : "") + "</div>";
   var info = ok(r.orh) ? '<p class="why">Range ' + rs(r.orl) + " to " + rs(r.orh) + ", VWAP " + rs(r.vwap) + (ok(r.rs) ? ", " + pc(r.rs) + " vs Nifty" : "") + "</p>" : "";
-  if (!ok(r.entry)) return '<div class="stock glass">' + top + info + "</div>";
+  if (!ok(r.entry)) return '<div class="stock glass">' + top + info + ohlc(r.symbol) + '<div class="row-actions">' + anBtn(r.symbol) + "</div></div>";
   var q = qty(r.entry, Math.abs(r.entry - r.stop), mult);
   return '<div class="stock glass' + (hot ? " hot" : "") + '">' + top + info +
     '<div class="levels"><div><span>Entry</span><b>' + rs(r.entry) + "</b></div><div><span>Stop</span><b>" + rs(r.stop) + "</b></div>" +
@@ -1083,7 +1114,8 @@ function ticket(r, mult){
     '<p class="why">Suggested position ' + n(q) + " shares" + (ok(r.lot) && r.lot > 0 && q >= r.lot ? ", " + (q / r.lot).toFixed(1) + " lots" : "") + ".</p>" +
     (r.extended ? '<div class="warn">Already more than 1R past entry. Don\'t chase; wait for a pullback toward VWAP or skip.</div>' : "") +
     (r.status === "TRIGGERED (weak RS)" ? '<div class="warn">Broke out but isn\'t beating Nifty. Half size or skip.</div>' : "") +
-    '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="live:' + esc(r.symbol) + '">Paper trade</button></div>' +
+    ohlc(r.symbol) +
+    '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="live:' + esc(r.symbol) + '">Paper trade</button>' + anBtn(r.symbol) + "</div>" +
     "</div>";
 }
 
@@ -1099,7 +1131,8 @@ function viewSwing(){
       "<div><span>Position</span><b>" + n(q) + "</b></div><div><span>Target 2R</span><b>" + rs(x.t1) + "</b></div>" +
       "<div><span>Target 3R</span><b>" + rs(x.t2) + "</b></div><div><span>Stop distance</span><b>" + (ok(x.risk_pct) ? x.risk_pct.toFixed(1) + "%" : "–") + "</b></div></div>" +
       (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(w) + "</div>"; }).join("") +
-      '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="swing:' + key + ":" + i + '">Paper trade</button></div></article>';
+      ohlc(x.symbol) +
+      '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="swing:' + key + ":" + i + '">Paper trade</button>' + anBtn(x.symbol) + "</div></article>";
   });
   if (!cards.length) return [page(pb ? "Pullbacks" : "Tight bases", '<div class="empty"><p>No stocks fit this setup today.</p></div>')];
   var lede = '<p class="lede">' + (pb ? "Uptrend leaders that dipped to their 20-day average on light volume. Valid only if price trades above yesterday's high." :
@@ -1156,8 +1189,8 @@ function viewTest(){
     var lp = lastPrice(sym);
     return '<div class="wl-stock"><div class="wl-top"><span><span class="sym">' + esc(sym) + "</span>" +
         '<span class="ind">' + (lp ? rs(lp.price) + ' <span class="' + tone(lp.chg) + '">' + pc(lp.chg) + "</span>" : "no price yet") + "</span></span>" +
-        '<button class="btn small" type="button" data-trade="' + esc(sym) + '">Paper trade</button></div>' +
-      '<div class="wl-sum">' + stockLine(sym) + "</div></div>";
+        '<span class="inline">' + anBtn(sym) + '<button class="btn small" type="button" data-trade="' + esc(sym) + '">Paper trade</button></span></div>' +
+      '<div class="wl-sum">' + stockLine(sym) + "</div>" + ohlc(sym) + "</div>";
   }).join("");
   var others = {};   // trades in this list for stocks that were since removed from it
   trades.forEach(function(t){ if (l.symbols.indexOf(t.symbol) < 0) others[t.symbol] = 1; });
@@ -1202,14 +1235,57 @@ function tradeCard(t, r){
     '<div class="levels"><div><span>Entry</span><b>' + rs(t.entry) + "</b></div><div><span>Stop</span><b>" + rs(t.stop) + "</b></div>" +
       "<div><span>Target</span><b>" + (ok(t.target) ? rs(t.target) : "–") + "</b></div><div><span>Position</span><b>" + n(t.qty) + "</b></div>" +
       "<div><span>Exit</span><b>" + (r.exitPrice != null ? rs(r.exitPrice) : "–") + "</b></div><div><span>Result</span><b class=\"" + tone(r.r) + '">' + rr(r.r) + "</b></div></div>" +
-    '<div class="result">' + line + (extra ? "<br>" + extra : "") + "</div>" +
+    '<div class="result">' + line + (extra ? "<br>" + extra : "") + "</div>" + ohlc(t.symbol) +
     (r.entryOk === false ? '<div class="warn">That entry price did not trade at that time. Check the date, time and price.</div>' : "") +
     (r.approx ? '<div class="warn">Approximate: 15-minute prices were not available for part of this trade.</div>' : "") +
     r.notes.filter(function(x){ return !/No 15-minute/.test(x); }).map(function(x){ return '<p class="muted small" style="margin:6px 0 0">' + esc(x) + "</p>"; }).join("") +
     (t.note ? '<p class="muted small" style="margin:6px 0 0">Note: ' + esc(t.note) + "</p>" : "") +
-    '<div class="row-actions">' + (r.status === "open" || r.status === "waiting" || r.status === "nodata" ? '<button class="btn ghost small" type="button" data-closetrade="' + t.id + '">Close by hand</button>' : "") +
+    '<div class="row-actions">' + (r.status === "open" || r.status === "waiting" || r.status === "nodata" ? '<button class="btn ghost small" type="button" data-closetrade="' + t.id + '">Close by hand</button>' : "") + anBtn(t.symbol) +
       '<button class="btn ghost small" type="button" data-edittrade="' + t.id + '">Edit</button>' +
       '<button class="btn ghost small" type="button" data-deltrade="' + t.id + '">Delete</button></div></div>';
+}
+
+/* Analyse: a stock checked against every screener rule (computed on GitHub with the screener's own code) */
+function anBtn(sym){ return '<button class="btn ghost small" type="button" data-analyse="' + esc(sym) + '">Analyse</button>'; }
+function loadAnalysis(){
+  if (AN.data) return Promise.resolve(AN.data);
+  if (!st.base) return Promise.reject(new Error("No screen published yet."));
+  if (!AN.loading) AN.loading = getJSON(st.base + "analysis.json").then(function(j){ AN.data = j; AN.loading = null; return j; },
+    function(e){ AN.loading = null; throw new Error(e.status === 404 ? "The rule check arrives with the next published screen." : "Couldn't load the rule check."); });
+  return AN.loading;
+}
+function analyse(sym){
+  sym = String(sym || "").trim().toUpperCase(); if (!sym) return;
+  openSheet("<h3>" + esc(sym) + "</h3><p class=\"muted\">Checking the rules…</p>");
+  loadAnalysis().then(function(a){
+    var x = a.stocks[sym];
+    if (!x){ openSheet("<h3>" + esc(sym) + '</h3><p>This stock isn\'t in the F&amp;O list the screener checks.</p><div class="gate-actions"><button class="btn ghost" id="an-close" type="button">Close</button></div>'); $("#an-close").onclick = closeSheet; return; }
+    var groups = x.groups.map(function(g){
+      var req = g.items.filter(function(i){ return !i[4]; }), fac = g.items.filter(function(i){ return i[4]; });
+      var met = req.filter(function(i){ return i[1]; }).length;
+      function row(i){
+        var mark = i[1] === true ? '<i class="up">✓</i>' : i[1] === false ? '<i class="down">✕</i>' : '<i class="muted">–</i>';
+        return '<div class="chk">' + mark + "<span>" + esc(i[0]) + '</span><span class="v">' + esc(i[2]) + "</span><small>" + (i[4] ? "Ranks higher if " : "Needs ") + esc(i[3]) + "</small></div>";
+      }
+      return '<div class="glass tile"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;margin-bottom:4px"><b>' + esc(g.name) + "</b>" +
+        '<span class="pill ' + (g.pass ? "up" : "") + '">' + (g.pass ? "Meets the rules" : met + " of " + req.length + " rules") + "</span></div>" +
+        req.map(row).join("") +
+        (fac.length ? '<p class="muted small" style="margin:10px 0 2px">Ranking factors (not required, they decide the order)</p>' + fac.map(row).join("") : "") +
+        (/^Swing/.test(g.name) ? '<p class="muted small" style="margin:8px 0 0">Also needs the price and turnover filters above.</p>' : "") + "</div>";
+    }).join("");
+    var lists = x.lists && x.lists.length ? "On today's screen: <b>" + esc(x.lists.join(", ")) + "</b>." :
+      "Not on today's screen. A stock can meet the rules and still be left out, because only the highest-ranked ones are listed.";
+    openSheet("<h3>" + esc(sym) + ': rule check</h3><p class="muted small" style="margin:0">' + esc(indOf(x.industry) || "F&O stock") +
+        ". Prices to the close of " + esc(niceDate(a.as_of)) + ".</p>" + ohlc(sym) +
+      '<p style="margin:10px 0">' + lists + (x.event ? " " + esc(x.event) + "." : "") + "</p>" + groups +
+      '<p class="note">A rule check for market study, not a recommendation or investment advice.</p>' +
+      '<div class="gate-actions"><button class="btn ghost" id="an-close" type="button">Close</button><button class="btn gold" id="an-trade" type="button">Paper trade</button></div>');
+    $("#an-close").onclick = closeSheet;
+    $("#an-trade").onclick = function(){ closeSheet(); tradeForm({symbol:sym, listId:st.list || T.lists[0].id}); };
+  }, function(e){
+    openSheet("<h3>" + esc(sym) + "</h3><p>" + esc(e.message) + '</p><div class="gate-actions"><button class="btn ghost" id="an-close" type="button">Close</button></div>');
+    $("#an-close").onclick = closeSheet;
+  });
 }
 
 /* manage a watchlist: name, stocks, clear, delete */
@@ -1501,6 +1577,8 @@ function bindView(){
     var l = {id:uid(), name:name, symbols:[], updatedAt:Date.now()}; T.lists.push(l); st.list = l.id; touchT(); render();
   };
   if ((x = $("#t-manage"))) x.onclick = manageList;
+  document.querySelectorAll("[data-analyse]").forEach(function(b){ b.onclick = function(){ analyse(b.dataset.analyse); }; });
+  if ((x = $("#an-form"))) x.onsubmit = function(e){ e.preventDefault(); analyse($("#an-sym").value); };
   document.querySelectorAll("[data-trade]").forEach(function(b){ b.onclick = function(){ tradeForm({symbol:b.dataset.trade, listId:st.list}); }; });
   document.querySelectorAll("[data-closetrade]").forEach(function(b){ b.onclick = function(){ closeForm(b.dataset.closetrade); }; });
   document.querySelectorAll("[data-edittrade]").forEach(function(b){ b.onclick = function(){

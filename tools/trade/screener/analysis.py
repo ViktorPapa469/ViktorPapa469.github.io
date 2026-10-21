@@ -7,6 +7,15 @@ import pandas as pd
 import config as C
 
 
+# swing setup rules (shared by the screen and by the app's "Analyse" checklist)
+PB_OFF_HIGH = (-12, -1.5)   # % below the 15-day high
+PB_VOL = 1.0                # pullback volume vs 20-day average, below
+PB_EMA_TOL = 0.99           # price at least this fraction of the 20 EMA
+BASE_DIST = -6              # % from the 52-week high, at least
+BASE_TIGHT = 3.5            # 10-day range in ATRs, at most
+BASE_DRYUP = 0.9            # 5-day volume vs 50-day, below
+
+
 # ------------------------------------------------------------------ indicators
 def ema(s, n):
     return s.ewm(span=n, adjust=False).mean()
@@ -162,7 +171,71 @@ def screen(daily, nifty_df, fo, industries, events, preopen, regime, today):
     pullbacks = _pullbacks(feat, top, mult)
     bases = _bases(feat.drop(index=[p["symbol"] for p in pullbacks]), top, mult)
     return {"features": feat, "sectors": sectors, "longs": longs, "shorts": shorts,
-            "pullbacks": pullbacks, "bases": bases, "liquid_count": len(liquid)}
+            "pullbacks": pullbacks, "bases": bases, "liquid_count": len(liquid), "top": top, "bottom": bottom}
+
+
+# ------------------------------------------------------------------ "Analyse" checklist for the app
+def rule_checks(r, top, bottom):
+    """Each screener rule for one stock: [label, passed (True/False/None), its value, what the rule needs, factor?].
+    Factors only change the ranking score; they are not required."""
+    def ok(x):
+        return None if x is None or (isinstance(x, float) and np.isnan(x)) else bool(x)
+
+    def num(x, fmt):
+        return "–" if x is None or (isinstance(x, float) and np.isnan(x)) else format(x, fmt)
+
+    rs_ = lambda x: "₹" + num(x, ",.2f")
+    liq = [
+        ["Price", ok(r.price >= C.MIN_PRICE), rs_(r.price), f"₹{C.MIN_PRICE} or more", 0],
+        ["Average daily turnover, 20 days", ok(r.turnover_cr >= C.MIN_TURNOVER_CR), "₹" + num(r.turnover_cr, ",.0f") + " cr", f"₹{C.MIN_TURNOVER_CR} cr or more", 0],
+        ["Daily range (ATR)", ok(r.atr_pct >= C.MIN_ATR_PCT), num(r.atr_pct, ".2f") + "%", f"{C.MIN_ATR_PCT}% or more", 0],
+        ["Price history", ok(r.bars >= 60), f"{int(r.bars)} sessions", "60 or more", 0],
+    ]
+
+    def side(s):
+        good, bad = (top, bottom) if s == 1 else (bottom, top)
+        want = ("Long buildup", "Short covering") if s == 1 else ("Short buildup", "Long unwinding")
+        word = "Stronger" if s == 1 else "Weaker"
+        items = [
+            [f"{word} than Nifty over 20 days", ok(s * r.rs20 > 0), num(r.rs20, "+.1f") + "%", "above 0%" if s == 1 else "below 0%", 0],
+            [("Above" if s == 1 else "Below") + " its 20-day average", ok(s * (r.price - r.ema20) > 0), rs_(r.price) + " vs " + rs_(r.ema20), "price " + ("above" if s == 1 else "below"), 0],
+            [f"{word} than Nifty over 5 days", ok(s * r.rs5 > 0), num(r.rs5, "+.1f") + "%", "above 0%" if s == 1 else "below 0%", 1],
+            ["Volume vs 20-day average", ok(r.rvol >= 1.5), num(r.rvol, ".1f") + "x", "1.5x or more", 1],
+            ["Closed near the day's " + ("high" if s == 1 else "low"), ok((r.close_pos if s == 1 else 1 - r.close_pos) >= 0.6), num(r.close_pos * 100, ".0f") + "% of the range", "upper part" if s == 1 else "lower part", 1],
+            ["Futures open interest", ok(r.buildup in want) if r.buildup else None, (r.buildup or "no clear change") + ("" if pd.isna(r.oi_chg_pct) else f" (OI {r.oi_chg_pct:+.1f}%)"), " or ".join(want), 1],
+            [f"Sector is among the {'strongest' if s == 1 else 'weakest'}", ok(r.industry in good), r.industry if r.industry != "Other" else "not classified", "top 3" if s == 1 else "bottom 3", 1],
+        ]
+        return items
+    pb = [
+        ["Above its 50-day average", ok(r.price > r.ema50), rs_(r.price) + " vs " + rs_(r.ema50), "price above", 0],
+        ["20-day average above the 50-day", ok(r.ema20 > r.ema50), rs_(r.ema20) + " vs " + rs_(r.ema50), "20-day above", 0],
+        ["20-day average rising", ok(r.ema20_slope > 0), num(r.ema20_slope, "+.2f") + "% in 5 days", "rising", 0],
+        ["Stronger than Nifty over 3 months", ok(r.rs63 > 0), num(r.rs63, "+.1f") + "%", "above 0%", 0],
+        ["Dipped to the 20-day average (last 3 days)", ok(r.touched_ema20), "yes" if r.touched_ema20 else "no", "yes", 0],
+        ["Holding the 20-day average", ok(r.price >= r.ema20 * PB_EMA_TOL), rs_(r.price) + " vs " + rs_(r.ema20), f"within {round((1 - PB_EMA_TOL) * 100)}% or above", 0],
+        ["Below the 15-day high", ok(PB_OFF_HIGH[0] <= r.off_high15 <= PB_OFF_HIGH[1]), num(r.off_high15, ".1f") + "%", f"{PB_OFF_HIGH[1]:g}% to {PB_OFF_HIGH[0]:g}%", 0],
+        ["Light volume on the dip", ok(r.pullback_vol < PB_VOL), num(r.pullback_vol, ".2f") + "x average", f"below {PB_VOL:g}x", 0],
+    ]
+    base = [
+        ["Near the 52-week high", ok(r.dist_52wh >= BASE_DIST), num(r.dist_52wh, ".1f") + "%", f"within {abs(BASE_DIST)}%", 0],
+        ["Tight 10-day range", ok(r.tight10 <= BASE_TIGHT), num(r.tight10, ".1f") + " ATR", f"{BASE_TIGHT:g} ATR or less", 0],
+        ["Volume drying up (5 days vs 50)", ok(r.dryup < BASE_DRYUP), num(r.dryup, ".2f") + "x", f"below {BASE_DRYUP:g}x", 0],
+        ["Above its 20-day average", ok(r.price > r.ema20), rs_(r.price) + " vs " + rs_(r.ema20), "price above", 0],
+        ["20-day average above the 50-day", ok(r.ema20 > r.ema50), rs_(r.ema20) + " vs " + rs_(r.ema50), "20-day above", 0],
+    ]
+    liq_ok = all(x[1] for x in liq)
+    swing_liq = liq[:2]
+
+    def group(name, items, need_liq):
+        req = [x for x in items if not x[4]] + (need_liq if need_liq else [])
+        return {"name": name, "pass": all(x[1] for x in req), "items": items}
+    return [
+        {"name": "Liquidity filters (intraday)", "pass": liq_ok, "items": liq},
+        group("Intraday long setup", side(1), liq),
+        group("Intraday short setup", side(-1), liq),
+        group("Swing: pullback to the 20-day average", pb, swing_liq),
+        group("Swing: tight base near highs", base, swing_liq),
+    ]
 
 
 def _intraday_side(df, top, bottom, mult, side, regime):
@@ -221,8 +294,8 @@ def _pullbacks(df, top, mult):
     """Uptrending leader dipping to its 20 EMA on lighter volume."""
     m = ((df["price"] >= C.MIN_PRICE) & (df["turnover_cr"] >= C.MIN_TURNOVER_CR)
          & (df["price"] > df["ema50"]) & (df["ema20"] > df["ema50"]) & (df["ema20_slope"] > 0)
-         & (df["rs63"] > 0) & df["touched_ema20"] & (df["price"] >= df["ema20"] * 0.99)
-         & df["off_high15"].between(-12, -1.5) & (df["pullback_vol"] < 1.0))
+         & (df["rs63"] > 0) & df["touched_ema20"] & (df["price"] >= df["ema20"] * PB_EMA_TOL)
+         & df["off_high15"].between(*PB_OFF_HIGH) & (df["pullback_vol"] < PB_VOL))
     cand = df[m].copy()
     if cand.empty:
         return []
@@ -242,7 +315,7 @@ def _pullbacks(df, top, mult):
 def _bases(df, top, mult):
     """Tight sideways range near 52-week highs with volume drying up."""
     m = ((df["price"] >= C.MIN_PRICE) & (df["turnover_cr"] >= C.MIN_TURNOVER_CR)
-         & (df["dist_52wh"] >= -6) & (df["tight10"] <= 3.5) & (df["dryup"] < 0.9)
+         & (df["dist_52wh"] >= BASE_DIST) & (df["tight10"] <= BASE_TIGHT) & (df["dryup"] < BASE_DRYUP)
          & (df["price"] > df["ema20"]) & (df["ema20"] > df["ema50"]))
     cand = df[m].copy()
     if cand.empty:

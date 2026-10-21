@@ -145,6 +145,7 @@ def premarket(demo, open_browser=True, json_dir=None):
     if json_dir:
         export.write(json_dir, "premarket", export.premarket_payload(ctx, list(dict.fromkeys(NOTES)), stamp()))
         export.write_daily_prices(json_dir, daily, stamp())   # for paper-trade results in the app
+        export.write_analysis(json_dir, ctx, res, stamp())     # for the app's Analyse button
         log(f"App data written to {json_dir}")
 
     summary = (f"<b>Watchlist {today:%d %b}</b> - {regime['label']}\n{regime['bias']}\n"

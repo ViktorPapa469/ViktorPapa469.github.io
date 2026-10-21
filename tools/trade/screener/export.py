@@ -167,3 +167,18 @@ def _prices_meta(out_dir, generated):
     except (OSError, ValueError, KeyError):
         pass
     _dump(os.path.join(base, "meta.json"), {"schema": SCHEMA, "updated": generated, "daily_to": daily, "intraday_days": days})
+
+
+def write_analysis(out_dir, ctx, res, generated):
+    """analysis.json: every F&O stock checked against each screener rule, for the app's Analyse button."""
+    from .analysis import rule_checks
+    lists = {}
+    for key, label in (("longs", "Intraday longs"), ("shorts", "Intraday shorts"), ("pullbacks", "Swing pullbacks"), ("bases", "Swing tight bases")):
+        for i, p in enumerate(res[key]):
+            lists.setdefault(p["symbol"], []).append(f"{label} #{i + 1}")
+    stocks = {}
+    for sym, r in res["features"].iterrows():
+        stocks[sym] = {"industry": r.industry, "price": r.price, "chg1": r.chg1, "event": r.event or None,
+                       "lists": lists.get(sym, []), "groups": rule_checks(r, res["top"], res["bottom"])}
+    _dump(os.path.join(out_dir, "analysis.json"), clean({"schema": SCHEMA, "date": ctx["date"], "as_of": ctx["as_of_date"],
+                                                       "generated": generated, "stocks": stocks}))
