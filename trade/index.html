@@ -55,6 +55,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .fresh{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2);min-width:0}
 .fresh select,.pill-btn{border:1px solid var(--line);background:var(--glass);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--ink)}
 .fresh select{max-width:120px}
+.brand,.pill-btn,.fresh > span{white-space:nowrap}
+@media (max-width:430px){ .upd-l{display:none} .fresh select{max-width:96px} }
+.gold-pill{background:var(--gold);color:#1B1405;border-color:var(--gold);font-weight:600}
 
 .clock{margin:0 16px 8px;padding:10px 12px 6px}
 .phase{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 7px}
@@ -237,7 +240,7 @@ body.locked .app, body.locked nav.tabs{display:none}
 <div class="app">
   <header class="top">
     <span class="brand"><i></i>Opening Bell</span>
-    <span class="fresh"><span id="fresh"></span><button id="reload" class="pill-btn" type="button">Refresh</button></span>
+    <span class="fresh"><span id="fresh"></span><button id="getApp" class="pill-btn gold-pill" type="button" hidden>Get app</button><button id="reload" class="pill-btn" type="button">Refresh</button></span>
   </header>
   <section class="clock glass" aria-live="polite">
     <p class="phase"><b id="phase"></b><span id="todo"></span></p>
@@ -872,7 +875,7 @@ function render(){
     var last = st.orb && st.orb.generated > st.pre.generated ? st.orb.generated : st.pre.generated;
     var opts = st.days.length > 1 ? '<select id="day" aria-label="Day">' + st.days.map(function(d){
       return '<option value="' + d + '"' + (d === st.day ? " selected" : "") + ">" + esc(niceDate(d)) + "</option>"; }).join("") + "</select>" : "";
-    f.innerHTML = opts + "<span>Updated " + esc(hmOf(last)) + "</span>";
+    f.innerHTML = opts + '<span><span class="upd-l">Updated </span>' + esc(hmOf(last)) + "</span>";
     var sel = $("#day"); if (sel) sel.onchange = function(){ load(this.value === st.latest ? null : this.value); };
   } else f.textContent = "";
 
@@ -1325,13 +1328,7 @@ function viewSettings(){
     (S.push ? '<div class="inline"><button class="btn ghost small" id="s-sample" type="button">Show a sample</button></div>' +
       '<p class="note">On Xiaomi, Oppo, Vivo or Realme phones, allow Chrome (or the Opening Bell app) to run in the background so breakout alerts aren\'t delayed.</p>' : "");
 
-  var android = /Android/.test(navigator.userAgent || ""), getApp;
-  if (inAndroidApp()) getApp = '<p style="margin:0">You are using the Opening Bell Android app. Updates arrive automatically with the website.</p>';
-  else if (android) getApp = '<div class="field"><label>Android app<small>Installs Opening Bell like any other app, with its own icon and notifications.</small></label>' +
-    '<button class="btn gold" id="s-apk" type="button">Download</button></div><p class="note" id="apk-note" hidden></p>';
-  else if (isIOS()) getApp = '<p style="margin:0">On iPhone, open this page in Safari, tap Share, then Add to Home Screen.</p>';
-  else getApp = '<p style="margin:0 0 8px">On an Android phone, open this page in Chrome to download the app. On iPhone, use Safari\'s Share menu and Add to Home Screen.</p>' +
-    '<button class="btn ghost small" id="s-install" type="button" hidden>Add to this device</button>';
+  var getApp = getAppHtml("s");
   var app = '<div class="glass tile">' + getApp + "</div>" +
     '<div class="glass tile"><div class="field"><label for="s-demo">Sample data<small>Made-up prices for trying the app.</small></label><button class="switch" id="s-demo" type="button" role="switch" aria-checked="' + (S.source === "demo") + '" aria-label="Sample data"></button></div></div>' +
     '<p class="note">The screener runs on GitHub every weekday: the full screen at about 9:12 AM, the live scan every 5 minutes from 9:30 to 11:00, the square-off reminder at 3:15 and a preview around 7 PM. ' +
@@ -1348,9 +1345,27 @@ function viewSettings(){
 
 /* ================================================================== events */
 var bip = null;
-addEventListener("beforeinstallprompt", function(e){ e.preventDefault(); bip = e; var x = $("#s-install"); if (x) x.hidden = false; });
+addEventListener("beforeinstallprompt", function(e){ e.preventDefault(); bip = e; if (st.tab === "settings") render(); });
+function getAppHtml(pre){
+  if (inAndroidApp()) return '<p style="margin:0">You are using the Opening Bell Android app. Updates arrive automatically with the website.</p>';
+  if (isIOS()) return '<p style="margin:0">On iPhone or iPad: open this page in Safari, tap Share, then <b>Add to Home Screen</b>. Open Opening Bell from the new icon.</p>';
+  return '<div class="field"><label>Android app<small>For Android phones and tablets. Installs Opening Bell with its own icon and notifications.</small></label>' +
+    '<button class="btn gold" data-apk="1" type="button">Download</button></div><p class="note apk-note" hidden></p>' +
+    '<p class="note" style="margin-bottom:0">On a computer, or to skip the download: ' + (bip ? '<button class="linkish" data-install="1" type="button">add Opening Bell to this device</button>' :
+      "use your browser's menu and choose <b>Install app</b> or <b>Add to Home screen</b>") + ".</p>";
+}
+function showGetApp(){
+  openSheet("<h3>Get the Opening Bell app</h3>" + getAppHtml("g") +
+    '<div class="gate-actions"><button class="btn ghost" type="button" id="ga-close">Close</button></div>');
+  $("#ga-close").onclick = closeSheet;
+  bindGetApp();
+}
+function bindGetApp(){
+  document.querySelectorAll("[data-apk]").forEach(function(b){ b.onclick = apkGet; });
+  document.querySelectorAll("[data-install]").forEach(function(b){ b.onclick = function(){ if (bip){ bip.prompt(); bip = null; closeSheet(); render(); } }; });
+}
 function apkGet(){
-  var p = $("#apk-note");
+  var p = document.querySelector("#sheet:not([hidden]) .apk-note") || $(".apk-note");
   if (p){ p.textContent = "The app is downloading. When it finishes, open OpeningBell.apk from your notifications or Downloads and tap Install. If Android asks, allow installing from this browser."; p.hidden = false; }
   toast("Downloading Opening Bell…");
   location.href = APK_URL;
@@ -1374,8 +1389,7 @@ function bindView(){
   });
   if ((x = $("#s-sample"))) x.onclick = pushSample;
   if ((x = $("#s-demo"))) x.onclick = function(){ S.source = S.source === "demo" ? "live" : "demo"; saveS(); load(); };
-  var ins = $("#s-install"); if (ins){ ins.hidden = !bip; ins.onclick = function(){ if (bip){ bip.prompt(); bip = null; ins.hidden = true; } }; }
-  if ((x = $("#s-apk"))) x.onclick = apkGet;
+  bindGetApp();
   if ((x = $("#s-withdraw"))) x.onclick = withdraw;
   // profile
   function creds(){ return [($("#p-email").value || "").trim(), $("#p-pw").value || ""]; }
@@ -1437,6 +1451,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("mess
   if (m.type === "ob-push" && !st.loading) load();
 });
 $("#reload").onclick = function(){ PX.reset(); load(st.day === st.latest ? null : st.day); };
+$("#getApp").onclick = showGetApp;
 
 /* refresh: every 2 min in the morning session, else every 15 min; and when the app comes back */
 function due(){
@@ -1461,6 +1476,7 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 if (params.has("demo")){ S.source = "demo"; }
 inAndroidApp();   // remember "opened from the Android app" before the address is tidied below
 if (params.get("tab")){ st.tab = params.get("tab"); document.querySelectorAll("nav.tabs [data-tab]").forEach(function(x){ x.setAttribute("aria-selected", x.dataset.tab === st.tab); }); }
+$("#getApp").hidden = inAndroidApp() || standalone();
 if (params.has("tab") || params.has("app")) history.replaceState(null, "", location.pathname + (params.has("demo") ? "?demo" : ""));
 gateStart();
 </script>
