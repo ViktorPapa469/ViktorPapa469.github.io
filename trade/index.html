@@ -240,6 +240,10 @@ body.locked .app, body.locked nav.tabs{display:none}
 .check input{width:19px;height:19px;margin:1px 0 0;flex:none;accent-color:var(--gold)}
 .gate-actions{display:flex;gap:10px;margin-top:8px}
 .gate-actions .btn{flex:1;padding:12px 16px}
+.steps{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--ink3);margin:0 0 12px}
+.steps b{display:inline-flex;width:18px;height:18px;border-radius:50%;align-items:center;justify-content:center;background:var(--glass-hi);color:var(--ink2);font-size:11px}
+.steps b.on{background:var(--gold);color:#1B1405}
+.steps span{color:var(--ink3)}
 .gate-foot{font-size:11.5px;color:var(--ink2);margin:8px 0 0}
 .gate-foot a{color:inherit}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
@@ -481,17 +485,18 @@ function setCred(c, tok, exp){
   fbTok = tok || null; fbExp = tok ? Date.now() + (exp || 3600) * 1000 : 0;
 }
 var fbTok = null, fbExp = 0;
-/* a device id: anonymous until the person adds an email, which keeps the same id */
+/* the signed-in profile's token (refreshed when needed); there is no anonymous use any more */
 function fbAuth(){
   var c = cred();
   if (fbTok && c && Date.now() < fbExp - 60e3) return Promise.resolve({uid:c.uid, tok:fbTok, email:c.email || ""});
+  if (!c || !c.refresh) return Promise.reject(new Error("USER_NOT_FOUND: not signed in"));
   var p = c && c.refresh
     ? fetch(TOK_URL + "/token?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"},
             body:"grant_type=refresh_token&refresh_token=" + encodeURIComponent(c.refresh)})
         .then(jsonOrThrow).then(function(r){ return {uid:r.user_id, tok:r.id_token, refresh:r.refresh_token, exp:+r.expires_in, email:c.email || ""}; })
     : fetch(ID_URL + "/accounts:signUp?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({returnSecureToken:true})})
         .then(jsonOrThrow).then(function(r){ return {uid:r.localId, tok:r.idToken, refresh:r.refreshToken, exp:+r.expiresIn, email:""}; });
-  return p.then(function(a){ setCred({uid:a.uid, refresh:a.refresh, email:a.email}, a.tok, a.exp); return a; });
+  return p.then(function(a){ setCred({uid:a.uid, refresh:a.refresh, email:a.email, verified:c.verified}, a.tok, a.exp); return a; });
 }
 function fv(v){
   if (v === null || v === undefined) return {nullValue:null};
@@ -579,12 +584,14 @@ function pushSample(){
   }).catch(function(e){ toast(pushWhy(e)); });
 }
 
-/* ================================================================== profile: email sign-in, synced across devices
-   Only an email (and a password to protect it) is asked for. Signing up adds the email to this device's existing id,
-   so its terms records and notifications carry on. Opening Bell has its own Firebase project, so these sign-ins are
-   separate from Fovea's. The profile (trade_profiles/{id}) holds capital settings,
-   watchlists and paper trades; without a profile they stay on this phone only. */
+/* ================================================================== profile: mandatory email sign-in, synced across devices
+   Before anything else the person signs in or creates a profile, and confirms the email address through the link
+   Firebase sends; only then come the terms, and only then the app. Opening Bell has its own Firebase project, so these
+   sign-ins are separate from Fovea's. The profile (trade_profiles/{id}) holds capital settings, watchlists and paper
+   trades, so they follow the person to any device. */
 function signedIn(){ var c = cred(); return !!(c && c.email); }
+function verified(){ var c = cred(); return !!(c && c.email && c.verified); }
+var EMAIL_RE = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[A-Za-z]{2,}$/;
 function authWhy(e){
   var m = String((e && e.message) || e || "");
   if (/EMAIL_EXISTS|CREDENTIAL_ALREADY_IN_USE/.test(m)) return "This email already has a profile. Use Sign in instead.";
@@ -593,69 +600,61 @@ function authWhy(e){
   if (/INVALID_EMAIL|MISSING_EMAIL/.test(m)) return "That doesn't look like an email address.";
   if (/TOO_MANY_ATTEMPTS/.test(m)) return "Too many attempts. Wait a few minutes and try again.";
   if (/USER_DISABLED/.test(m)) return "This profile has been disabled.";
-  if (/CREDENTIAL_TOO_OLD|TOKEN_EXPIRED/.test(m)) return "Please sign in again.";
+  if (/USER_NOT_FOUND|CREDENTIAL_TOO_OLD|TOKEN_EXPIRED|INVALID_ID_TOKEN|INVALID_REFRESH_TOKEN/.test(m)) return "Please sign in again.";
   return pushWhy(e);
 }
+function idCall(op, body){
+  return fetch(ID_URL + "/accounts:" + op + "?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)}).then(jsonOrThrow);
+}
+function sendVerify(){ return fbAuth().then(function(a){ return idCall("sendOobCode", {requestType:"VERIFY_EMAIL", idToken:a.tok}); }); }
+function checkVerified(){
+  return fbAuth().then(function(a){ return idCall("lookup", {idToken:a.tok}); }).then(function(r){
+    var u = r.users && r.users[0], v = !!(u && u.emailVerified), c = cred();
+    if (v && c){ c.verified = true; setCred(c, fbTok, (fbExp - Date.now()) / 1000); }
+    return v;
+  });
+}
 function createProfile(email, pw){
-  st.authBusy = true; st.authNote = ""; render();
-  return fbAuth().then(function(a){
-    // Firebase's own SDK links an email to an anonymous id through accounts:signUp with the id token; unlike
-    // accounts:update, this is allowed when the project has email enumeration protection switched on.
-    return fetch(ID_URL + "/accounts:signUp?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({idToken:a.tok, email:email, password:pw, returnSecureToken:true})}).then(jsonOrThrow);
-  }).then(function(r){
+  var c = cred(), body = {email:email, password:pw, returnSecureToken:true};
+  // An older device id without an email keeps its records: Firebase links the email to it (accounts:signUp with the id token).
+  var pre = c && c.uid && !c.email ? fbAuth().then(function(a){ body.idToken = a.tok; }).catch(function(){}) : Promise.resolve();
+  return pre.then(function(){ return idCall("signUp", body); }).then(function(r){
     setCred({uid:r.localId, refresh:r.refreshToken, email:r.email}, r.idToken, +r.expiresIn);
     S.updatedAt = Date.now(); T.updatedAt = Date.now(); saveS(); saveT(false);
-    return pushProfile();
-  }).then(function(){ toast("Profile created"); }, function(e){ st.authNote = authWhy(e); })
-    .then(function(){ st.authBusy = false; render(); });
+    return sendVerify();
+  });
 }
 function signIn(email, pw){
-  st.authBusy = true; st.authNote = ""; render();
-  var oldPush = S.push, signed;
-  return fetch(ID_URL + "/accounts:signInWithPassword?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({email:email, password:pw, returnSecureToken:true})}).then(jsonOrThrow)
-    .then(function(r){
-      signed = r;
-      return oldPush ? pushOff() : null;   // the device's old id stops getting notifications; the profile's id takes over
-    }).then(function(){
-      setCred({uid:signed.localId, refresh:signed.refreshToken, email:signed.email}, signed.idToken, +signed.expiresIn);
-      var last = consentLog()[0];   // this session's acceptance, recorded again under the profile
-      if (last) queueConsent(Object.assign({}, last, {carriedOver:true}));
-      flushConsents();
-      return pullProfile(true);
-    }).then(function(){
-      if (oldPush) return pushSub().then(pushSave).then(function(){ S.push = true; saveS(); });
-    }).then(function(){ toast("Signed in"); }, function(e){ st.authNote = authWhy(e); })
-    .then(function(){ st.authBusy = false; render(); });
+  var before = cred(), oldPush = S.push, signed;
+  return idCall("signInWithPassword", {email:email, password:pw, returnSecureToken:true}).then(function(r){
+    signed = r;
+    return oldPush && before && before.uid !== r.localId ? pushOff() : null;   // notifications move to the profile's id
+  }).then(function(){
+    setCred({uid:signed.localId, refresh:signed.refreshToken, email:signed.email}, signed.idToken, +signed.expiresIn);
+    return checkVerified();
+  }).then(function(v){
+    if (v) return pullProfile(true);
+  });
 }
 function resetPassword(email){
-  if (!email){ st.authNote = "Type your email first, then tap Forgot password."; render(); return; }
-  fetch(ID_URL + "/accounts:sendOobCode?key=" + FB.apiKey, {method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({requestType:"PASSWORD_RESET", email:email})}).then(jsonOrThrow)
-    .then(function(){ st.authNote = "If that email has a profile, a reset link is on its way. Check your spam folder if it doesn't arrive."; },
-          function(e){ st.authNote = authWhy(e); }).then(render);
+  return idCall("sendOobCode", {requestType:"PASSWORD_RESET", email:email});
 }
 function clearLocalProfile(){
   try { ["ob-settings", "ob-test"].forEach(function(k){ localStorage.removeItem(k); }); } catch(e){}
   S = Object.assign({}, DEF, {kinds:Object.assign({}, DEF.kinds), source:S.source});
   T = defaultT(); saveS();
 }
+function forget(){ try { localStorage.removeItem("ob-fb"); } catch(e){} fbTok = null; fbExp = 0; }
 function signOut(){
-  if (!confirm("Sign out on this phone? Your profile stays in your account; this phone's copy of your settings, watchlists and paper trades is cleared.")) return;
-  (S.push ? pushOff() : Promise.resolve()).then(function(){
-    try { localStorage.removeItem("ob-fb"); } catch(e){}
-    fbTok = null; clearLocalProfile(); toast("Signed out"); render();
-  });
+  if (!confirm("Sign out on this device? Your profile stays saved; you'll need to sign in again to use Opening Bell.")) return;
+  (S.push ? pushOff() : Promise.resolve()).then(function(){ forget(); clearLocalProfile(); st.pre = null; st.orb = null; gateStart(); });
 }
 function deleteProfile(){
-  if (!confirm("Delete your profile? Your saved capital settings, watchlists and paper trades are erased from the cloud and this phone. This can't be undone.")) return;
-  fsReq("DELETE", "trade_profiles/{uid}").then(function(){
-    return S.push ? pushOff() : null;
-  }).then(function(){
-    try { localStorage.removeItem("ob-fb"); } catch(e){}
-    fbTok = null; clearLocalProfile(); toast("Profile deleted"); render();
-  }, function(e){ st.authNote = authWhy(e); render(); });
+  if (!confirm("Delete your profile? Your sign-in, capital settings, watchlists and paper trades are erased. This can't be undone.")) return;
+  (S.push ? pushOff() : Promise.resolve()).then(function(){ return fsReq("DELETE", "trade_profiles/{uid}"); })
+    .then(function(){ return fbAuth().then(function(a){ return idCall("delete", {idToken:a.tok}); }); })
+    .then(function(){ forget(); clearLocalProfile(); st.pre = null; st.orb = null; toast("Profile deleted"); gateStart(); },
+          function(e){ st.authNote = authWhy(e) + " Your profile was not deleted."; render(); });
 }
 var syncTimer = null;
 function syncSoon(){ if (!signedIn()) return; clearTimeout(syncTimer); syncTimer = setTimeout(pushProfile, 1500); }
@@ -716,19 +715,91 @@ function loadTerms(){
       return sha256(art.textContent.replace(/\s+/g, " ").trim()).then(function(h){ TERMS.hash = h; });
     });
 }
+/* every visit: 1 sign in (or create a profile), 2 a verified email, 3 the terms; then the app */
 function gateStart(){
   lockApp();
+  if (!signedIn()) return authShow("signin");
+  if (!verified()) return verifyShow(false);
+  termsStart();
+}
+function termsStart(){
   $("#gate-body").innerHTML = '<p class="muted">Loading the terms…</p>';
   loadTerms().then(gateShow, function(){
     $("#gate-body").innerHTML = '<h1 id="gate-h">The terms could not be loaded</h1><p class="lede">Opening Bell needs your acceptance of its terms before it runs. Connect to the internet and try again.</p>' +
       '<div class="gate-actions"><button class="btn" id="g-retry" type="button">Try again</button></div>';
-    $("#g-retry").onclick = gateStart;
+    $("#g-retry").onclick = termsStart;
   });
+}
+var STEPS = '<p class="steps"><b>1</b> Sign in <span>›</span> <b>2</b> Verify email <span>›</span> <b>3</b> Accept terms</p>';
+function stepsAt(n){ return STEPS.replace("<b>" + n + "</b>", '<b class="on">' + n + "</b>"); }
+function authShow(mode, note){
+  var create = mode === "create";
+  $("#gate-body").innerHTML = stepsAt(1) +
+    '<h1 id="gate-h">' + (create ? "Create your profile" : "Sign in to Opening Bell") + "</h1>" +
+    '<p class="lede small">' + (create ? "Your profile keeps your capital settings, watchlists and paper trades on every device. We'll send a link to confirm your email." :
+      "Sign in with the email and password of your Opening Bell profile. Opening Bell profiles are separate from Fovea.") + "</p>" +
+    '<div class="seg-ctl" role="group"><button type="button" id="a-in" aria-pressed="' + !create + '">Sign in</button><button type="button" id="a-new" aria-pressed="' + create + '">Create profile</button></div>' +
+    '<form class="stack glass tile" id="a-form" novalidate>' +
+      '<label class="small muted" for="a-email">Email</label><input type="email" id="a-email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" required>' +
+      '<label class="small muted" for="a-pw">Password' + (create ? " (6 or more characters)" : "") + '</label><input type="password" id="a-pw" autocomplete="' + (create ? "new-password" : "current-password") + '" minlength="6" required>' +
+      (create ? '<label class="small muted" for="a-pw2">Password again</label><input type="password" id="a-pw2" autocomplete="new-password" minlength="6" required>' : "") +
+      '<button class="btn gold" type="submit" id="a-go">' + (create ? "Create profile" : "Sign in") + "</button>" +
+      (create ? "" : '<button class="linkish small muted" type="button" id="a-reset" style="align-self:flex-start">Forgot password</button>') +
+    "</form>" +
+    '<p class="form-err" id="a-err"' + (note ? "" : " hidden") + ">" + esc(note || "") + "</p>" +
+    '<p class="gate-foot">Next you\'ll be asked to accept the <a href="terms.html" target="_blank" rel="noopener">Terms and Conditions</a>. Opening Bell is a screener for market study, not investment advice.</p>';
+  var err = function(m){ var e = $("#a-err"); e.textContent = m; e.hidden = !m; };
+  $("#a-in").onclick = function(){ authShow("signin"); };
+  $("#a-new").onclick = function(){ authShow("create"); };
+  var r = $("#a-reset");
+  if (r) r.onclick = function(){
+    var em = $("#a-email").value.trim();
+    if (!EMAIL_RE.test(em)){ err("Type your email above first, then tap Forgot password."); return; }
+    resetPassword(em).then(function(){ err(""); toast("If that email has a profile, a reset link is on its way"); }, function(e){ err(authWhy(e)); });
+  };
+  $("#a-form").onsubmit = function(e){
+    e.preventDefault();
+    var em = $("#a-email").value.trim(), pw = $("#a-pw").value, go = $("#a-go");
+    if (!EMAIL_RE.test(em)) return err("Enter a valid email address, like name@example.com.");
+    if (pw.length < 6) return err("The password needs at least 6 characters.");
+    if (create && pw !== $("#a-pw2").value) return err("The two passwords don't match.");
+    go.disabled = true; go.textContent = create ? "Creating…" : "Signing in…"; err("");
+    (create ? createProfile(em, pw).then(function(){ verifyShow(true); })
+            : signIn(em, pw).then(function(){ if (verified()) termsStart(); else verifyShow(false); }))
+      .catch(function(e2){ go.disabled = false; go.textContent = create ? "Create profile" : "Sign in"; err(authWhy(e2)); });
+  };
+}
+var verifyWait = 0;
+function verifyShow(justSent){
+  var c = cred() || {};
+  $("#gate-body").innerHTML = stepsAt(2) +
+    '<h1 id="gate-h">Confirm your email</h1>' +
+    '<div class="glass tile"><p style="margin:0 0 8px">' + (justSent ? "We've sent a link to" : "Your email isn't confirmed yet. We sent a link to") + " <b>" + esc(c.email || "") + "</b>.</p>" +
+      '<p class="muted small" style="margin:0">Open that email, tap the link, then come back here and tap <b>I\'ve confirmed</b>. If it isn\'t in your inbox, look in Spam or Promotions.</p></div>' +
+    '<p class="form-err" id="v-err" hidden></p>' +
+    '<div class="gate-actions"><button class="btn gold" id="v-check" type="button">I\'ve confirmed</button></div>' +
+    '<div class="inline" style="margin-top:10px"><button class="btn ghost small" id="v-resend" type="button">Send the link again</button>' +
+      '<button class="btn ghost small" id="v-other" type="button">Use a different email</button></div>';
+  var err = function(m){ var e = $("#v-err"); e.textContent = m; e.hidden = !m; };
+  $("#v-check").onclick = function(){
+    var b = $("#v-check"); b.disabled = true; b.textContent = "Checking…";
+    checkVerified().then(function(v){
+      if (v) return pullProfile(true).then(termsStart);
+      b.disabled = false; b.textContent = "I've confirmed";
+      err("Not confirmed yet. Tap the link in the email first, then try again.");
+    }, function(e){ b.disabled = false; b.textContent = "I've confirmed"; err(authWhy(e)); });
+  };
+  $("#v-resend").onclick = function(){
+    if (Date.now() - verifyWait < 60e3) return err("Please wait a minute before sending another link.");
+    verifyWait = Date.now();
+    sendVerify().then(function(){ err(""); toast("Link sent to " + (c.email || "your email")); }, function(e){ err(authWhy(e)); });
+  };
+  $("#v-other").onclick = function(){ forget(); authShow("create"); };
 }
 function gateShow(){
   var seenVersion = consentLog().some(function(c){ return c.terms === TERMS.version; });
   gateRead = seenVersion;
-  $("#gate-body").innerHTML =
+  $("#gate-body").innerHTML = stepsAt(3) +
     '<h1 id="gate-h">' + (seenVersion ? "Confirm before you continue" : "Terms and conditions") + "</h1>" +
     '<p class="lede small">' + (seenVersion ? "Each time you open Opening Bell, please confirm that you accept its terms." :
       "Please read the terms to the end. Opening Bell runs only after you accept them.") + "</p>" +
@@ -1467,17 +1538,9 @@ function viewSettings(){
   function num(id, label, help, val, step){
     return '<div class="field"><label for="' + id + '">' + label + "<small>" + help + '</small></label><input id="' + id + '" type="number" inputmode="decimal" step="' + step + '" value="' + val + '"></div>';
   }
-  var c = cred(), prof;
-  if (signedIn()) prof = '<div class="glass tile"><p style="margin:0 0 4px">Signed in as <b>' + esc(c.email) + "</b></p>" +
-      '<p class="muted small" style="margin:0 0 10px">Your capital settings, watchlists and paper trades are saved to your profile and appear on any device where you sign in with this email.</p>' +
+  var c = cred() || {}, prof = '<div class="glass tile"><p style="margin:0 0 4px">Signed in as <b>' + esc(c.email || "") + "</b></p>" +
+      '<p class="muted small" style="margin:0 0 10px">Your capital settings, watchlists and paper trades are saved to your profile and appear on any device where you sign in with this email. Opening Bell profiles are separate from Fovea.</p>' +
       '<div class="inline"><button class="btn ghost small" type="button" id="p-out">Sign out</button><button class="btn ghost small" type="button" id="p-del">Delete profile</button></div></div>';
-  else prof = '<div class="glass tile"><p style="margin:0 0 10px">Sign in with your email to use your capital settings, watchlists and paper trades on any device. Only your email is needed, with a password to protect it.</p>' +
-      '<form class="stack" id="p-form" novalidate><input type="email" id="p-email" placeholder="Email" autocomplete="email" required>' +
-      '<input type="password" id="p-pw" placeholder="Password (6 or more characters)" autocomplete="current-password" minlength="6" required>' +
-      '<div class="inline"><button class="btn gold" type="button" id="p-create"' + (st.authBusy ? " disabled" : "") + '>Create profile</button>' +
-      '<button class="btn ghost" type="button" id="p-in"' + (st.authBusy ? " disabled" : "") + '>Sign in</button>' +
-      '<button class="linkish small muted" type="button" id="p-reset">Forgot password</button></div></form>' +
-      '<p class="note">Opening Bell profiles are separate from Fovea: an email used in Fovea needs its own Opening Bell profile and password.</p></div>';
   prof += st.authNote ? '<div class="warn">' + esc(st.authNote) + "</div>" : "";
 
   var capital = '<div class="glass tile">' +
@@ -1563,10 +1626,6 @@ function bindView(){
   bindGetApp();
   if ((x = $("#s-withdraw"))) x.onclick = withdraw;
   // profile
-  function creds(){ return [($("#p-email").value || "").trim(), $("#p-pw").value || ""]; }
-  if ((x = $("#p-create"))) x.onclick = function(){ var c = creds(); if (!c[0] || c[1].length < 6){ st.authNote = "Enter your email and a password of at least 6 characters."; render(); return; } createProfile(c[0], c[1]); };
-  if ((x = $("#p-in"))) x.onclick = function(){ var c = creds(); if (!c[0] || !c[1]){ st.authNote = "Enter your email and password."; render(); return; } signIn(c[0], c[1]); };
-  if ((x = $("#p-reset"))) x.onclick = function(){ resetPassword(creds()[0]); };
   if ((x = $("#p-out"))) x.onclick = signOut;
   if ((x = $("#p-del"))) x.onclick = deleteProfile;
   // test
@@ -1617,7 +1676,8 @@ setInterval(function(){
 var hiddenAt = 0, REASK_AFTER = 30 * 60e3;   // coming back after 30 minutes away counts as a new visit: accept again
 document.addEventListener("visibilitychange", function(){
   if (document.hidden){ hiddenAt = Date.now(); return; }
-  if (hiddenAt && Date.now() - hiddenAt > REASK_AFTER && !document.body.classList.contains("locked")){ closeSheet(); lockApp(); gateShow(); return; }
+  if (document.body.classList.contains("locked") && $("#v-check") && !$("#v-check").disabled){ $("#v-check").click(); return; }
+  if (hiddenAt && Date.now() - hiddenAt > REASK_AFTER && !document.body.classList.contains("locked")){ closeSheet(); gateStart(); return; }
   drawClock();
   if (Date.now() - st.loadedAt > 60e3 && (!st.day || st.day === st.latest) && $("#sheet").hidden){ load(); pullProfile(false); }
 });
