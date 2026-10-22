@@ -14,6 +14,7 @@ import datetime as dt
 import json
 import os
 import sys
+from urllib.parse import quote
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -119,7 +120,8 @@ def main():
             fno = fno_symbols(pub)
             for index in ("SECURITIES IN F&O", "NIFTY 500"):
                 try:
-                    js = nse.api("/api/equity-stockIndices", {"index": index})
+                    # NSE wants %20 for spaces (requests would send "+", which NSE answers with 404)
+                    js = nse.api("/api/equity-stockIndices?index=" + quote(index, safe=""))
                 except Exception as e:  # noqa: BLE001
                     errors.append(f"{index}: {str(e)[:120]}")
                     continue
