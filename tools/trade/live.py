@@ -31,13 +31,52 @@ def num(x):
         return None
 
 
+def fno_symbols(pub):
+    """The F&O stocks the screener covers (from the last screen's rule check)."""
+    try:
+        with open(os.path.join(pub, "analysis.json"), encoding="utf-8") as fh:
+            return set(json.load(fh).get("stocks", {}))
+    except (OSError, ValueError):
+        return set()
+
+
+def yahoo(symbols, out, errors):
+    """Fallback for stocks NSE didn't give: today's 1-minute bars from Yahoo Finance (a minute or two behind)."""
+    try:
+        import yfinance as yf
+        data = yf.download([s + ".NS" for s in symbols], period="2d", interval="1m", group_by="ticker",
+                           auto_adjust=False, threads=True, progress=False)
+    except Exception as e:  # noqa: BLE001
+        return errors.append(f"yahoo: {str(e)[:120]}")
+    today = now_ist().date()
+    n = 0
+    for s in symbols:
+        try:
+            df = data[s + ".NS"].dropna(subset=["Close"])
+            idx = df.index.tz_convert("Asia/Kolkata") if df.index.tz is not None else df.index.tz_localize("UTC").tz_convert("Asia/Kolkata")
+            df.index = idx
+            day, before = df[df.index.date == today], df[df.index.date < today]
+            if day.empty:
+                continue
+            prev = float(before["Close"].iloc[-1]) if len(before) else None
+            last = float(day["Close"].iloc[-1])
+            out["stocks"][s] = [num(last), num((last / prev - 1) * 100) if prev else None, num(day["Open"].iloc[0]),
+                                num(day["High"].max()), num(day["Low"].min()), num(prev)]
+            n += 1
+        except Exception:  # noqa: BLE001
+            continue
+    if n:
+        out["source"] = (out["source"] + " + " if out["source"] else "") + f"Yahoo ({n})"
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
     pub = sys.argv[1]
     now = now_ist()
     nse = NSEClient()
-    out = {"schema": 1, "generated": now.isoformat(timespec="seconds"), "date": now.date().isoformat(),
+    errors = []
+    out = {"schema": 1, "errors": errors, "source": None, "generated": now.isoformat(timespec="seconds"), "date": now.date().isoformat(),
            "status": None, "nse_time": None, "indices": {}, "breadth": None, "stocks": {}, "phase": None}
 
     try:
@@ -46,7 +85,7 @@ def main():
         out["status"] = cm.get("marketStatus")
         out["trade_date"] = cm.get("tradeDate")
     except Exception as e:  # noqa: BLE001
-        print(f"WARN: market status ({str(e)[:80]})")
+        errors.append(f"market status: {str(e)[:120]}")
 
     hm = now.hour * 100 + now.minute
     preopen = 900 <= hm < 915
@@ -61,7 +100,7 @@ def main():
                                         "low": num(r.get("low")), "prev": num(r.get("previousClose"))}
         got = bool(out["indices"])
     except Exception as e:  # noqa: BLE001
-        print(f"WARN: indices ({str(e)[:80]})")
+        errors.append(f"indices: {str(e)[:120]}")
 
     try:
         if preopen:
@@ -75,29 +114,41 @@ def main():
                     adv += (chg or 0) > 0
                     dec += (chg or 0) < 0
             out["breadth"] = {"adv": adv, "dec": dec}
+            out["source"] = "NSE pre-open"
         else:
-            js = nse.api("/api/equity-stockIndices", {"index": "SECURITIES IN F&O"})
-            out["nse_time"] = js.get("timestamp")
-            adv = dec = 0
-            for r in js.get("data", []):
-                sym = r.get("symbol")
-                if not sym or r.get("priority") == 1:   # the index's own row
+            fno = fno_symbols(pub)
+            for index in ("SECURITIES IN F&O", "NIFTY 500"):
+                try:
+                    js = nse.api("/api/equity-stockIndices", {"index": index})
+                except Exception as e:  # noqa: BLE001
+                    errors.append(f"{index}: {str(e)[:120]}")
                     continue
-                last, chg = num(r.get("lastPrice")), num(r.get("pChange"))
-                out["stocks"][sym] = [last, chg, num(r.get("open")), num(r.get("dayHigh")), num(r.get("dayLow")), num(r.get("previousClose"))]
-                adv += (chg or 0) > 0
-                dec += (chg or 0) < 0
-            out["breadth"] = {"adv": adv, "dec": dec}
+                out["nse_time"] = js.get("timestamp")
+                for r in js.get("data", []):
+                    sym = r.get("symbol")
+                    if not sym or r.get("priority") == 1 or (index != "SECURITIES IN F&O" and fno and sym not in fno):
+                        continue
+                    out["stocks"][sym] = [num(r.get("lastPrice")), num(r.get("pChange")), num(r.get("open")),
+                                          num(r.get("dayHigh")), num(r.get("dayLow")), num(r.get("previousClose"))]
+                if out["stocks"]:
+                    out["source"] = "NSE " + index
+                    break
+            missing = sorted(set(fno) - set(out["stocks"]))
+            if missing and hm >= 915:
+                yahoo(missing, out, errors)
+            out["breadth"] = {"adv": sum(1 for v in out["stocks"].values() if (v[1] or 0) > 0),
+                              "dec": sum(1 for v in out["stocks"].values() if (v[1] or 0) < 0)}
         got = got or bool(out["stocks"])
     except Exception as e:  # noqa: BLE001
-        print(f"WARN: stock prices ({str(e)[:80]})")
+        errors.append(f"stock prices: {str(e)[:120]}")
 
     if not got:
         print("live: NSE unreachable; previous live.json kept")
         return 2
     export._dump(os.path.join(pub, "live.json"), out)
     n50 = out["indices"].get("NIFTY 50", {})
-    print(f"live {now:%H:%M}: {out['status']}, Nifty {n50.get('last')} ({n50.get('chg')}%), {len(out['stocks'])} stocks")
+    print(f"live {now:%H:%M}: {out['status']}, Nifty {n50.get('last')} ({n50.get('chg')}%), {len(out['stocks'])} stocks from {out['source']}"
+          + (f"; problems: {errors}" if errors else ""))
     closed = str(out["status"] or "").lower().startswith("close")
     if closed and 916 <= hm < 1529 and now.weekday() < 5:
         return 3   # closed in the middle of the session: a market holiday

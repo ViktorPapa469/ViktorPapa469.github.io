@@ -1022,7 +1022,8 @@ function ohlc(sym){
     o = b[0].o; c = b[b.length - 1].c;
     h = Math.max.apply(null, b.map(function(x){ return x.h; })); l = Math.min.apply(null, b.map(function(x){ return x.l; }));
     var t = ist(); live = d === t.date && t.mins < 930;
-    label = live ? "today, to " + addMins(b[b.length - 1].t, 15) : niceDate(d);
+    var end = addMins(b[b.length - 1].t, 15);   // the last 15-minute bar may still be forming
+    label = live ? "today, to " + (end > t.hm ? t.hm : end) + " (delayed)" : niceDate(d);
   } else return "";
   return '<p class="ohlc"><span>O <b>' + n(o, 2) + "</b></span><span>H <b>" + n(h, 2) + "</b></span><span>L <b>" + n(l, 2) + "</b></span><span>" + (live ? "Last" : "C") + " <b>" + n(c, 2) + "</b></span>" +
     '<span class="d">' + esc(label) + "</span></p>";
