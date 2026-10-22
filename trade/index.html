@@ -361,10 +361,10 @@ function niceDate(iso){
   return d.toLocaleDateString("en-IN", {weekday:"short", day:"numeric", month:"short", timeZone:"Asia/Kolkata"});
 }
 function hmOf(iso){ return iso ? iso.slice(11, 16) : ""; }
-function toast(msg){
+function toast(msg, ms){
   document.querySelectorAll(".toast").forEach(function(x){ x.remove(); });
   var t = document.createElement("div"); t.className = "toast"; t.setAttribute("role", "status"); t.textContent = msg;
-  document.body.appendChild(t); setTimeout(function(){ t.remove(); }, 3200);
+  document.body.appendChild(t); setTimeout(function(){ t.remove(); }, ms || Math.max(3200, msg.length * 55));
 }
 
 /* position sizing lives on the phone (and in your own profile), never in the published data */
@@ -420,11 +420,15 @@ function drawClock(){
 var params = new URLSearchParams(location.search);
 function demoBase(){ return new URL("demo/", location.href).href; }
 function getJSON(url){
+  // the plain branch link is cached by GitHub for minutes; a changing query asks it for a fresh copy
+  if (/\/trade-data\//.test(url)) url += (url.indexOf("?") < 0 ? "?" : "&") + "t=" + Math.floor(Date.now() / 15e3);
   return fetch(url, {cache:"no-store"}).then(function(r){
     if (!r.ok){ var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
     return r.json();
   });
 }
+var GH = (function(){ try { return JSON.parse(localStorage.getItem("ob-gh")) || {}; } catch(e){ return {}; } })();
+function saveGH(){ try { localStorage.setItem("ob-gh", JSON.stringify({sha:GH.sha, etag:GH.etag})); } catch(e){} }
 function resolveBase(){
   if (S.source === "demo") return Promise.resolve(demoBase());
   if (params.get("data")) return Promise.resolve(new URL(params.get("data"), location.href).href);
@@ -433,14 +437,21 @@ function resolveBase(){
   var owner = host.split(".")[0];
   var raw = "https://raw.githubusercontent.com/" + owner + "/" + host + "/";
   // Ask GitHub which commit holds the latest data, then read that exact commit (the plain branch link can lag ~5 min).
-  return fetch("https://api.github.com/repos/" + owner + "/" + host + "/commits/trade-data",
-               {headers:{Accept:"application/vnd.github.sha"}, cache:"no-store"})
+  // GitHub allows 60 such questions an hour per network, but "has it changed since <etag>?" answered "no" (304) is
+  // free, so the last answer is kept and sent along. If GitHub still says no, fall back to the branch link.
+  var h = {Accept:"application/vnd.github.sha"};
+  if (GH.etag && GH.sha) h["If-None-Match"] = GH.etag;
+  return fetch("https://api.github.com/repos/" + owner + "/" + host + "/commits/trade-data", {headers:h, cache:"no-store"})
     .then(function(r){
       if (r.status === 404 || r.status === 422){ var e = new Error("nodata"); e.nodata = true; throw e; }
-      return r.ok ? r.text() : "";
+      GH.limited = r.status === 403 || r.status === 429;
+      if (r.status === 304) return GH.sha;
+      if (!r.ok) return "";
+      var tag = r.headers.get("ETag");
+      return r.text().then(function(t){ t = (t || "").trim(); if (/^[0-9a-f]{40}$/.test(t)){ GH.sha = t; GH.etag = tag; saveGH(); } return t; });
     })
     .then(function(sha){ sha = (sha || "").trim(); return raw + (/^[0-9a-f]{40}$/.test(sha) ? sha : "trade-data") + "/"; })
-    .catch(function(e){ if (e.nodata) throw e; return raw + "trade-data/"; });
+    .catch(function(e){ if (e.nodata) throw e; GH.limited = true; return raw + "trade-data/"; });
 }
 function load(day){
   if (document.body.classList.contains("locked")) return Promise.resolve();
@@ -1854,7 +1865,37 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("mess
   if (m.type === "ob-open") setTab(m.tab);
   if (m.type === "ob-push" && !st.loading) load();
 });
-$("#reload").onclick = function(){ PX.reset(); load(st.day === st.latest ? null : st.day); };
+/* Refresh: drop everything held in memory and fetch the newest of everything GitHub has: the screen, the live scan,
+   prices for paper trades, the rule checks and your profile. Then say what's new and when the next update is due. */
+function hardRefresh(){
+  var btn = $("#reload"); if (st.refreshing) return;
+  st.refreshing = true; btn.disabled = true; btn.textContent = "Checking…";
+  var before = {pre:st.pre && st.pre.generated, orb:st.orb && st.orb.generated, day:st.day};
+  PX.reset(); AN.data = null; MK.index = null; MK.rules = null; MK.bySym = null; MK.shards = {};
+  var wait = st.loading ? new Promise(function(res){ var k = setInterval(function(){ if (!st.loading){ clearInterval(k); res(); } }, 150); }) : Promise.resolve();
+  wait.then(function(){
+    return Promise.all([load(st.day === st.latest ? null : st.day), pullProfile(false).catch(function(){})]);
+  }).then(function(){
+    st.refreshing = false; btn.disabled = false; btn.textContent = "Refresh";
+    if (st.error) return toast("Couldn't reach the data. Check the connection; showing what was loaded before.");
+    if (st.noData) return toast("No data published yet.");
+    var fresh = (st.pre && st.pre.generated) !== before.pre || (st.orb && st.orb.generated) !== before.orb || st.day !== before.day;
+    var parts = [];
+    if (st.pre) parts.push((st.pre.date > ist().date ? "Preview" : "Screen") + " " + hmOf(st.pre.generated));
+    if (st.orb) parts.push("live scan " + hmOf(st.orb.generated));
+    toast((fresh ? "Updated: " : "Already the latest: ") + parts.join(", ") + "." + nextUpdate() + (GH.limited ? " GitHub is limiting checks from this network, so data can be up to a few minutes behind." : ""));
+  });
+}
+/* when GitHub is due to publish next (IST), for the Refresh message */
+function nextUpdate(){
+  var t = ist(), m = t.mins; if (t.weekend) return " Next update Monday about 9:10.";
+  if (m < 550) return " Today's screen about 9:10.";
+  if (m < 571) return " Live scans start about 9:32.";
+  if (m < 662) return " Live scans every 5 minutes until 11:00.";
+  if (m < 1140) return " Next: the 3:15 reminder, then the evening preview about 7:10.";
+  return " Next: tomorrow's screen about 9:10.";
+}
+$("#reload").onclick = hardRefresh;
 $("#getApp").onclick = showGetApp;
 
 /* refresh: every minute from 9:05 to 9:45 (screen and first breakouts), every 2 min to 11:10, at 3:15, else every 15 min;
