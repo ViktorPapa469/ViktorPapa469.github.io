@@ -3,18 +3,25 @@ name: Opening Bell screener
 # Runs the NSE screener in tools/trade on weekdays and publishes the data for the phone app at
 #   https://viktorpapa469.github.io/trade/
 # The data goes to the trade-data branch (one commit, replaced each time), so main and the website build are untouched.
-#   ~8:47 IST  morning: screen published ~9:10 after the pre-open, then breakout scans every 5 min from 9:31 to 11:00
-#   ~3:02 PM   waits, then sends the 3:15 square-off reminder (only on days the market traded)
-#   ~7:07 PM   preview of the next session's screen from the day's close
+#   morning: screen published ~9:10 after the pre-open, then breakout scans every 5 min from 9:31 to 11:00
+#   afternoon: waits, then sends the 3:15 square-off reminder (only on days the market traded)
+#   evening: preview of the next session's screen from the day's close, then the all-market analysis
 # Push notifications go to phones that turned them on in the app (listed in Opening Bell's own Firebase project);
 # they are signed with the VAPID_PRIVATE secret, the same push key pair Fovea uses.
-# GitHub can start scheduled runs several minutes late; the morning run starts early to absorb that.
+# GitHub's free schedules can start up to an hour late or be skipped when it's busy, so each important run has
+# several start times. The first to start does the work and the later ones see it's done and stop (ci.sh); runs queue
+# one at a time (concurrency below), so they never overlap.
 # Optional secrets TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID send the screen and each breakout to Telegram.
 on:
   schedule:
-    - cron: '17 3 * * 1-5'    # 08:47 IST, Mon-Fri
-    - cron: '32 9 * * 1-5'    # 15:02 IST, Mon-Fri (square-off reminder)
-    - cron: '37 13 * * 1-5'   # 19:07 IST, Mon-Fri
+    - cron: '23 2 * * 1-5'    # 07:53 IST morning (waits for the pre-open)
+    - cron: '51 2 * * 1-5'    # 08:21 IST morning, backup
+    - cron: '17 3 * * 1-5'    # 08:47 IST morning, backup
+    - cron: '39 3 * * 1-5'    # 09:09 IST morning, last backup
+    - cron: '43 8 * * 1-5'    # 14:13 IST square-off reminder (waits for 3:14)
+    - cron: '32 9 * * 1-5'    # 15:02 IST square-off reminder, backup
+    - cron: '37 13 * * 1-5'   # 19:07 IST evening preview
+    - cron: '11 14 * * 1-5'   # 19:41 IST evening preview, backup
   workflow_dispatch:
     inputs:
       mode:
@@ -34,7 +41,7 @@ concurrency:
 jobs:
   screen:
     runs-on: ubuntu-latest
-    timeout-minutes: 170
+    timeout-minutes: 240
     env:
       TZ: Asia/Kolkata
       GH_TOKEN: ${{ github.token }}
@@ -44,7 +51,7 @@ jobs:
       FB_PROJECT: opening-bell-4fdc9   # Opening Bell's own Firebase project
       FB_KEY: AIzaSyA7xZWmVuaRYNpyCHi5jVMnSIwDK-6mCL0   # its public web key (also in trade/index.html)
       # a push (new code) just refreshes the screen, without notifications; schedules and manual runs follow the time of day
-      MODE: ${{ github.event_name == 'push' && 'premarket' || github.event.schedule == '32 9 * * 1-5' && 'squareoff' || github.event.inputs.mode || 'auto' }}
+      MODE: ${{ github.event_name == 'push' && 'premarket' || (github.event.schedule == '43 8 * * 1-5' || github.event.schedule == '32 9 * * 1-5') && 'squareoff' || github.event.inputs.mode || 'auto' }}
       NOTIFY: ${{ github.event_name == 'push' && '0' || '1' }}
     steps:
       - uses: actions/checkout@v4

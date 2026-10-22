@@ -38,13 +38,23 @@ market() {  # every other NSE and BSE stock against the same rules; never fails 
   python market.py "$PUB" --max-minutes "${MARKET_MINUTES:-60}" && publish "market analysis $(date '+%F %H:%M')" || true
 }
 
+AUTO=0
 if [ "$MODE" = auto ]; then
+  AUTO=1
   if [ "$(hhmm)" -ge 1530 ]; then MODE=premarket; else MODE=morning; fi
+fi
+# Scheduled runs have backup start times (see trade.yml). A backup that finds its job already done today stops here.
+TODAY=$(date +%F)
+done_today() { [ "$(cat "$PUB/state/$1" 2>/dev/null)" = "$TODAY" ]; }
+mark_done() { mkdir -p "$PUB/state" && echo "$TODAY" > "$PUB/state/$1"; }
+if [ "$AUTO" = 1 ] && [ "$(date +%u)" -le 5 ]; then
+  if [ "$MODE" = morning ] && done_today morning; then echo "Morning run already done today; this was a backup start."; exit 0; fi
+  if [ "$MODE" = premarket ] && done_today evening; then echo "Evening preview already done today; this was a backup start."; exit 0; fi
 fi
 echo "mode: $MODE, IST now $(date '+%a %F %H:%M')"
 
 case "$MODE" in
-  premarket) screen ;;
+  premarket) screen && [ "$AUTO" = 1 ] && mark_done evening && publish "evening done $(date '+%H:%M')" ;;
   market) market ;;
   orb)
     python run.py orb --no-browser --json "$PUB"; bars; notify breakouts; publish "scan $(date '+%H:%M')" ;;
@@ -52,6 +62,7 @@ case "$MODE" in
     wait_until 1514
     bars; notify squareoff; publish "square-off reminder $(date '+%H:%M')" ;;
   morning)
+    mark_done morning   # published with the first screen, so backup starts after this one stop
     wait_until 0910
     screen || echo "::warning::morning screen failed; the breakout scan will retry it"
     wait_until 0931
