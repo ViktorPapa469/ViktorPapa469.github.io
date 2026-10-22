@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'auto (by time of day), live (live prices every minute until the close), morning, afternoon, premarket (screen only), orb (one breakout scan), squareoff, market (all NSE and BSE stocks)'
+        description: 'auto (by time of day), live (live prices every minute until the close), morning, afternoon, premarket (screen only), orb (one breakout scan), squareoff, market (all NSE and BSE stocks), track (track record only)'
         default: auto
   push:
     branches: [main]

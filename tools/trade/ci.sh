@@ -33,9 +33,10 @@ publish() {
 }
 notify() { [ "$NOTIFY" = 1 ] && python push.py "$1" "$PUB" || true; }
 bars() { python prices.py intraday "$PUB" || true; }   # 15-minute prices for paper-trade results
+track() { python track.py "$PUB" || true; }            # how the screener's own setups worked out (track.json)
 screen() {  # announced as "screen ready" in the morning, or as a preview when built after the close (push.py decides)
   python run.py premarket --no-browser --json "$PUB" || return 1
-  [ "$(hhmm)" -ge 1530 ] && bars   # after the close: the full day's 15-minute prices
+  [ "$(hhmm)" -ge 1530 ] && { bars; track; }   # after the close: the full day's 15-minute prices and results
   notify screen
   publish "screen $(date '+%F %H:%M')"
   [ "$(hhmm)" -ge 1530 ] && market
@@ -65,12 +66,12 @@ session() {  # session END_HHMM
       notify screen      # only does something if the screen failed and the scan rebuilt it
       notify breakouts
     fi
-    if [ "$h" -ge 930 ] && [ $((t0 - last_bars)) -ge 900 ]; then last_bars=$t0; bars; fi
+    if [ "$h" -ge 930 ] && [ $((t0 - last_bars)) -ge 900 ]; then last_bars=$t0; bars; track; fi
     if [ "$h" -ge 1514 ] && [ "$sq" = 0 ]; then sq=1; bars; notify squareoff; fi
     publish "live $(date '+%H:%M')"
     sleep $(( (t0 + 60 - $(date +%s)) > 0 ? (t0 + 60 - $(date +%s)) : 1 ))
   done
-  [ "$end" -ge 1530 ] && { bars; publish "close $(date '+%H:%M')"; }
+  [ "$end" -ge 1530 ] && { bars; track; publish "close $(date '+%H:%M')"; }
   return 0
 }
 
@@ -93,6 +94,7 @@ echo "mode: $MODE, IST now $(date '+%a %F %H:%M')"
 case "$MODE" in
   premarket) screen && [ "$AUTO" = 1 ] && mark_done evening && publish "evening done $(date '+%H:%M')" ;;
   market) market ;;
+  track) track; publish "track record $(date '+%H:%M')" ;;
   orb)
     python run.py orb --no-browser --json "$PUB"; bars; notify breakouts; publish "scan $(date '+%H:%M')" ;;
   squareoff)
