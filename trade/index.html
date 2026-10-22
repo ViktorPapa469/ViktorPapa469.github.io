@@ -202,6 +202,7 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .chk{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:2px 8px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px}
 .chk:last-child{border-bottom:0}
 .chk.na{opacity:.6}
+.livetag{font-size:10px;color:var(--ink3);font-weight:500;letter-spacing:.02em}
 .sugg{margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--glass-hi)}
 .sugg button{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline;width:100%;padding:9px 12px;background:none;border:0;border-bottom:1px solid var(--line);color:inherit;text-align:left;font:inherit;font-size:13.5px;cursor:pointer}
 .sugg button:last-child{border-bottom:0}
@@ -465,10 +466,11 @@ function load(day){
       var hist = day && day !== st.latest;
       var preU = hist ? base + "history/" + day + "_premarket.json" : base + "premarket.json";
       var orbU = hist ? base + "history/" + day + "_orb.json" : base + "orb.json";
-      return Promise.all([getJSON(preU), getJSON(orbU).catch(function(){ return null; })]);
+      return Promise.all([getJSON(preU), getJSON(orbU).catch(function(){ return null; }), hist ? null : getJSON(base + "live.json").catch(function(){ return null; })]);
     });
   }).then(function(r){
     st.pre = r[0]; st.orb = r[1] && r[1].date === r[0].date ? r[1] : null;
+    st.live = r[2] && r[2].date === ist().date ? r[2] : null;   // today's NSE prices, refreshed every minute in market hours
     st.day = st.pre.date; st.noData = false; st.loadedAt = Date.now();
     checkAlerts();
   }).catch(function(e){
@@ -996,7 +998,22 @@ function atrOf(sym){
 }
 /* latest session's open, high, low and close (or last, while the market is open) in one line */
 function addMins(t, m){ var x = +t.slice(0, 2) * 60 + +t.slice(3) + m; return ("0" + Math.floor(x / 60)).slice(-2) + ":" + ("0" + x % 60).slice(-2); }
+/* live NSE prices (live.json): [last, change %, open, high, low, prev close] per F&O stock */
+function lv(sym){ var L = st.live; return L && L.stocks && L.stocks[sym] && ok(L.stocks[sym][0]) ? L.stocks[sym] : null; }
+function liveHM(){ return st.live ? hmOf(st.live.generated) : ""; }
+/* the price shown at the top of a stock card: live when there is a live price, else the screen's */
+function pxTag(sym, price, chg){
+  var l = lv(sym);
+  if (l) return '<span class="px">' + rs(l[0]) + '<small class="' + tone(l[1]) + '">' + pc(l[1]) + ' <span class="livetag">' + (st.live.phase === "preopen" ? "pre-open " : "live ") + esc(liveHM()) + "</span></small></span>";
+  return '<span class="px">' + rs(price) + '<small class="' + tone(chg) + '">' + pc(chg) + "</small></span>";
+}
 function ohlc(sym){
+  var l = lv(sym);
+  if (l && ok(l[2]) && ok(l[3]) && ok(l[4])){
+    var closed = st.live.phase === "closed";
+    return '<p class="ohlc"><span>O <b>' + n(l[2], 2) + "</b></span><span>H <b>" + n(l[3], 2) + "</b></span><span>L <b>" + n(l[4], 2) + "</b></span><span>" + (closed ? "C" : "Last") + " <b>" + n(l[0], 2) + "</b></span>" +
+      '<span class="d">today' + (closed ? "" : ", live " + esc(liveHM())) + "</span></p>";
+  }
   if (!PX.daily) return "";
   var p = pricesFor(sym), ds = p.days(); if (!ds.length) return "";
   var d = ds[ds.length - 1], day = p.daily(d), b = p.bars(d), o, h, l, c, label, live = false;
@@ -1023,9 +1040,10 @@ function render(){
   if (st.loading) f.textContent = "Loading…";
   else if (st.pre){
     var last = st.orb && st.orb.generated > st.pre.generated ? st.orb.generated : st.pre.generated;
+    if (st.live && st.live.generated > last) last = st.live.generated;
     var opts = st.days.length > 1 ? '<select id="day" aria-label="Day">' + st.days.map(function(d){
       return '<option value="' + d + '"' + (d === st.day ? " selected" : "") + ">" + esc(niceDate(d)) + "</option>"; }).join("") + "</select>" : "";
-    f.innerHTML = opts + '<span><span class="upd-l">Updated </span>' + esc(hmOf(last)) + "</span>";
+    f.innerHTML = opts + '<span><span class="upd-l">' + (st.live && last === st.live.generated ? "Live " : "Updated ") + "</span>" + esc(hmOf(last)) + "</span>";
     var sel = $("#day"); if (sel) sel.onchange = function(){ load(this.value === st.latest ? null : this.value); };
   } else f.textContent = "";
 
@@ -1103,8 +1121,12 @@ function emptyState(){
 function viewPlan(){
   var p = st.pre, r = p.regime || {};
   var cls = r.label === "Uptrend" ? "up" : r.label === "Downtrend" ? "down" : "gold";
-  var facts = [["Nifty 50", n(r.nifty), r.nifty_chg], ["Bank Nifty", n(r.bank), r.bank_chg], ["India VIX", ok(r.vix) ? r.vix.toFixed(2) : "–", r.vix_chg, true]];
-  if (p.preopen) facts.push(["Pre-open up / down", p.preopen.adv + " / " + p.preopen.dec, p.preopen.avg]);
+  var L = st.live, li = L && L.indices || {}, I = function(k){ return li[k] && ok(li[k].last) ? li[k] : null; };
+  var facts = [["Nifty 50", n(I("NIFTY 50") ? I("NIFTY 50").last : r.nifty), I("NIFTY 50") ? I("NIFTY 50").chg : r.nifty_chg],
+               ["Bank Nifty", n(I("BANK NIFTY") ? I("BANK NIFTY").last : r.bank), I("BANK NIFTY") ? I("BANK NIFTY").chg : r.bank_chg],
+               ["India VIX", I("INDIA VIX") ? I("INDIA VIX").last.toFixed(2) : ok(r.vix) ? r.vix.toFixed(2) : "–", I("INDIA VIX") ? I("INDIA VIX").chg : r.vix_chg, true]];
+  if (L && L.breadth && (L.breadth.adv + L.breadth.dec)) facts.push([(L.phase === "preopen" ? "Pre-open" : "F&O stocks") + " up / down", L.breadth.adv + " / " + L.breadth.dec, null]);
+  else if (p.preopen) facts.push(["Pre-open up / down", p.preopen.adv + " / " + p.preopen.dec, p.preopen.avg]);
   (p.fii_dii || []).forEach(function(f){ facts.push([f.category + " net", '<span class="' + tone(f.net_cr) + '">' + (f.net_cr > 0 ? "+" : "") + n(f.net_cr) + " cr</span>", null]); });
   var fh = facts.map(function(f){
     var sub = f[2] == null ? "" : ' <span class="' + tone(f[3] ? -f[2] : f[2]) + '">' + pc(f[2]) + "</span>";
@@ -1114,7 +1136,9 @@ function viewPlan(){
   var market = '<div class="glass tile"><div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><span class="pill ' + cls + '">' + esc(r.label || "Unknown") + "</span>" +
       (r.size_mult < 1 ? '<span class="muted small">Suggested positions cut to ' + Math.round(r.size_mult * 100) + "% today</span>" : "") + "</div>" +
       '<p style="margin:8px 0 0">' + esc(r.bias || "") + "</p></div>" +
-    '<div class="glass tile"><div class="facts">' + fh + "</div></div>" +
+    '<div class="glass tile"><div class="facts">' + fh + "</div>" +
+      '<p class="muted small" style="margin:8px 0 0">' + (L ? "Live from NSE at " + esc(liveHM()) + (L.status ? " (market " + esc(String(L.status).toLowerCase()) + ")" : "") + ", updated every minute 9:00 to 3:30. Regime and flows from the screen at " + esc(hmOf(p.generated)) + "." :
+        "From the screen at " + esc(hmOf(p.generated)) + ". Live figures arrive every minute from 9:00 to 3:30.") + "</p></div>" +
     (cues ? '<div class="glass tile"><div class="cues">' + cues + "</div></div>" : "") +
     ((p.notes || []).length ? '<p class="note">Unavailable this run: ' + esc(p.notes.join(", ")) + ".</p>" : "");
 
@@ -1171,7 +1195,7 @@ function viewIntraday(){
       "<div><span>Stop distance</span><b>" + (ok(d) && x.price ? (d / x.price * 100).toFixed(1) + "%" : "–") + "</b></div>";
     return '<article class="stock glass"><div class="head">' +
       '<span><span class="sym">' + esc(x.symbol) + "</span>" + (o ? statusPill(o.status) : "") + '<span class="ind">' + esc([indOf(x.industry), ok(x.lot) ? "lot " + x.lot : ""].filter(Boolean).join(", ")) + "</span></span>" +
-      '<span class="px">' + rs(x.price) + '<small class="' + tone(x.chg1) + '">' + pc(x.chg1) + "</small></span></div>" +
+      pxTag(x.symbol, x.price, x.chg1) + "</div>" +
       '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
       '<div class="levels">' + lv +
         '<div><span>Prev high</span><b>' + rs(x.pdh) + "</b></div><div><span>Prev low</span><b>" + rs(x.pdl) + "</b></div>" +
@@ -1216,7 +1240,7 @@ function ticket(r, mult){
   var long = r.side === "long", hot = r.status === "TRIGGERED";
   var top = '<div class="head"><span><span class="sym">' + esc(r.symbol) + '</span><span class="side ' + (long ? "long" : "short") + '">' + (long ? "Long" : "Short") + "</span>" + statusPill(r.status) +
     '<span class="ind">' + esc(indOf(r.industry)) + "</span></span>" +
-    (ok(r.last) ? '<span class="px">' + rs(r.last) + '<small class="' + tone(r.chg) + '">' + pc(r.chg) + "</small></span>" : "") + "</div>";
+    (lv(r.symbol) ? pxTag(r.symbol) : ok(r.last) ? '<span class="px">' + rs(r.last) + '<small class="' + tone(r.chg) + '">' + pc(r.chg) + "</small></span>" : "") + "</div>";
   var info = ok(r.orh) ? '<p class="why">Range ' + rs(r.orl) + " to " + rs(r.orh) + ", VWAP " + rs(r.vwap) + (ok(r.rs) ? ", " + pc(r.rs) + " vs Nifty" : "") + "</p>" : "";
   if (!ok(r.entry)) return '<div class="stock glass">' + top + info + ohlc(r.symbol) + '<div class="row-actions">' + anBtn(r.symbol) + "</div></div>";
   var q = qty(r.entry, Math.abs(r.entry - r.stop), mult);
@@ -1238,7 +1262,7 @@ function viewSwing(){
   var cards = list.map(function(x, i){
     var q = qty(x.entry, x.entry - x.stop, mult);
     return '<article class="stock glass"><div class="head"><span><span class="sym">' + esc(x.symbol) + '</span><span class="ind">' + esc(indOf(x.industry)) + "</span></span>" +
-      '<span class="px">' + rs(x.price) + '<small class="' + tone(x.chg1) + '">' + pc(x.chg1) + "</small></span></div>" +
+      pxTag(x.symbol, x.price, x.chg1) + "</div>" +
       '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
       '<div class="levels"><div><span>Setup above</span><b>' + rs(x.entry) + "</b></div><div><span>Stop</span><b>" + rs(x.stop) + "</b></div>" +
       "<div><span>Position</span><b>" + n(q) + "</b></div><div><span>Target 2R</span><b>" + rs(x.t1) + "</b></div>" +
@@ -1870,7 +1894,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("mess
 function hardRefresh(){
   var btn = $("#reload"); if (st.refreshing) return;
   st.refreshing = true; btn.disabled = true; btn.textContent = "Checking…";
-  var before = {pre:st.pre && st.pre.generated, orb:st.orb && st.orb.generated, day:st.day};
+  var before = {pre:st.pre && st.pre.generated, orb:st.orb && st.orb.generated, live:st.live && st.live.generated, day:st.day};
   PX.reset(); AN.data = null; MK.index = null; MK.rules = null; MK.bySym = null; MK.shards = {};
   var wait = st.loading ? new Promise(function(res){ var k = setInterval(function(){ if (!st.loading){ clearInterval(k); res(); } }, 150); }) : Promise.resolve();
   wait.then(function(){
@@ -1879,31 +1903,33 @@ function hardRefresh(){
     st.refreshing = false; btn.disabled = false; btn.textContent = "Refresh";
     if (st.error) return toast("Couldn't reach the data. Check the connection; showing what was loaded before.");
     if (st.noData) return toast("No data published yet.");
-    var fresh = (st.pre && st.pre.generated) !== before.pre || (st.orb && st.orb.generated) !== before.orb || st.day !== before.day;
+    var fresh = (st.pre && st.pre.generated) !== before.pre || (st.orb && st.orb.generated) !== before.orb || (st.live && st.live.generated) !== before.live || st.day !== before.day;
     var parts = [];
     if (st.pre) parts.push((st.pre.date > ist().date ? "Preview" : "Screen") + " " + hmOf(st.pre.generated));
-    if (st.orb) parts.push("live scan " + hmOf(st.orb.generated));
+    if (st.orb) parts.push("breakout scan " + hmOf(st.orb.generated));
+    if (st.live) parts.push("live prices " + liveHM());
     toast((fresh ? "Updated: " : "Already the latest: ") + parts.join(", ") + "." + nextUpdate() + (GH.limited ? " GitHub is limiting checks from this network, so data can be up to a few minutes behind." : ""));
   });
 }
 /* when GitHub is due to publish next (IST), for the Refresh message */
 function nextUpdate(){
   var t = ist(), m = t.mins; if (t.weekend) return " Next update Monday about 9:10.";
-  if (m < 550) return " Today's screen about 9:10.";
+  if (m < 540) return " Live prices from 9:00, today's screen about 9:10.";
+  if (m < 550) return " Live prices every minute; today's screen about 9:10.";
   if (m < 571) return " Live scans start about 9:32.";
-  if (m < 662) return " Live scans every 5 minutes until 11:00.";
+  if (m < 662) return " Live prices every minute; breakout scans every 5 minutes until 11:00.";
+  if (m < 931) return " Live prices every minute until 3:30.";
   if (m < 1140) return " Next: the 3:15 reminder, then the evening preview about 7:10.";
   return " Next: tomorrow's screen about 9:10.";
 }
 $("#reload").onclick = hardRefresh;
 $("#getApp").onclick = showGetApp;
 
-/* refresh: every minute from 9:05 to 9:45 (screen and first breakouts), every 2 min to 11:10, at 3:15, else every 15 min;
+/* refresh: every minute from 9:00 to 3:35 on weekdays (live prices are published each minute), else every 15 minutes;
    and when the app comes back */
 function due(){
-  var t = ist(), m = t.mins, wd = !t.weekend;
-  var every = wd && m >= 545 && m <= 585 ? 60e3 : wd && m >= 535 && m <= 670 ? 120e3 : wd && m >= 913 && m <= 920 ? 60e3 : 900e3;
-  return Date.now() - st.loadedAt > every;
+  var t = ist(), market = !t.weekend && t.mins >= 540 && t.mins <= 935;
+  return Date.now() - st.loadedAt > (market ? 55e3 : 900e3);
 }
 setInterval(function(){
   drawClock();

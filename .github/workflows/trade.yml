@@ -3,8 +3,9 @@ name: Opening Bell screener
 # Runs the NSE screener in tools/trade on weekdays and publishes the data for the phone app at
 #   https://viktorpapa469.github.io/trade/
 # The data goes to the trade-data branch (one commit, replaced each time), so main and the website build are untouched.
-#   morning: screen published ~9:10 after the pre-open, then breakout scans every 5 min from 9:31 to 11:00
-#   afternoon: waits, then sends the 3:15 square-off reminder (only on days the market traded)
+#   morning (to 1:30 PM): live NSE prices every minute from 9:00, the screen ~9:10, breakout scans every 5 min 9:31-11:00
+#   afternoon (1:30 PM to the close): live prices every minute and the 3:15 square-off reminder
+#   (one run can last at most 6 hours, so the day is split in two; the afternoon run queues behind the morning one)
 #   evening: preview of the next session's screen from the day's close, then the all-market analysis
 # Push notifications go to phones that turned them on in the app (listed in Opening Bell's own Firebase project);
 # they are signed with the VAPID_PRIVATE secret, the same push key pair Fovea uses.
@@ -18,14 +19,15 @@ on:
     - cron: '51 2 * * 1-5'    # 08:21 IST morning, backup
     - cron: '17 3 * * 1-5'    # 08:47 IST morning, backup
     - cron: '39 3 * * 1-5'    # 09:09 IST morning, last backup
-    - cron: '43 8 * * 1-5'    # 14:13 IST square-off reminder (waits for 3:14)
-    - cron: '32 9 * * 1-5'    # 15:02 IST square-off reminder, backup
+    - cron: '13 7 * * 1-5'    # 12:43 IST afternoon (starts when the morning run ends at 1:30)
+    - cron: '43 7 * * 1-5'    # 13:13 IST afternoon, backup
+    - cron: '11 8 * * 1-5'    # 13:41 IST afternoon, last backup
     - cron: '37 13 * * 1-5'   # 19:07 IST evening preview
     - cron: '11 14 * * 1-5'   # 19:41 IST evening preview, backup
   workflow_dispatch:
     inputs:
       mode:
-        description: 'auto (by time of day), premarket (screen only), orb (one breakout scan), morning, squareoff, market (all NSE and BSE stocks)'
+        description: 'auto (by time of day), live (live prices every minute until the close), morning, afternoon, premarket (screen only), orb (one breakout scan), squareoff, market (all NSE and BSE stocks)'
         default: auto
   push:
     branches: [main]
@@ -41,7 +43,7 @@ concurrency:
 jobs:
   screen:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 355
     env:
       TZ: Asia/Kolkata
       GH_TOKEN: ${{ github.token }}
@@ -51,7 +53,7 @@ jobs:
       FB_PROJECT: opening-bell-4fdc9   # Opening Bell's own Firebase project
       FB_KEY: AIzaSyA7xZWmVuaRYNpyCHi5jVMnSIwDK-6mCL0   # its public web key (also in trade/index.html)
       # a push (new code) just refreshes the screen, without notifications; schedules and manual runs follow the time of day
-      MODE: ${{ github.event_name == 'push' && 'premarket' || (github.event.schedule == '43 8 * * 1-5' || github.event.schedule == '32 9 * * 1-5') && 'squareoff' || github.event.inputs.mode || 'auto' }}
+      MODE: ${{ github.event_name == 'push' && 'premarket' || (github.event.schedule == '13 7 * * 1-5' || github.event.schedule == '43 7 * * 1-5' || github.event.schedule == '11 8 * * 1-5') && 'afternoon' || github.event.inputs.mode || 'auto' }}
       NOTIFY: ${{ github.event_name == 'push' && '0' || '1' }}
     steps:
       - uses: actions/checkout@v4
