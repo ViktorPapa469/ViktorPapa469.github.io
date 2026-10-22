@@ -207,7 +207,12 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .sugg .nm{color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sugg .nm b{font-weight:600}
 .sugg .ex{font-size:11px;color:var(--ink2);white-space:nowrap}
 .an-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:6px;margin:10px 0 0}
-.an-strip > div{padding:8px 10px;border-radius:12px;display:flex;flex-direction:column;gap:2px}
+.an-strip > button{padding:8px 10px;border-radius:12px;display:flex;flex-direction:column;gap:2px;text-align:left;cursor:pointer;color:inherit;font:inherit}
+.an-strip > button[aria-selected=true]{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+.an-nav{padding:4px 0 8px}
+.an-pager{display:flex;align-items:flex-start;gap:12px;overflow-x:auto;overflow-y:hidden;transition:height .2s ease;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
+.an-pager::-webkit-scrollbar{display:none}
+.an-pager > .tile{flex:0 0 100%;scroll-snap-align:start;scroll-snap-stop:always;margin:0}
 .an-strip b{font-size:18px}.an-strip span{font-size:11.5px;color:var(--ink2);line-height:1.25}
 .chk i{font-style:normal;font-weight:700;text-align:center}
 .chk .v{text-align:right;white-space:nowrap}
@@ -1138,26 +1143,34 @@ function viewIntraday(){
   var cards = list.map(function(x, i){
     var counter = (x.warnings || []).some(function(w){ return /counter-trend/i.test(w); });
     var q = qty(x.price, x.est_stop_dist, (mult || 1) * (counter ? 0.5 : 1));
-    var o = orbFor(x.symbol);
-    return '<article class="stock glass"><button class="head" type="button" data-open="' + i + '" aria-expanded="false">' +
+    var o = orbFor(x.symbol), d = x.est_stop_dist, sgn = isLong ? "+" : "−";
+    /* before 9:30 the entry is the opening range's edge, so stop and targets are distances from it;
+       once the live scan has the range, the real prices are shown instead */
+    var live = o && ok(o.entry) && ok(o.stop), lq = live ? qty(o.entry, Math.abs(o.entry - o.stop), mult) : q;
+    var lv = live ?
+      '<div><span>Setup ' + (isLong ? "above" : "below") + "</span><b>" + rs(o.entry) + "</b></div><div><span>Stop</span><b>" + rs(o.stop) + "</b></div>" +
+      "<div><span>Position</span><b>" + n(lq) + "</b></div><div><span>Target 1.5R</span><b>" + rs(o.t1) + "</b></div>" +
+      "<div><span>Target 3R</span><b>" + rs(o.t2) + "</b></div><div><span>Stop distance</span><b>" + (Math.abs(o.entry - o.stop) / o.entry * 100).toFixed(1) + "%</b></div>" :
+      '<div><span>Setup ' + (isLong ? "above" : "below") + "</span><b>9:30 " + (isLong ? "high" : "low") + "</b></div>" +
+      "<div><span>Stop</span><b>" + rs(d) + " " + (isLong ? "below" : "above") + "</b></div><div><span>Position</span><b>" + n(q) + "</b></div>" +
+      "<div><span>Target 1.5R</span><b>" + sgn + rs(1.5 * d) + "</b></div><div><span>Target 3R</span><b>" + sgn + rs(3 * d) + "</b></div>" +
+      "<div><span>Stop distance</span><b>" + (ok(d) && x.price ? (d / x.price * 100).toFixed(1) + "%" : "–") + "</b></div>";
+    return '<article class="stock glass"><div class="head">' +
       '<span><span class="sym">' + esc(x.symbol) + "</span>" + (o ? statusPill(o.status) : "") + '<span class="ind">' + esc([indOf(x.industry), ok(x.lot) ? "lot " + x.lot : ""].filter(Boolean).join(", ")) + "</span></span>" +
-      '<span class="px">' + rs(x.price) + '<small class="' + tone(x.chg1) + '">' + pc(x.chg1) + "</small></span></button>" +
+      '<span class="px">' + rs(x.price) + '<small class="' + tone(x.chg1) + '">' + pc(x.chg1) + "</small></span></div>" +
       '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
-      '<div class="plan">' + (isLong ? "Long setup above the 9:30 range high" : "Short setup below the 9:30 range low") +
-        ", stop about " + rs(x.est_stop_dist) + " away. Suggested position <b>" + n(q) + "</b>" + lots(q, x.lot) + ".</div>" +
-      (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(w) + "</div>"; }).join("") +
-      '<div class="levels" id="lv' + i + '" hidden>' +
+      '<div class="levels">' + lv +
         '<div><span>Prev high</span><b>' + rs(x.pdh) + "</b></div><div><span>Prev low</span><b>" + rs(x.pdl) + "</b></div>" +
-        '<div><span>Daily ATR</span><b>' + rs(x.atr) + "</b></div>" +
-        '<div><span>Pre-open gap</span><b class="' + tone(x.gap_pct) + '">' + pc(x.gap_pct) + "</b></div>" +
-        '<div><span>Score</span><b>' + n(x.score) + "</b></div><div><span>Suggested position</span><b>" + n(q) + "</b></div></div>" +
+        '<div><span>Daily ATR</span><b>' + rs(x.atr) + "</b></div></div>" +
+      (live ? "" : '<p class="why" style="margin-top:6px">Stop and targets are distances from the entry, which the 9:30 range sets.' + (lots(q, x.lot) ? " Position" + lots(q, x.lot) + "." : "") + "</p>") +
+      (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(w) + "</div>"; }).join("") +
       ohlc(x.symbol) +
       '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="intra:' + st.side + ":" + i + '">Paper trade</button>' + anBtn(x.symbol) + "</div>" +
       "</article>";
   });
   if (!cards.length) return [page(isLong ? "Longs" : "Shorts", '<div class="empty"><p>No stocks qualify on this side today. That is a signal too: fewer trades.</p></div>')];
   var lede = '<p class="lede">' + (isLong ? "Strongest liquid F&O stocks, ranked. Watch for a break of the 15-minute high with price above VWAP." :
-    "Weakest liquid F&O stocks, ranked. Watch for a break of the 15-minute low with price below VWAP.") + " Tap a stock for its levels.</p>";
+    "Weakest liquid F&O stocks, ranked. Watch for a break of the 15-minute low with price below VWAP.") + "</p>";
   return chunk(cards, 3).map(function(c, k){ return page((isLong ? "Longs " : "Shorts ") + (k * 3 + 1) + "–" + (k * 3 + c.length), (k === 0 ? lede : "") + c.join(""), list.length + " in all"); });
 }
 
@@ -1462,11 +1475,42 @@ function shortName(name){
   return ({"Liquidity filters (intraday)":"Liquidity", "Intraday long setup":"Intraday long", "Intraday short setup":"Intraday short",
            "Swing: pullback to the 20-day average":"Swing pullback", "Swing: tight base near highs":"Swing tight base"})[name] || name;
 }
+/* the rule check's setup pages: swipe, arrows, dots or the score tiles */
+function anPager(total){
+  var pg = $("#an-pager"), cur = 0, tmr = null; if (!pg) return;
+  function at(i){ var c = pg.children[i]; return c ? c.offsetLeft - pg.children[0].offsetLeft : 0; }
+  function mark(i){
+    cur = i;
+    var c = pg.children[i]; if (c) pg.style.height = c.offsetHeight + "px";   // the area fits the setup on show
+    document.querySelectorAll("#sheet-in .an-strip [data-ang]").forEach(function(b, k){ if (k === i) b.setAttribute("aria-selected", "true"); else b.removeAttribute("aria-selected"); });
+    document.querySelectorAll("#sheet-in .dots [data-ang]").forEach(function(b){ if (+b.dataset.ang === i) b.setAttribute("aria-current", "true"); else b.removeAttribute("aria-current"); });
+    document.querySelectorAll("#an-no,[data-an2=no]").forEach(function(e){ e.textContent = (i + 1) + " / " + total; });
+    document.querySelectorAll("#an-prev,[data-an2=prev]").forEach(function(e){ e.disabled = i <= 0; });
+    document.querySelectorAll("#an-next,[data-an2=next]").forEach(function(e){ e.disabled = i >= total - 1; });
+  }
+  function go(i, fromBottom){
+    i = Math.max(0, Math.min(total - 1, i));
+    pg.scrollTo({left:at(i), behavior:"smooth"}); mark(i);
+    if (fromBottom){ var sh = $("#sheet-in"), top = pg.getBoundingClientRect().top - sh.getBoundingClientRect().top + sh.scrollTop - 120; if (top < sh.scrollTop) sh.scrollTo({top:Math.max(0, top), behavior:"smooth"}); }
+  }
+  pg.addEventListener("scroll", function(){
+    clearTimeout(tmr);
+    tmr = setTimeout(function(){
+      var best = 0, d = Infinity;
+      for (var k = 0; k < total; k++){ var dd = Math.abs(at(k) - pg.scrollLeft); if (dd < d){ d = dd; best = k; } }
+      mark(best);
+    }, 60);
+  }, {passive:true});
+  document.querySelectorAll("#sheet-in [data-ang]").forEach(function(b){ b.onclick = function(){ go(+b.dataset.ang); }; });
+  document.querySelectorAll("#an-prev,[data-an2=prev]").forEach(function(b){ b.onclick = function(){ go(cur - 1, b.dataset.an2); }; });
+  document.querySelectorAll("#an-next,[data-an2=next]").forEach(function(b){ b.onclick = function(){ go(cur + 1, b.dataset.an2); }; });
+  mark(0);
+}
 function showAnalysis(sym, x, o){
   var scores = x.groups.map(scoreOf);
-  var strip = '<div class="an-strip">' + x.groups.map(function(g, gi){
+  var strip = '<div class="an-strip" role="tablist">' + x.groups.map(function(g, gi){
     var sc = scores[gi];
-    return '<div class="glass"><b class="' + (sc.pct >= 75 ? "up" : sc.pct !== null && sc.pct < 40 ? "down" : "") + '">' + (sc.pct === null ? "–" : sc.pct + "%") + "</b><span>" + esc(shortName(g.name)) + "</span></div>";
+    return '<button type="button" role="tab" class="glass" data-ang="' + gi + '"' + (gi === 0 ? ' aria-selected="true"' : "") + '><b class="' + (sc.pct >= 75 ? "up" : sc.pct !== null && sc.pct < 40 ? "down" : "") + '">' + (sc.pct === null ? "–" : sc.pct + "%") + "</b><span>" + esc(shortName(g.name)) + "</span></button>";
   }).join("") + "</div>";
   var groups = x.groups.map(function(g, gi){
     var req = g.items.filter(function(i){ return !i[4]; }), fac = g.items.filter(function(i){ return i[4]; }), sc = scores[gi];
@@ -1482,8 +1526,12 @@ function showAnalysis(sym, x, o){
         (g.pass ? "<b class=\"up\">Meets every required rule.</b>" : "Required rules met: " + req.filter(function(i){ return i[1] === true; }).length + " of " + req.length + ".") + "</p>" +
       req.map(row).join("") +
       (fac.length ? '<p class="muted small" style="margin:10px 0 2px">Ranking factors (not required, they decide the order)</p>' + fac.map(row).join("") : "") +
-      (/^Swing/.test(g.name) ? '<p class="muted small" style="margin:8px 0 0">Also needs the price and turnover filters above.</p>' : "") + "</div>";
+      (/^Swing/.test(g.name) ? '<p class="muted small" style="margin:8px 0 0">Also needs the price and turnover filters on the Liquidity page.</p>' : "") + "</div>";
   }).join("");
+  var arrow = function(id, d, label){ return '<button class="arrow" id="' + id + '" type="button" aria-label="' + label + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="' + d + '"/></svg></button>'; };
+  var nav = '<div class="pagenav an-nav">' + arrow("an-prev", "M15 5l-7 7 7 7", "Previous setup") +
+    '<div class="dots" id="an-dots">' + x.groups.map(function(g, gi){ return '<button type="button" data-ang="' + gi + '" aria-label="' + esc(shortName(g.name)) + '"' + (gi === 0 ? ' aria-current="true"' : "") + "></button>"; }).join("") + "</div>" +
+    '<span class="pageno" id="an-no">1 / ' + x.groups.length + "</span>" + arrow("an-next", "M9 5l7 7-7 7", "Next setup") + "</div>";
   var lists = !o.fno ? "Not an F&amp;O stock, so it isn't on the screen (the screener lists F&amp;O stocks only) and futures open interest isn't available. The scores count only the checks with data." :
     x.lists && x.lists.length ? "On today's screen: <b>" + esc(x.lists.join(", ")) + "</b>." :
     "Not on today's screen. A stock can meet the rules and still be left out, because only the highest-ranked ones are listed.";
@@ -1492,10 +1540,11 @@ function showAnalysis(sym, x, o){
   var sub = o.fno ? (indOf(x.industry) || "F&O stock") + " · NSE F&O" : (x.name ? x.name + " · " : "") + (x.exchange || "") + (indOf(x.industry) ? " · " + x.industry : "");
   openSheet("<h3>" + esc(sym) + ': rule check</h3><p class="muted small" style="margin:0">' + esc(sub) +
       ". Prices to the close of " + esc(niceDate(o.as_of)) + ".</p>" + line + strip +
-    '<p style="margin:10px 0">' + lists + (x.event ? " " + esc(x.event) + "." : "") + "</p>" + groups +
-    '<p class="note">Scores are the share of each setup\'s checks the stock meets, counting only checks with data. A rule check for market study, not a recommendation or investment advice.</p>' +
+    '<p style="margin:10px 0">' + lists + (x.event ? " " + esc(x.event) + "." : "") + "</p>" + nav + '<div class="an-pager" id="an-pager">' + groups + "</div>" + nav.replace(/id="an-(prev|next|dots|no)"/g, 'data-an2="$1"') +
+    '<p class="note">Swipe left or right, or tap a score, to move between setups. Scores are the share of each setup\'s checks the stock meets, counting only checks with data. A rule check for market study, not a recommendation or investment advice.</p>' +
     '<div class="gate-actions"><button class="btn ghost" id="an-close" type="button">Close</button>' + (o.fno ? '<button class="btn gold" id="an-trade" type="button">Paper trade</button>' : "") + "</div>");
   $("#an-close").onclick = closeSheet;
+  anPager(x.groups.length);
   if (o.fno) $("#an-trade").onclick = function(){ closeSheet(); tradeForm({symbol:sym, listId:st.list || T.lists[0].id}); };
 }
 
