@@ -210,6 +210,10 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .gl:last-child{border-bottom:0}.gl b{font-weight:600}.gl span{color:var(--ink2);line-height:1.45}
 .gl-letter{margin:12px 0 0;font:600 12px var(--sans);color:var(--gold);letter-spacing:.06em}.gl-letter:first-child{margin-top:0}
 .why.outcome{color:var(--ink);margin-top:6px}
+.seg-scroll{overflow-x:auto;scrollbar-width:none}.seg-scroll::-webkit-scrollbar{display:none}
+.seg-scroll button{flex:0 0 auto;padding:6px 12px;white-space:nowrap}
+.allst td,.allst th{font-size:12px;padding:5px 3px}.allst tbody tr{cursor:pointer}.allst td.pass{color:var(--up);font-weight:600}
+.allst td.avg{font-weight:600}.allst td:first-child{font-weight:600;max-width:96px;overflow:hidden;text-overflow:ellipsis}
 .livetag{font-size:10px;color:var(--ink3);font-weight:500;letter-spacing:.02em}
 .sugg{margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--glass-hi)}
 .sugg button{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline;width:100%;padding:9px 12px;background:none;border:0;border-bottom:1px solid var(--line);color:inherit;text-align:left;font:inherit;font-size:13.5px;cursor:pointer}
@@ -1077,9 +1081,10 @@ function render(){
   else if (!st.pre) pages = [page(st.loading ? "Loading" : "No data", '<div class="empty"><p>' + (st.loading ? "Loading the latest screen…" : "No data loaded yet.") + "</p></div>")];
   else {
     if (st.tab === "intraday") tb = segCtl("side", [["longs", "Longs " + (st.pre.longs || []).length], ["shorts", "Shorts " + (st.pre.shorts || []).length]], st.side);
-    if (st.tab === "swing") tb = segCtl("swing", [["pullbacks", "Pullbacks " + (st.pre.pullbacks || []).length], ["bases", "Bases " + (st.pre.bases || []).length], ["track", "Track record"]], st.swing);
+    if (st.tab === "swing") tb = segCtl("swing", [["pullbacks", "Pullback " + (st.pre.pullbacks || []).length], ["bases", "Base " + (st.pre.bases || []).length],
+      ["canslim", "CANSLIM " + (st.pre.canslim || []).length], ["minervini", "Minervini " + (st.pre.minervini || []).length], ["all", "All strategies"], ["track", "Track record"]], st.swing).replace('class="seg-ctl"', 'class="seg-ctl seg-scroll"');
     if (st.tab === "live") tb = segCtl("liveview", [["scan", "Today's scan"], ["track", "Track record"]], st.liveView || "scan");
-    pages = st.tab === "swing" && st.swing === "track" ? trackPages("swing") : st.tab === "live" && st.liveView === "track" ? trackPages("intraday") :
+    pages = st.tab === "swing" && st.swing === "track" ? trackPages("swing") : st.tab === "swing" && st.swing === "all" ? viewAllStrategies() : st.tab === "live" && st.liveView === "track" ? trackPages("intraday") :
       ({plan:viewPlan, intraday:viewIntraday, live:viewLive, swing:viewSwing})[st.tab]();
   }
   $("#toolbar").innerHTML = tb;
@@ -1350,6 +1355,17 @@ function trackPages(kind){
 /* ---- Glossary: every term the app uses, in plain words (Settings) */
 var GLOSSARY = [
   ["10-day range", "The gap between the highest high and lowest low of the last 10 sessions, measured in ATRs. A small number means the stock has been moving in a tight band."],
+  ["150-day and 200-day averages", "Simple averages of the last 150 and 200 closing prices: the long-term trend. Minervini wants price above both, the 150-day above the 200-day, and the 200-day rising for at least a month."],
+  ["All strategies", "Swing tab: every F&O stock's % of checks met for each swing strategy (pullback, tight base, CANSLIM, Minervini) and the average. ✓ marks a strategy whose required rules are all met."],
+  ["CANSLIM", "William O'Neil's growth-stock method (\"How to Make Money in Stocks\"): C current quarterly earnings up 25%+, A annual earnings growth 25%+ with return on equity 17%+, N a new high, S demand shown by volume, L a leader (RS rating 80+), I institutional buying, M a market in an uptrend. Sell rules: cut losses at 7-8%, take most profits at 20-25%."],
+  ["EPS (earnings per share)", "A company's profit divided by its shares. CANSLIM compares the latest quarter with the same quarter a year earlier, and yearly EPS over 3 years (from Yahoo Finance's company data, refreshed weekly)."],
+  ["Institutional sponsorship", "How much of a company mutual funds, insurers and other institutions own. O'Neil wants more of them buying each quarter; only the current holding is available, so it's shown for reference and not scored."],
+  ["Minervini trend template", "Mark Minervini's checklist (\"Trade Like a Stock Market Wizard\"): price above the 50-, 150- and 200-day averages; 50 above 150 above 200; the 200-day rising for a month; at least 30% above the 52-week low; within 25% of the 52-week high; RS rating 70+."],
+  ["Pivot (buy point)", "The level whose break starts a CANSLIM or Minervini trade: here, just above the recent 10-day high."],
+  ["RS rating", "Relative-strength rank from 1 to 99, like IBD's: the stock's 12-month return, with the latest quarter counting double, ranked against the F&O stocks. 80 means it beat 80% of them."],
+  ["ROE (return on equity)", "Yearly profit as a % of shareholders' equity: how well the company uses its capital. CANSLIM wants 17% or more."],
+  ["Up/down volume", "Volume on the days the stock rose divided by volume on the days it fell, over 50 sessions. Above 1x means buyers were heavier (CANSLIM's S)."],
+  ["VCP (volatility contraction)", "Minervini's base pattern: each pullback shallower than the last, with volume drying up, before a breakout. Checked here as the last 10 days' range being half or less of the 30 days before."],
   ["20-day average", "The stock's average closing price over about 20 sessions (an exponential moving average, which weights recent days more). Used to judge the short-term trend."],
   ["50-day average", "The same, over about 50 sessions: the medium-term trend. A 20-day average above the 50-day is a sign of an uptrend."],
   ["52-week high", "The highest price of the last year. Tight bases look for stocks within 6% of it."],
@@ -1472,24 +1488,58 @@ function plainWarn(w, x){
 }
 
 /* ---- Swing: three setups a page */
+var SWING = {
+  pullbacks:{name:"Pullbacks", t:["Target 2R", "Target 3R"], lede:"Uptrend leaders that dipped to their 20-day average on light volume. Valid only if price trades above yesterday's high. Typical holding 2 to 10 days."},
+  bases:{name:"Tight bases", t:["Target 2R", "Target 3R"], lede:"Narrow 10-day ranges near 52-week highs with volume drying up. Valid only on a break above the 10-day high. Typical holding 2 to 10 days."},
+  canslim:{name:"CANSLIM", t:["Target +20%", "Target +25%"], lede:"William O'Neil's CAN SLIM: quarterly and yearly earnings growth of 25%+, return on equity of 17%+, near a new high, more volume on up days, an RS rating of 80+ and a market in an uptrend. Buy on a break above the recent high; O'Neil's rules: cut a loss at 7-8%, take most profits at 20-25%. When the market isn't in an uptrend O'Neil doesn't buy, so this list stays empty; see All strategies for how close stocks are."},
+  minervini:{name:"Minervini", t:["Target 2R", "Target 3R"], lede:"Mark Minervini's Trend Template: price above rising 50-, 150- and 200-day averages stacked in that order, 30%+ above the 52-week low, within 25% of the high, RS rating of 70+; ranked by how tightly the price range and volume are contracting (VCP). Buy on a break above the recent high, stop below the last contraction (8% at most)."}
+};
 function viewSwing(){
-  var p = st.pre, key = st.swing, list = p[key] || [], mult = p.regime && p.regime.size_mult, pb = key === "pullbacks";
+  var p = st.pre, key = st.swing, S_ = SWING[key] || SWING.pullbacks, list = p[key] || [], mult = p.regime && p.regime.size_mult;
   var cards = list.map(function(x, i){
     var q = qty(x.entry, x.entry - x.stop, mult);
     return '<article class="stock glass"><div class="head"><span><span class="sym">' + esc(x.symbol) + '</span><span class="ind">' + esc(indOf(x.industry)) + "</span></span>" +
       pxTag(x.symbol, x.price, x.chg1) + "</div>" +
       '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
       '<div class="levels"><div><span>Setup above</span><b>' + rs(x.entry) + "</b></div><div><span>Stop</span><b>" + rs(x.stop) + "</b></div>" +
-      "<div><span>Position</span><b>" + n(q) + "</b></div><div><span>Target 2R</span><b>" + rs(x.t1) + "</b></div>" +
-      "<div><span>Target 3R</span><b>" + rs(x.t2) + "</b></div><div><span>Stop distance</span><b>" + (ok(x.risk_pct) ? x.risk_pct.toFixed(1) + "%" : "–") + "</b></div></div>" +
+      "<div><span>Position</span><b>" + n(q) + "</b></div><div><span>" + S_.t[0] + "</span><b>" + rs(x.t1) + "</b></div>" +
+      "<div><span>" + S_.t[1] + "</span><b>" + rs(x.t2) + "</b></div><div><span>Stop distance</span><b>" + (ok(x.risk_pct) ? x.risk_pct.toFixed(1) + "%" : "–") + "</b></div></div>" +
       (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(plainWarn(w, x)) + "</div>"; }).join("") +
       ohlc(x.symbol) +
       '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="swing:' + key + ":" + i + '">Paper trade</button>' + anBtn(x.symbol) + "</div></article>";
   });
-  if (!cards.length) return [page(pb ? "Pullbacks" : "Tight bases", '<div class="empty"><p>No stocks fit this setup today.</p></div>')];
-  var lede = '<p class="lede">' + (pb ? "Uptrend leaders that dipped to their 20-day average on light volume. Valid only if price trades above yesterday's high." :
-    "Narrow 10-day ranges near 52-week highs with volume drying up. Valid only on a break above the 10-day high.") + " Typical holding 2 to 10 days.</p>";
-  return chunk(cards, 3).map(function(c, k){ return page((pb ? "Pullbacks " : "Tight bases ") + (k * 3 + 1) + "–" + (k * 3 + c.length), (k === 0 ? lede : "") + c.join(""), list.length + " in all"); });
+  var lede = '<p class="lede">' + esc(S_.lede) + "</p>";
+  if (!p[key]) return [page(S_.name, lede + '<div class="empty"><p>This list arrives with the next screen.</p></div>')];
+  if (!cards.length) return [page(S_.name, lede + '<div class="empty"><p>No stocks fit every rule today. All strategies shows how close each stock is.</p></div>')];
+  return chunk(cards, 3).map(function(c, k){ return page(S_.name + " " + (k * 3 + 1) + "–" + (k * 3 + c.length), (k === 0 ? lede : "") + c.join(""), list.length + " in all"); });
+}
+
+/* ---- All strategies: every F&O stock's % of checks met for each swing strategy (from the rule check) */
+var STRATS = [["Swing: pullback to the 20-day average", "Pullback"], ["Swing: tight base near highs", "Base"],
+              ["Swing: CANSLIM (O'Neil)", "CANSLIM"], ["Swing: Minervini trend template", "Minervini"]];
+function viewAllStrategies(){
+  if (!AN.data){
+    loadAnalysis().then(function(){ if (st.tab === "swing" && st.swing === "all") render(); }, function(){});
+    return [page("All strategies", '<div class="empty"><p>Loading the rule check…</p></div>')];
+  }
+  var rows = Object.keys(AN.data.stocks).map(function(sym){
+    var x = AN.data.stocks[sym], by = {};
+    x.groups.forEach(function(g){ by[g.name] = g; });
+    var sc = STRATS.map(function(t){ var g = by[t[0]]; return g ? {pct:scoreOf(g).pct, pass:g.pass} : {pct:null, pass:false}; });
+    var have = sc.filter(function(v){ return v.pct !== null; });
+    return {sym:sym, sc:sc, avg:have.length ? Math.round(have.reduce(function(a, v){ return a + v.pct; }, 0) / have.length) : null,
+            all:sc.filter(function(v){ return v.pass; }).length};
+  }).sort(function(a, b){ return (b.avg || 0) - (a.avg || 0) || b.all - a.all; });
+  var cell = function(v){ return '<td class="' + (v.pass ? "pass" : v.pct >= 75 ? "up" : v.pct !== null && v.pct < 40 ? "down" : "") + '">' + (v.pct === null ? "–" : v.pct + "%") + (v.pass ? "✓" : "") + "</td>"; };
+  var head = "<thead><tr><th>Stock</th>" + STRATS.map(function(t){ return "<th>" + esc(t[1]) + "</th>"; }).join("") + "<th>Avg</th></tr></thead>";
+  var lede = '<p class="lede">Every F&amp;O stock against each swing strategy: the % of its checks met (only checks with data count). ✓ means every required rule is met, so the stock is on that list. Sorted by the average; tap a stock for its full rule check.</p>' +
+    '<p class="note">Rule check from ' + esc(niceDate(AN.data.as_of)) + " prices. For any other NSE or BSE stock, use Analyse on the Plan page.</p>";
+  return chunk(rows, 14).map(function(c, k, all){
+    return page("All strategies " + (k + 1) + "/" + all.length, (k === 0 ? lede : "") +
+      '<div class="glass tile"><table class="trk allst">' + head + "<tbody>" + c.map(function(r){
+        return '<tr data-analyse="' + esc(r.sym) + '"><td>' + esc(r.sym) + "</td>" + r.sc.map(cell).join("") + '<td class="avg">' + (r.avg === null ? "–" : r.avg + "%") + "</td></tr>";
+      }).join("") + "</tbody></table></div>", rows.length);
+  });
 }
 
 /* ---- Test: list chips, then Overview, Stocks and the paper trades */
@@ -1726,7 +1776,8 @@ function analyse(sym){
 }
 function shortName(name){
   return ({"Liquidity filters (intraday)":"Liquidity", "Intraday long setup":"Intraday long", "Intraday short setup":"Intraday short",
-           "Swing: pullback to the 20-day average":"Swing pullback", "Swing: tight base near highs":"Swing tight base"})[name] || name;
+           "Swing: pullback to the 20-day average":"Swing pullback", "Swing: tight base near highs":"Swing tight base",
+           "Swing: CANSLIM (O'Neil)":"CANSLIM", "Swing: Minervini trend template":"Minervini"})[name] || name;
 }
 /* the rule check's setup pages: swipe, arrows, dots or the score tiles */
 function anPager(total){

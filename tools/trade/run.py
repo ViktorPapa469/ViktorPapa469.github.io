@@ -85,6 +85,27 @@ def session_date(demo):
     return d
 
 
+# ------------------------------------------------------------------ company earnings (CANSLIM)
+def company_earnings(demo, json_dir, symbols):
+    """Cached quarterly / yearly earnings, ROE and institutional holding. Refreshed (weekly per stock) by the
+    evening run or when the cache is empty; the morning screen just reads it."""
+    if demo:
+        rng = np.random.default_rng(3)
+        return {s: {"eps_q": float(rng.normal(40, 25)), "eps_q_prev": float(rng.normal(25, 20)),
+                    "eps_3y": float(rng.normal(30, 12)), "roe": float(rng.normal(21, 6)), "inst": float(rng.uniform(10, 60))}
+                for s in symbols}
+    if not json_dir:
+        return {}
+    from screener import fundamentals
+    cache = fundamentals.load(json_dir)
+    if now_ist().hour >= 15 or not cache:
+        try:
+            cache = fundamentals.refresh(json_dir, symbols, log, max_minutes=8)
+        except Exception as e:  # noqa: BLE001
+            log(f"WARN: company earnings unavailable ({str(e)[:100]})")
+    return cache
+
+
 # ------------------------------------------------------------------ premarket
 def premarket(demo, open_browser=True, json_dir=None):
     src = source(demo)
@@ -106,7 +127,8 @@ def premarket(demo, open_browser=True, json_dir=None):
     cues = src.global_cues()
 
     regime = analysis.market_regime(indices)
-    res = analysis.screen(daily, indices["NIFTY 50"], fo, industries, events, pre, regime, today)
+    fund = company_earnings(demo, json_dir, list(daily))
+    res = analysis.screen(daily, indices["NIFTY 50"], fo, industries, events, pre, regime, today, fund)
 
     breadth = None
     if len(pre) and pre["gap_pct"].notna().any():
@@ -132,7 +154,7 @@ def premarket(demo, open_browser=True, json_dir=None):
 
     # CSV of every pick + JSON watchlist for the ORB step
     rows = []
-    for key in ("longs", "shorts", "pullbacks", "bases"):
+    for key in ("longs", "shorts", "pullbacks", "bases", "canslim", "minervini"):
         for p in res[key]:
             rows.append({"list": key, **{k: v for k, v in p.items() if k not in ("reasons", "warnings")},
                          "reasons": "; ".join(p["reasons"]), "warnings": "; ".join(p["warnings"])})

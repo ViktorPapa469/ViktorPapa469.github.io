@@ -112,6 +112,7 @@ def main():
         return log("WARN: no analysis.json yet (needs a screen first); market analysis skipped")
     fno = set(fno_doc.get("stocks", {}))
     top, bottom = set(fno_doc.get("sectors", {}).get("top", [])), set(fno_doc.get("sectors", {}).get("bottom", []))
+    rs_dist, market_up = fno_doc.get("rs_dist") or [], fno_doc.get("market_up", np.nan)
 
     parts = []
     try:
@@ -159,10 +160,10 @@ def main():
             timed_out = True
             break
         chunk = rows[i:i + step]
-        raw = live._download([x.yahoo for x in chunk], period="1y", interval="1d")
+        raw = live._download([x.yahoo for x in chunk], period="2y", interval="1d")
         miss = [x for x in chunk if x.yahoo not in raw and isinstance(x.alt, str) and x.alt]
         if miss:
-            alt = live._download([x.alt for x in miss], period="1y", interval="1d")
+            alt = live._download([x.alt for x in miss], period="2y", interval="1d")
             for x in miss:
                 if x.alt in alt:
                     raw[x.yahoo] = alt[x.alt]
@@ -179,6 +180,9 @@ def main():
                 f = analysis.stock_features(df, nifty["close"])
                 f.update({"industry": industries.get(sym, "Other"), "buildup": "", "oi_chg_pct": np.nan,
                           "lot": np.nan, "gap_pct": np.nan, "event": ev.get(sym, "")})
+                # RS rating against the F&O universe's spread; no company earnings for these stocks (CANSLIM C, A: not available)
+                f.update({"rs_rating": analysis.rs_from_dist(f.get("rs_raw"), rs_dist), "market_up": market_up,
+                          "eps_q": np.nan, "eps_q_prev": np.nan, "eps_3y": np.nan, "roe": np.nan, "inst": np.nan})
                 r = pd.Series(f)
                 groups = analysis.rule_checks(r, top, bottom, fno=False)
                 if schema is None:

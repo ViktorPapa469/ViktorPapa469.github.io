@@ -1,4 +1,6 @@
-"""Indicators, market regime, sector strength and the four setups."""
+"""Indicators, market regime, sector strength and the setups: intraday long/short, swing pullback, tight base,
+CANSLIM (William O'Neil) and the Trend Template with a volatility contraction (Mark Minervini)."""
+import bisect
 import math
 
 import numpy as np
@@ -14,6 +16,21 @@ PB_EMA_TOL = 0.99           # price at least this fraction of the 20 EMA
 BASE_DIST = -6              # % from the 52-week high, at least
 BASE_TIGHT = 3.5            # 10-day range in ATRs, at most
 BASE_DRYUP = 0.9            # 5-day volume vs 50-day, below
+
+# Minervini's Trend Template ("Trade Like a Stock Market Wizard"), with a volatility-contraction (VCP) check
+MV_ABOVE_LOW = 30           # % above the 52-week low, at least
+MV_NEAR_HIGH = -25          # % from the 52-week high, at least (within 25%)
+MV_RS = 70                  # RS rating, at least
+MV_TIGHT = 0.5              # last 10 days' range vs the 30 days before, at most (contraction)
+MV_MAX_STOP = 8             # % below the buy point, at most
+# O'Neil's CAN SLIM ("How to Make Money in Stocks")
+CS_EPS_Q = 25               # C: latest quarter's earnings per share vs the same quarter a year ago, % at least
+CS_EPS_A = 25               # A: yearly earnings growth over 3 years, % a year at least
+CS_ROE = 17                 # A: return on equity, % at least
+CS_NEAR_HIGH = -15          # N: % from the 52-week high, at least (near new highs)
+CS_RS = 80                  # L: RS rating, at least
+CS_STOP = 8                 # sell rule: cut a loss at 7-8% below the buy point
+CS_TARGETS = (20, 25)       # sell rule: take most profits at 20-25%
 
 
 # ------------------------------------------------------------------ indicators
@@ -47,6 +64,14 @@ def stock_features(df, nifty):
 
     rng_today = h.iloc[-1] - l.iloc[-1]
     vol20 = v.iloc[-21:-1].mean()
+    sma = lambda k, back=0: c.iloc[-k - back:len(c) - back].mean() if len(c) >= k + back else np.nan
+    up = c.diff() > 0
+    v50, up50 = v.iloc[-50:], up.iloc[-50:]
+    dn_vol = v50[~up50 & (c.diff().iloc[-50:] < 0)].sum()
+    r10 = h.iloc[-10:].max() - l.iloc[-10:].min()
+    r30 = h.iloc[-40:-10].max() - l.iloc[-40:-10].min() if n >= 40 else np.nan
+    # IBD-style relative strength: the last quarter counts double (40%), the three before it 20% each
+    q = [ret(c, k) for k in (63, 126, 189, min(252, n - 1))]
     return {
         "price": last,
         "chg1": ret(c, 1),
@@ -69,6 +94,12 @@ def stock_features(df, nifty):
         "touched_ema20": bool((l.iloc[-3:] <= (e20 + 0.5 * a).iloc[-3:]).any()),
         "pullback_vol": v.iloc[-4:-1].mean() / vol20 if vol20 else np.nan,
         "bars": n,
+        "sma50": sma(50), "sma150": sma(150), "sma200": sma(200), "sma200_prev": sma(200, 22),
+        "above_low52": pct(last, l.iloc[-250:].min()),
+        "updown_vol": v50[up50].sum() / dn_vol if dn_vol else np.nan,
+        "tightening": r10 / r30 if r30 else np.nan,
+        "low10": l.iloc[-10:].min(),
+        "rs_raw": (0.4 * q[0] + 0.2 * q[1] + 0.2 * q[2] + 0.2 * q[3]) if n > 252 * 0.9 and not any(np.isnan(x) for x in q) else np.nan,
     }
 
 
@@ -132,7 +163,19 @@ def size(entry, stop, mult=1.0):
 
 
 # ------------------------------------------------------------------ main screen
-def screen(daily, nifty_df, fo, industries, events, preopen, regime, today):
+def rs_ratings(raw):
+    """IBD-style RS rating: percentile of the weighted 12-month return within the universe, 1 to 99."""
+    return (raw.rank(pct=True) * 98 + 1).round()
+
+
+def rs_from_dist(raw, dist):
+    """RS rating of one stock against a published distribution of the universe's weighted returns."""
+    if raw is None or (isinstance(raw, float) and np.isnan(raw)) or not dist:
+        return np.nan
+    return round(bisect.bisect_left(dist, raw) / len(dist) * 98 + 1)
+
+
+def screen(daily, nifty_df, fo, industries, events, preopen, regime, today, fund=None):
     nifty = nifty_df["close"]
     rows = []
     for sym, df in daily.items():
@@ -158,6 +201,14 @@ def screen(daily, nifty_df, fo, industries, events, preopen, regime, today):
                 elif 0 < days <= 3:
                     feat.loc[e["symbol"], "event"] = f"Results in {days}d"
 
+    # relative strength rating, market direction and company earnings (CANSLIM)
+    feat["rs_rating"] = rs_ratings(feat["rs_raw"])
+    feat["market_up"] = regime.get("label") == "Uptrend"
+    fund = fund or {}
+    for col in ("eps_q", "eps_q_prev", "eps_3y", "roe", "inst"):
+        feat[col] = [((fund.get(sym) or {}).get(col)) for sym in feat.index]
+        feat[col] = pd.to_numeric(feat[col], errors="coerce")
+
     sectors = sector_strength(feat)
     top = set(sectors.index[:3])
     bottom = set(sectors.index[-3:]) if len(sectors) >= 6 else set()
@@ -170,11 +221,51 @@ def screen(daily, nifty_df, fo, industries, events, preopen, regime, today):
     shorts = _intraday_side(liquid, top, bottom, mult, side="short", regime=regime)
     pullbacks = _pullbacks(feat, top, mult)
     bases = _bases(feat.drop(index=[p["symbol"] for p in pullbacks]), top, mult)
+    canslim, minervini = _by_rules(feat, top, bottom, mult)
     return {"features": feat, "sectors": sectors, "longs": longs, "shorts": shorts,
-            "pullbacks": pullbacks, "bases": bases, "liquid_count": len(liquid), "top": top, "bottom": bottom}
+            "pullbacks": pullbacks, "bases": bases, "canslim": canslim, "minervini": minervini,
+            "liquid_count": len(liquid), "top": top, "bottom": bottom,
+            "rs_dist": sorted(float(x) for x in feat["rs_raw"].dropna())}
+
+
+def _by_rules(feat, top, bottom, mult):
+    """CANSLIM and Minervini lists: every stock that meets all the required rules in the rule check, ranked."""
+    cs, mv = [], []
+    for sym, r in feat.iterrows():
+        groups = {g["name"]: g for g in rule_checks(r, top, bottom)}
+        for name, out in ((CS_NAME, cs), (MV_NAME, mv)):
+            g = groups[name]
+            if g["pass"]:
+                fac = [x for x in g["items"] if x[4] and x[1] is not None]
+                out.append((sym, r, sum(1 for x in fac if x[1]) / len(fac) if fac else 0))
+    picks = {"cs": [], "mv": []}
+    for key, rows in (("cs", cs), ("mv", mv)):
+        rows.sort(key=lambda x: (x[2], x[1].rs_rating), reverse=True)
+        for sym, r, fac in rows[:C.MAX_SWING_PICKS]:
+            r = r.copy()
+            r["score"] = round(50 * fac + 0.5 * r.rs_rating)
+            entry = r.high10 * 1.001                      # the buy point: a break above the recent high (pivot)
+            if key == "cs":
+                stop = entry * (1 - CS_STOP / 100)
+                row = _swing_row(sym, r, entry, stop, mult, "CANSLIM",
+                                 [f"RS rating {r.rs_rating:.0f}", f"{r.dist_52wh:.1f}% from 52-week high"]
+                                 + ([f"Quarterly EPS {r.eps_q:+.0f}%"] if pd.notna(r.eps_q) else [])
+                                 + ([f"ROE {r.roe:.0f}%"] if pd.notna(r.roe) else []))
+                row.update(t1=entry * (1 + CS_TARGETS[0] / 100), t2=entry * (1 + CS_TARGETS[1] / 100))
+            else:
+                stop = max(r.low10, entry * (1 - MV_MAX_STOP / 100))   # below the last contraction, never over 8%
+                row = _swing_row(sym, r, entry, stop, mult, "Minervini trend template",
+                                 [f"RS rating {r.rs_rating:.0f}", f"{r.above_low52:.0f}% above 52-week low",
+                                  f"{r.dist_52wh:.1f}% from high", f"Range {r.tightening:.2f}x of the prior 30 days"])
+            picks[key].append(row)
+    return picks["cs"], picks["mv"]
 
 
 # ------------------------------------------------------------------ "Analyse" checklist for the app
+CS_NAME = "Swing: CANSLIM (O'Neil)"
+MV_NAME = "Swing: Minervini trend template"
+
+
 def rule_checks(r, top, bottom, fno=True):
     """Each screener rule for one stock: [label, passed (True/False/None), its value, what the rule needs, factor?].
     Factors only change the ranking score; they are not required. None means the data isn't available for this stock
@@ -237,6 +328,40 @@ def rule_checks(r, top, bottom, fno=True):
     for it in liq + pb + base:
         if it[1] is None:
             it[2] = "Not available: not enough price data"
+    g_ = lambda k: r.get(k, np.nan) if hasattr(r, "get") else getattr(r, k, np.nan)
+    rsr, eq, eqp, e3, roe, inst = g_("rs_rating"), g_("eps_q"), g_("eps_q_prev"), g_("eps_3y"), g_("roe"), g_("inst")
+    s50, s150, s200, s200p = g_("sma50"), g_("sma150"), g_("sma200"), g_("sma200_prev")
+    na_f = "Not available: no earnings data for this stock"
+    mv = [
+        ["Above its 150-day and 200-day averages", ok(r.price > s150 and r.price > s200, s150, s200), rs_(r.price) + " vs " + rs_(s150) + " / " + rs_(s200), "price above both", 0],
+        ["150-day average above the 200-day", ok(s150 > s200, s150, s200), rs_(s150) + " vs " + rs_(s200), "150-day above", 0],
+        ["200-day average rising for a month", ok(s200 > s200p, s200, s200p), rs_(s200) + " vs " + rs_(s200p) + " a month ago", "rising", 0],
+        ["50-day average above the 150-day and 200-day", ok(s50 > s150 and s50 > s200, s50, s150, s200), rs_(s50) + " vs " + rs_(s150) + " / " + rs_(s200), "50-day on top", 0],
+        ["Above its 50-day average", ok(r.price > s50, s50), rs_(r.price) + " vs " + rs_(s50), "price above", 0],
+        ["At least 30% above the 52-week low", ok(g_("above_low52") >= MV_ABOVE_LOW, g_("above_low52")), num(g_("above_low52"), "+.0f") + "%", f"{MV_ABOVE_LOW}% or more", 0],
+        ["Within 25% of the 52-week high", ok(r.dist_52wh >= MV_NEAR_HIGH, r.dist_52wh), num(r.dist_52wh, ".1f") + "%", f"within {abs(MV_NEAR_HIGH)}%", 0],
+        ["RS rating 70 or more", ok(rsr >= MV_RS, rsr), num(rsr, ".0f"), f"{MV_RS} or more (1-99)", 0],
+        ["Range tightening (volatility contraction)", ok(g_("tightening") <= MV_TIGHT, g_("tightening")), num(g_("tightening"), ".2f") + "x the prior 30 days", f"{MV_TIGHT:g}x or less", 1],
+        ["Volume drying up in the base", ok(r.dryup < BASE_DRYUP, r.dryup), num(r.dryup, ".2f") + "x", f"below {BASE_DRYUP:g}x", 1],
+        ["Within 10% of the 52-week high", ok(r.dist_52wh >= -10, r.dist_52wh), num(r.dist_52wh, ".1f") + "%", "within 10%", 1],
+    ]
+    cs = [
+        ["C: quarterly earnings up 25%+ on a year ago", ok(eq >= CS_EPS_Q, eq) if not np.isnan(eq) else None, num(eq, "+.0f") + "%" if not np.isnan(eq) else na_f, f"{CS_EPS_Q}% or more", 0],
+        ["A: yearly earnings growth 25%+ (3 years)", ok(e3 >= CS_EPS_A, e3) if not np.isnan(e3) else None, num(e3, "+.0f") + "% a year" if not np.isnan(e3) else na_f, f"{CS_EPS_A}% a year or more", 0],
+        ["A: return on equity 17%+", ok(roe >= CS_ROE, roe) if not np.isnan(roe) else None, num(roe, ".0f") + "%" if not np.isnan(roe) else na_f, f"{CS_ROE}% or more", 0],
+        ["N: near a new high (within 15%)", ok(r.dist_52wh >= CS_NEAR_HIGH, r.dist_52wh), num(r.dist_52wh, ".1f") + "%", f"within {abs(CS_NEAR_HIGH)}%", 0],
+        ["S: more volume on up days than down days", ok(g_("updown_vol") > 1, g_("updown_vol")), num(g_("updown_vol"), ".2f") + "x (50 days)", "above 1x", 0],
+        ["L: leader, RS rating 80 or more", ok(rsr >= CS_RS, rsr), num(rsr, ".0f"), f"{CS_RS} or more (1-99)", 0],
+        ["M: market in an uptrend", ok(bool(g_("market_up"))) if not (isinstance(g_("market_up"), float) and np.isnan(g_("market_up"))) else None,
+         "Nifty in an uptrend" if g_("market_up") is True or g_("market_up") == 1 else "Nifty not in an uptrend", "uptrend", 0],
+        ["Earnings accelerating", ok(eq > eqp, eq, eqp) if not (np.isnan(eq) or np.isnan(eqp)) else None,
+         (num(eq, "+.0f") + "% vs " + num(eqp, "+.0f") + "% the quarter before") if not (np.isnan(eq) or np.isnan(eqp)) else na_f, "faster than the quarter before", 1],
+        ["I: institutional sponsorship", None, (num(inst, ".0f") + "% held by institutions; the trend isn't available") if not np.isnan(inst) else "Not available: no holding data", "more institutions buying each quarter", 1],
+        ["Volume 40%+ above average", ok(r.rvol >= 1.4, r.rvol), num(r.rvol, ".1f") + "x", "1.4x or more on the breakout", 1],
+    ]
+    for it in mv + cs:
+        if it[1] is None and not str(it[2]).startswith("Not available") and "isn't available" not in str(it[2]):
+            it[2] = "Not available: not enough price data"
     liq_ok = all(x[1] for x in liq)
     swing_liq = liq[:2]
 
@@ -249,6 +374,8 @@ def rule_checks(r, top, bottom, fno=True):
         group("Intraday short setup", side(-1), liq),
         group("Swing: pullback to the 20-day average", pb, swing_liq),
         group("Swing: tight base near highs", base, swing_liq),
+        group(CS_NAME, cs, swing_liq),
+        group(MV_NAME, mv, swing_liq),
     ]
 
 

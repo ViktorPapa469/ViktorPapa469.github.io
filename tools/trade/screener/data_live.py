@@ -173,7 +173,8 @@ class LiveData:
         return out
 
     def daily(self, symbols):
-        raw = self._download([s + ".NS" for s in symbols], period="1y", interval="1d")
+        # 2 years: the 200-day average a month back and a 12-month RS rating need about 15 months
+        raw = self._download([s + ".NS" for s in symbols], period="2y", interval="1d")
         out = {}
         for s in symbols:
             df = raw.get(s + ".NS")

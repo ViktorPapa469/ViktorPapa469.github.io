@@ -30,7 +30,7 @@ class DemoData:
         self.log = log
         self.rng = np.random.default_rng(seed)
         self.sym_sector = {s: sec for sec, syms in SECTORS.items() for s in syms}
-        self.dates = pd.bdate_range(end=now_ist().date() - dt.timedelta(days=1), periods=250)
+        self.dates = pd.bdate_range(end=now_ist().date() - dt.timedelta(days=1), periods=500)
         self._daily = {s: self._make_stock(s) for s in self.sym_sector}
 
     def _make_stock(self, sym):

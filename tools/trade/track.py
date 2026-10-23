@@ -29,7 +29,9 @@ from screener.data_live import now_ist  # noqa: E402
 from screener import export  # noqa: E402
 
 KEEP = {"intraday": 7, "swing": 30}       # days of detail
-SWING_TRIGGER_DAYS, SWING_HOLD = 3, 10    # sessions
+SWING_TRIGGER_DAYS = 3                    # sessions
+SWING_HOLD = {"Pullback": 10, "Tight base": 10, "CANSLIM": 30, "Minervini": 30}   # sessions, then the time exit
+SETUPS = (("pullbacks", "Pullback"), ("bases", "Tight base"), ("canslim", "CANSLIM"), ("minervini", "Minervini"))
 SQUARE_OFF = dt.time(15, 15)
 
 
@@ -128,7 +130,7 @@ def swing_signals(pub, have, existing=()):
     recent = {}
     for t in existing:
         if t.get("outcome") != "Not triggered":
-            k_ = (t["sym"], {"Pullback": "pullbacks", "Tight base": "bases"}[t["setup"]]); recent[k_] = max(recent.get(k_, ""), t["d"])
+            k_ = (t["sym"], {v: k for k, v in SETUPS}[t["setup"]]); recent[k_] = max(recent.get(k_, ""), t["d"])
     hist = os.path.join(pub, "history")
     for f in sorted(os.listdir(hist)) if os.path.isdir(hist) else []:
         if not f.endswith("_premarket.json"):
@@ -139,7 +141,7 @@ def swing_signals(pub, have, existing=()):
         if pre.get("demo") or str(pre.get("generated", ""))[:10] != day:
             continue
         out.append(("day", day, len(pre.get("pullbacks", [])) + len(pre.get("bases", []))))
-        for setup, label in (("pullbacks", "Pullback"), ("bases", "Tight base")):
+        for setup, label in SETUPS:
             for r in pre.get(setup, []):
                 key = f"{day}:{r['symbol']}:{setup}"
                 if key in have or r.get("entry") is None:
@@ -191,9 +193,10 @@ def eval_swing(t, daily, now):
         t["trig"] = first.strftime("%Y-%m-%d")
         t["fill"] = round(max(t["entry"], float(hit.iloc[0]["open"])), 2)
     fill = t["fill"]
-    after = d[d.index.normalize() >= pd.Timestamp(t["trig"])].iloc[:SWING_HOLD]
+    hold = SWING_HOLD.get(t.get("setup"), 10)
+    after = d[d.index.normalize() >= pd.Timestamp(t["trig"])].iloc[:hold]
     # the trigger day counts from the fill: only its low (stop) and high (targets) can matter, cautious order in walk()
-    full = len(after) >= SWING_HOLD
+    full = len(after) >= hold
     outcome, r, ex, done, ev = walk(after, "long", fill, t["stop"], t["t1"], t["t2"], full)
     t["hits"] = {k: v.strftime("%Y-%m-%d") for k, v in ev.items()}
     t.update(outcome=outcome, r=round(r, 2), exit=round(ex, 2), done=done, held=len(after))
@@ -270,8 +273,10 @@ def main():
 
     doc.update(schema=1, updated=now_ist().isoformat(timespec="seconds"),
                rules={"intraday": "First target 1.5R (half booked, stop to entry), second 3R, out by 3:15 PM.",
-                      "swing": "Triggered within 3 sessions above the setup level; first target 2R (half booked, stop to "
-                               "entry), second 3R, out at the 10th session's close."})
+                      "swing": "Triggered within 3 sessions above the setup level; half booked at the first target and the "
+                               "stop on the rest moved to entry. Pullback and tight base: targets 2R and 3R, out at the 10th "
+                               "session. CANSLIM: stop 8% below, targets +20% and +25% (O'Neil). Minervini: stop below the "
+                               "last contraction (8% at most), targets 2R and 3R. Both held up to 30 sessions."})
     export._dump(path, export.clean(doc))
     for kind in KEEP:
         r = doc[kind]["recent"]

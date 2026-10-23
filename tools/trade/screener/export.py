@@ -64,6 +64,8 @@ def premarket_payload(ctx, notes, generated):
         "shorts": [_pick(p, INTRADAY_KEYS) for p in res["shorts"]],
         "pullbacks": [_pick(p, SWING_KEYS) for p in res["pullbacks"]],
         "bases": [_pick(p, SWING_KEYS) for p in res["bases"]],
+        "canslim": [_pick(p, SWING_KEYS) for p in res.get("canslim", [])],
+        "minervini": [_pick(p, SWING_KEYS) for p in res.get("minervini", [])],
         "meta": {"universe": ctx["universe"], "priced": ctx["priced"], "liquid": res["liquid_count"],
                  "oi_date": ctx.get("oi_date_iso")},
         "notes": notes,
@@ -173,8 +175,9 @@ def write_analysis(out_dir, ctx, res, generated):
     """analysis.json: every F&O stock checked against each screener rule, for the app's Analyse button."""
     from .analysis import rule_checks
     lists = {}
-    for key, label in (("longs", "Intraday longs"), ("shorts", "Intraday shorts"), ("pullbacks", "Swing pullbacks"), ("bases", "Swing tight bases")):
-        for i, p in enumerate(res[key]):
+    for key, label in (("longs", "Intraday longs"), ("shorts", "Intraday shorts"), ("pullbacks", "Swing pullbacks"), ("bases", "Swing tight bases"),
+                       ("canslim", "CANSLIM"), ("minervini", "Minervini")):
+        for i, p in enumerate(res.get(key, [])):
             lists.setdefault(p["symbol"], []).append(f"{label} #{i + 1}")
     stocks = {}
     for sym, r in res["features"].iterrows():
@@ -182,4 +185,6 @@ def write_analysis(out_dir, ctx, res, generated):
                        "lists": lists.get(sym, []), "groups": rule_checks(r, res["top"], res["bottom"])}
     _dump(os.path.join(out_dir, "analysis.json"), clean({"schema": SCHEMA, "date": ctx["date"], "as_of": ctx["as_of_date"],
                                                        "generated": generated, "stocks": stocks,
-                                                       "sectors": {"top": sorted(res["top"]), "bottom": sorted(res["bottom"])}}))
+                                                       "sectors": {"top": sorted(res["top"]), "bottom": sorted(res["bottom"])},
+                                                       "market_up": ctx["regime"].get("label") == "Uptrend",
+                                                       "rs_dist": [round(x, 2) for x in res.get("rs_dist", [])]}))
