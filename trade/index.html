@@ -167,7 +167,7 @@ button.head{cursor:pointer}
 .field label{flex:1}
 .field small{display:block;color:var(--ink2);font-size:11.5px}
 .field.sub{padding-left:12px}
-input[type=number],input[type=text],input[type=email],input[type=password],input[type=date],input[type=time],select.input,textarea{
+input[type=number],input[type=text],input[type=email],input[type=password],input[type=search],input[type=date],input[type=time],select.input,textarea{
   padding:8px 10px;border:1px solid var(--line-hi);border-radius:10px;background:rgba(0,0,0,.25);color:var(--ink);min-width:0}
 .field input[type=number]{width:118px;text-align:right}
 .switch{width:44px;height:26px;border-radius:999px;border:0;background:rgba(255,255,255,.16);position:relative;cursor:pointer;flex:none}
@@ -206,6 +206,9 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .trk td{text-align:right;padding:4px;border-top:1px solid var(--line)}.trk th:first-child,.trk td:first-child{text-align:left}
 @media (max-width:430px){ .fresh:has(select) #getApp{display:none} }   /* Get app is also in Settings */
 .stock .head .px{flex-shrink:0}
+.gl{display:flex;flex-direction:column;gap:2px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.gl:last-child{border-bottom:0}.gl b{font-weight:600}.gl span{color:var(--ink2);line-height:1.45}
+.gl-letter{margin:12px 0 0;font:600 12px var(--sans);color:var(--gold);letter-spacing:.06em}.gl-letter:first-child{margin-top:0}
 .why.outcome{color:var(--ink);margin-top:6px}
 .livetag{font-size:10px;color:var(--ink3);font-weight:500;letter-spacing:.02em}
 .sugg{margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--glass-hi)}
@@ -1344,6 +1347,122 @@ function trackPages(kind){
   return pages;
 }
 
+/* ---- Glossary: every term the app uses, in plain words (Settings) */
+var GLOSSARY = [
+  ["10-day range", "The gap between the highest high and lowest low of the last 10 sessions, measured in ATRs. A small number means the stock has been moving in a tight band."],
+  ["20-day average", "The stock's average closing price over about 20 sessions (an exponential moving average, which weights recent days more). Used to judge the short-term trend."],
+  ["50-day average", "The same, over about 50 sessions: the medium-term trend. A 20-day average above the 50-day is a sign of an uptrend."],
+  ["52-week high", "The highest price of the last year. Tight bases look for stocks within 6% of it."],
+  ["Advances / declines", "How many stocks are up and how many are down. Shown as \"up / down\" on the Plan page; also called market breadth."],
+  ["Analyse", "Checks one stock against every rule the screener uses and shows which setups it meets, with a score for each."],
+  ["ATR (Average True Range)", "The stock's typical daily move in rupees, averaged over 14 sessions, including gaps. Stops and targets are sized from it, and the liquidity filter needs ATR of 1.2% of price or more."],
+  ["Average R", "Total R divided by the number of finished setups: what one setup made or lost on average, in R."],
+  ["Back in range", "A stock that broke out of its opening range but has since fallen back inside it or past VWAP. Called \"Failed\" by the scan; it doesn't mean the stop was hit."],
+  ["Bank Nifty", "NSE's index of the largest, most traded bank stocks."],
+  ["Both targets", "Price reached target 1 and then target 2 before the stop: half booked at each."],
+  ["Breakout", "Price closing beyond a level it had been held below (or above), here the opening range's high (long) or low (short)."],
+  ["Breakout scan", "The check every 5 minutes from 9:31 to 11:00 of each screened stock against its opening range, VWAP and Nifty. Its results are on the Live tab."],
+  ["Breakout window", "9:30 to 11:00: when opening-range breakouts are watched."],
+  ["BSE", "BSE Ltd, India's other main stock exchange. Analyse covers BSE-only stocks too."],
+  ["Capital", "The amount you set in Settings. Used only to size suggested positions; the app never handles money."],
+  ["Cautious reading", "When a stop and a target both fall inside the same price bar, the order can't be known, so the stop is assumed to have come first."],
+  ["Closed 3:15", "An intraday setup that reached neither stop nor target: it's closed at 3:15 PM, before the market's close."],
+  ["Counter-trend", "A setup against the index's direction, like a short when Nifty is in an uptrend. Marked half size or skip."],
+  ["cr (crore)", "10 million rupees (100 lakh)."],
+  ["Daily loss limit", "The number of losing trades after which you stop for the day (Settings). A discipline rule, not enforced by the app."],
+  ["Delayed", "Prices from 15-minute bars, which lag the market. Live prices replace them when available."],
+  ["DII net", "What domestic institutions (mutual funds, insurers, banks) bought minus sold in cash shares the previous day, in crore."],
+  ["Entry", "The price at which a setup is considered taken: the opening range's edge for intraday, the \"setup above\" level for swing."],
+  ["Exit", "Where a setup ended: the stop, a target, the entry (after target 1) or the time exit. \"Exit (now)\" is the latest price for an open setup."],
+  ["F&O", "Futures and Options: the stocks that have derivatives on NSE (about 200). The screener lists only these, as they are the most liquid."],
+  ["FII/FPI net", "What foreign institutional / portfolio investors bought minus sold in cash shares the previous day, in crore."],
+  ["Filled (gap)", "A swing setup whose stock opened above the \"setup above\" level: it's counted as filled at the open, which makes the risk larger."],
+  ["First target", "Target 1: 1.5R for intraday, 2R for swing. The plan books half there and moves the stop on the rest to the entry."],
+  ["Gap", "When a stock opens well above or below the previous close. A gap can jump past a stop."],
+  ["GIFT Nifty", "Nifty futures traded at the GIFT City exchange from early morning: the best early guide to where Nifty will open."],
+  ["Holding period", "How long a swing setup is usually held: 2 to 10 sessions. The track record closes it at the 10th session's close."],
+  ["India VIX", "NSE's volatility index: how much movement options prices expect over the next month. Rising VIX means a more nervous market."],
+  ["Intraday", "Trades opened and closed the same day, by 3:15 PM."],
+  ["Last", "The latest traded price (\"live\" with its time when from the live feed)."],
+  ["Liquidity filters", "Price of ₹100 or more, average daily turnover of ₹50 cr or more, ATR of 1.2% or more and at least 60 sessions of history. Stocks that fail aren't screened for intraday."],
+  ["Live (prices)", "Prices fetched every minute from 9:00 to 3:30: indices and GIFT Nifty from NSE, stock prices from Yahoo's 1-minute bars (a minute or two behind)."],
+  ["Long", "A trade that gains if price rises."],
+  ["Long buildup", "Price up and futures open interest up: new buying. Supports a long."],
+  ["Long unwinding", "Price down and open interest down: buyers closing positions. Supports a short."],
+  ["Lot", "The fixed quantity in which a stock's futures and options trade on NSE."],
+  ["Max positions", "The most trades to hold at once (Settings)."],
+  ["Midday", "11:00 to 3:15: no new breakouts are taken from the morning list."],
+  ["NSE", "National Stock Exchange of India: the source of the screener's lists, open interest and index figures."],
+  ["Nifty 50", "NSE's index of 50 large companies: the market's benchmark."],
+  ["Not available", "A rule the stock has no data for (open interest outside F&O, sector outside the Nifty 500 list, too little history). Left out of the % score."],
+  ["Not triggered", "A swing setup whose price never reached its \"setup above\" level within 3 sessions."],
+  ["O H L C", "Open, high, low and close of the latest session (or \"Last\" while the market is open)."],
+  ["Open (setup)", "A triggered setup that hasn't reached its stop, both targets or its time exit yet."],
+  ["Open interest (OI)", "The number of futures contracts outstanding. Its change, read with the price change, shows whether money is coming in or going out."],
+  ["Opening range", "The high and low of the first 15 minutes of trading (9:15 to 9:30)."],
+  ["Opening-range breakout", "The intraday setup: a long when price breaks above the opening range's high with price above VWAP; a short when it breaks below the low with price below VWAP."],
+  ["Paper trade", "A practice trade you note in the Test tab, followed on real prices without real money."],
+  ["Position (suggested)", "The number of shares so that a stop hit loses your risk per trade: capital × risk % ÷ (entry − stop), cut in weaker markets."],
+  ["Pre-open", "NSE's 9:00 to 9:08 session that sets each stock's opening price. \"Pre-open up / down\" counts F&O stocks indicated higher or lower."],
+  ["Pre-open gap", "How far a stock's pre-open price is from the previous close. Big gaps: let the range form, don't chase."],
+  ["Preview", "The next session's screen built after the close from that day's prices. Replaced by the final screen about 9:10."],
+  ["Profitable / loss", "A finished setup with a result above or below 0R."],
+  ["Pullback", "A swing setup: a stock in an uptrend that dipped to its 20-day average on light volume. Taken only if price trades above the previous day's high."],
+  ["Pullback volume", "Average volume on the last 3 days compared with the 20-day average. Below 1x means the dip was on light selling."],
+  ["R (R-multiple)", "The stop distance, used as the unit of risk. +2R means a gain of twice what was risked; −1R means the stop was hit."],
+  ["Range forming", "Before 9:30: the opening range is still being set, so no breakout yet."],
+  ["Ranking factors", "Rules that aren't required but decide the order of the list (score)."],
+  ["Regime", "The market's state from Nifty's trend and VIX: Uptrend, Downtrend or Range / choppy. Suggested positions are cut in weaker regimes (for example to 75%)."],
+  ["Required rules", "Rules a stock must meet to be listed for a setup."],
+  ["Rest at entry", "After target 1, the stop on the remaining half moves to the entry; \"rest at entry\" means price came back there, so that half closed at no gain or loss."],
+  ["Results in Nd", "The company announces quarterly results in N days (from NSE's event calendar). Results can make the price gap past a stop."],
+  ["Risk per trade", "The percent of capital you accept losing if a stop is hit (Settings)."],
+  ["RS (relative strength)", "The stock's return minus Nifty's over the same period (5 days, 20 days or 3 months). Positive means it beat the index."],
+  ["Rule check", "See Analyse. Each setup shows \"% met\": checks met out of checks with data."],
+  ["Score", "The ranking number that orders each list: the more ranking factors a stock meets, and the stronger they are, the higher."],
+  ["Screen", "The morning list of setups, built about 9:10 after the pre-open."],
+  ["Sector strength", "Each sector's stocks against Nifty over 20 and 5 days. Longs favour the 3 strongest sectors, shorts the 3 weakest."],
+  ["Setup above / below", "The level price must cross for a setup to be taken."],
+  ["Short", "A trade that gains if price falls (sell first, buy back later). Intraday only."],
+  ["Short buildup", "Price down and open interest up: new selling. Supports a short."],
+  ["Short covering", "Price up and open interest down: sellers buying back. Supports a long."],
+  ["Signals", "Setups the screener listed, whether or not they triggered."],
+  ["SME", "NSE's platform for small and medium companies. Included in Analyse."],
+  ["Square-off", "Closing all intraday trades by 3:15 PM. The app sends a reminder at 3:15."],
+  ["Stop (stop loss)", "The price at which a setup is wrong and should be closed to cap the loss at 1R."],
+  ["Stop distance", "Entry minus stop, in rupees or as a % of price: the risk per share (1R)."],
+  ["Stopped first", "The stop was reached before target 1: a loss of 1R, even if price later recovers to the target."],
+  ["Swing", "Trades held for days, usually 2 to 10 sessions."],
+  ["Target 1, target 2", "Profit levels at multiples of R: 1.5R and 3R for intraday, 2R and 3R for swing."],
+  ["Tight base", "A swing setup: a stock near its 52-week high trading in a narrow 10-day range on drying volume. Taken on a break above the 10-day high."],
+  ["Time exit", "Closing a setup that reached neither stop nor target: 3:15 PM for intraday, the 10th session's close for swing."],
+  ["Total R", "The sum of the results of all finished setups, in R."],
+  ["Track record", "How every setup the screener listed worked out, scored by the same plan: whichever of stop or target was reached first. Details kept 7 days (intraday) and 30 days (swing), then counts only."],
+  ["Triggered", "Price crossed the setup's entry level. \"Triggered, weak\": it broke out but isn't beating Nifty, so half size or skip."],
+  ["Turnover", "The value of shares traded per day (price × volume), averaged over 20 sessions."],
+  ["Volume vs average", "Today's volume divided by the 20-day average volume (for example 1.5x)."],
+  ["Volume drying up", "Average volume over the last 5 days compared with the 50-day average. Below 0.9x suggests sellers are scarce."],
+  ["VWAP", "Volume-weighted average price since the open: the average price paid today. Longs want price above it, shorts below."],
+  ["Waiting", "A screened stock that hasn't broken out of its opening range yet."],
+  ["Watchlist", "Your own lists of up to 10 stocks in the Test tab, with their paper trades."],
+  ["Win rate", "Profitable setups divided by profitable plus losing ones."],
+  ["World markets", "Global indices and prices that hint at the open: S&P 500 and Nasdaq futures, Nikkei, Hang Seng, USD/INR, Brent crude and gold. Live every 2 minutes from 8:00."]
+];
+function glossaryHTML(q){
+  q = String(q || "").trim().toLowerCase();
+  var rows = GLOSSARY.filter(function(g){ return !q || (g[0] + " " + g[1]).toLowerCase().indexOf(q) >= 0; })
+    .sort(function(a, b){   // when searching, terms whose name matches come first
+      var na = q && a[0].toLowerCase().indexOf(q) >= 0 ? 0 : 1, nb = q && b[0].toLowerCase().indexOf(q) >= 0 ? 0 : 1;
+      return na - nb || a[0].localeCompare(b[0], "en", {numeric:true}); });
+  if (!rows.length) return '<p class="muted">No term matches "' + esc(q) + '".</p>';
+  var last = "";
+  return rows.map(function(g){
+    var L = /^[0-9]/.test(g[0]) ? "#" : g[0][0].toUpperCase(), head = L !== last && !q ? '<p class="gl-letter">' + L + "</p>" : "";
+    last = L;
+    return head + '<div class="gl"><b>' + esc(g[0]) + "</b><span>" + esc(g[1]) + "</span></div>";
+  }).join("");
+}
+
 /* screens built before the wording changed say only "Results inside the holding window": spell it out */
 function plainWarn(w, x){
   if (w !== "Results inside the holding window") return w;
@@ -1897,7 +2016,10 @@ function viewSettings(){
     '<div class="glass tile"><div class="field"><label>Withdraw consent<small>Turns off notifications, clears this phone\'s settings and paper trades, and stops the app until you accept again.</small></label>' +
     '<button class="btn ghost small" id="s-withdraw" type="button">Withdraw</button></div></div>';
 
-  return [page("Profile", prof), page("Capital", capital), page("Notifications", notif), page("App and data", app), page("Terms and privacy", terms)];
+  var gloss = '<div class="glass tile"><input type="search" id="gl-q" placeholder="Search terms, e.g. VWAP or stop" autocomplete="off" style="width:100%">' +
+    '<p class="muted small" style="margin:6px 0 0">' + GLOSSARY.length + " terms used in the app, in plain words.</p></div>" +
+    '<div class="glass tile" id="gl-list">' + glossaryHTML("") + "</div>";
+  return [page("Profile", prof), page("Capital", capital), page("Notifications", notif), page("App and data", app), page("Glossary", gloss), page("Terms and privacy", terms)];
 }
 
 /* ================================================================== events */
@@ -1963,6 +2085,7 @@ function bindView(){
   document.querySelectorAll("[data-analyse]").forEach(function(b){ b.onclick = function(){ analyse(b.dataset.analyse); }; });
   if ((x = $("#an-form"))) x.onsubmit = function(e){ e.preventDefault(); analyse($("#an-sym").value); };
   wireSuggest();
+  if ((x = $("#gl-q"))) x.oninput = function(){ $("#gl-list").innerHTML = glossaryHTML(this.value); };
   document.querySelectorAll("[data-trade]").forEach(function(b){ b.onclick = function(){ tradeForm({symbol:b.dataset.trade, listId:st.list}); }; });
   document.querySelectorAll("[data-closetrade]").forEach(function(b){ b.onclick = function(){ closeForm(b.dataset.closetrade); }; });
   document.querySelectorAll("[data-edittrade]").forEach(function(b){ b.onclick = function(){
