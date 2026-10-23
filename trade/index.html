@@ -1133,6 +1133,7 @@ function viewPlan(){
   var facts = [["Nifty 50", n(I("NIFTY 50") ? I("NIFTY 50").last : r.nifty), I("NIFTY 50") ? I("NIFTY 50").chg : r.nifty_chg],
                ["Bank Nifty", n(I("BANK NIFTY") ? I("BANK NIFTY").last : r.bank), I("BANK NIFTY") ? I("BANK NIFTY").chg : r.bank_chg],
                ["India VIX", I("INDIA VIX") ? I("INDIA VIX").last.toFixed(2) : ok(r.vix) ? r.vix.toFixed(2) : "–", I("INDIA VIX") ? I("INDIA VIX").chg : r.vix_chg, true]];
+  if (L && L.gift && ok(L.gift.last)) facts.splice(1, 0, ["GIFT Nifty", n(L.gift.last), L.gift.chg]);   // NSE IX futures: the early guide to the open
   if (L && L.breadth && (L.breadth.adv + L.breadth.dec)) facts.push([(L.phase === "preopen" ? "Pre-open" : "F&O stocks") + " up / down", L.breadth.adv + " / " + L.breadth.dec, null]);
   else if (p.preopen && String(p.generated).slice(0, 10) === p.date) facts.push(["Pre-open up / down", p.preopen.adv + " / " + p.preopen.dec, p.preopen.avg]);   // a preview carries the previous day's pre-open: leave it out
   (p.fii_dii || []).forEach(function(f){ facts.push([f.category + " net", '<span class="' + tone(f.net_cr) + '">' + (f.net_cr > 0 ? "+" : "") + n(f.net_cr) + " cr</span>", null]); });

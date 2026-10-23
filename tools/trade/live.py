@@ -2,10 +2,11 @@
 
   python live.py PUB
 
-Reads NSE's own live pages (the same data nseindia.com shows):
+Reads NSE's own live pages where they answer, and Yahoo Finance for stock prices:
   - market status (open / pre-open / closed; a holiday shows as closed),
   - Nifty 50, Nifty Bank and India VIX (allIndices),
-  - every F&O stock: last price, change, day open / high / low (equity-stockIndices, "SECURITIES IN F&O"),
+  - GIFT Nifty (with the market status), the best early guide to the open,
+  - every F&O stock: last price, change, day open / high / low (Yahoo 1-minute bars; NSE's own list isn't reachable),
   - before 9:15, the pre-open session's indicative prices instead (market-data-pre-open, key FO).
 Exit codes: 0 written, 2 NSE unreachable (the previous live.json is kept), 3 market closed all day (holiday).
 NSE's figures are its own; anything published is for market study, as the app's terms say.
@@ -14,7 +15,6 @@ import datetime as dt
 import json
 import os
 import sys
-from urllib.parse import quote
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -108,6 +108,14 @@ def main():
         cm = next((m for m in ms.get("marketState", []) if m.get("market") == "Capital Market"), {})
         out["status"] = cm.get("marketStatus")
         out["trade_date"] = cm.get("tradeDate")
+        g = ms.get("giftnifty") or {}
+        if isinstance(g, list):
+            g = g[0] if g else {}
+        pick = lambda *names: next((g[k] for k in g for n_ in names if k.upper().replace("_", "") == n_), None)
+        last = num(pick("LASTPRICE", "LTP", "LAST"))
+        if last:
+            out["gift"] = {"last": last, "chg": num(pick("PERCHANGE", "PCHANGE", "PERCENTCHANGE")),
+                           "time": pick("TIMESTMP", "TIMESTAMP")}
     except Exception as e:  # noqa: BLE001
         errors.append(f"market status: {str(e)[:120]}")
 
@@ -147,24 +155,9 @@ def main():
             out["breadth"] = {"adv": adv, "dec": dec}
             out["source"] = "NSE pre-open"
         else:
+            # NSE answers its per-stock live list with "Resource not found" from GitHub's servers (tested 23 Oct 2026),
+            # so every F&O stock comes from Yahoo's 1-minute bars, a minute or two behind the exchange
             fno = fno_symbols(pub)
-            for index in ("SECURITIES IN F&O", "NIFTY 500"):
-                try:
-                    # NSE wants %20 for spaces (requests would send "+", which NSE answers with 404)
-                    js = nse.api("/api/equity-stockIndices?index=" + quote(index, safe=""))
-                except Exception as e:  # noqa: BLE001
-                    errors.append(f"{index}: {str(e)[:120]}")
-                    continue
-                out["nse_time"] = js.get("timestamp")
-                for r in js.get("data", []):
-                    sym = r.get("symbol")
-                    if not sym or r.get("priority") == 1 or (index != "SECURITIES IN F&O" and fno and sym not in fno):
-                        continue
-                    out["stocks"][sym] = [num(r.get("lastPrice")), num(r.get("pChange")), num(r.get("open")),
-                                          num(r.get("dayHigh")), num(r.get("dayLow")), num(r.get("previousClose"))]
-                if out["stocks"]:
-                    out["source"] = "NSE " + index
-                    break
             missing = sorted(set(fno) - set(out["stocks"]))
             if missing and hm >= 915:
                 yahoo(missing, out, errors)
