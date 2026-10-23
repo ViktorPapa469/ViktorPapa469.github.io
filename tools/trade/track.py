@@ -61,33 +61,41 @@ def yahoo(symbols, **kw):
 
 
 def walk(bars, side, entry, stop, t1, t2, time_exit_ok):
-    """Follow the plan over bars (after the fill). Returns (outcome, R, exit price, done)."""
+    """Follow the plan over bars (after the fill), deciding by whichever level is reached first.
+    A stop hit before the first target is a loss even if price later recovers to the target.
+    Returns (outcome, R, exit price, done, events) where events = {"stop"|"t1"|"t2"|"entry": bar time}."""
     s, risk = (1 if side == "long" else -1), abs(entry - stop)
+    ev = {}
     if not risk:
-        return "No risk", 0.0, entry, True
+        return "No risk", 0.0, entry, True, ev
     half = False
-    for _, b in bars.iterrows():
+    for when, b in bars.iterrows():
         hi, lo = (b["high"], b["low"]) if s == 1 else (-b["low"], -b["high"])   # mirror shorts
-        e, st, a, z = s * entry, s * (entry if half else stop), s * t1, s * t2
+        st, a, z = s * (entry if half else stop), s * t1, s * t2
         if lo <= st:                       # stop first when both sit in one bar
             if half:
-                return "First target, rest out at entry", 0.5 * abs(t1 - entry) / risk, entry, True
-            return "Stop", -1.0, stop, True
+                ev["entry"] = when
+                return "First target, rest out at entry", 0.5 * abs(t1 - entry) / risk, entry, True, ev
+            ev["stop"] = when
+            return "Stop", -1.0, stop, True, ev
         if not half and hi >= a:
             half = True
+            ev["t1"] = when
             if hi >= z:
-                return "Both targets", (0.5 * abs(t1 - entry) + 0.5 * abs(t2 - entry)) / risk, t2, True
+                ev["t2"] = when
+                return "Both targets", (0.5 * abs(t1 - entry) + 0.5 * abs(t2 - entry)) / risk, t2, True, ev
             continue
         if half and hi >= z:
-            return "Both targets", (0.5 * abs(t1 - entry) + 0.5 * abs(t2 - entry)) / risk, t2, True
+            ev["t2"] = when
+            return "Both targets", (0.5 * abs(t1 - entry) + 0.5 * abs(t2 - entry)) / risk, t2, True, ev
     if not len(bars):
-        return "Open", 0.0, entry, False
+        return "Open", 0.0, entry, False, ev
     last = float(bars["close"].iloc[-1])
     move = s * (last - entry) / risk
     r = 0.5 * abs(t1 - entry) / risk + 0.5 * move if half else move
     if time_exit_ok:
-        return ("First target, rest at time exit" if half else "Time exit"), r, last, True
-    return ("Open, first target booked" if half else "Open"), r, last, False
+        return ("First target, rest at time exit" if half else "Time exit"), r, last, True, ev
+    return ("Open, first target booked" if half else "Open"), r, last, False, ev
 
 
 def intraday_signals(pub, have):
@@ -158,8 +166,10 @@ def eval_intraday(t, bars5, now):
     trig = pd.Timestamp.combine(day, dt.time.fromisoformat(t["trig"]))
     after = d[(d.index > trig) & (d.index.time < SQUARE_OFF)]      # bars after the breakout bar, up to 3:15
     over = now.date() > day or now.time() >= SQUARE_OFF
-    outcome, r, ex, done = walk(after, t["side"], t["entry"], t["stop"], t["t1"], t["t2"], over)
-    t.update(outcome=outcome, r=round(r, 2), exit=round(ex, 2), done=done)
+    outcome, r, ex, done, ev = walk(after, t["side"], t["entry"], t["stop"], t["t1"], t["t2"], over)
+    # 5-minute bars are stamped with their start: the level was reached by the bar's end
+    t.update(outcome=outcome, r=round(r, 2), exit=round(ex, 2), done=done,
+             hits={k: (v + pd.Timedelta(minutes=5)).strftime("%H:%M") for k, v in ev.items()})
 
 
 def eval_swing(t, daily, now):
@@ -184,7 +194,8 @@ def eval_swing(t, daily, now):
     after = d[d.index.normalize() >= pd.Timestamp(t["trig"])].iloc[:SWING_HOLD]
     # the trigger day counts from the fill: only its low (stop) and high (targets) can matter, cautious order in walk()
     full = len(after) >= SWING_HOLD
-    outcome, r, ex, done = walk(after, "long", fill, t["stop"], t["t1"], t["t2"], full)
+    outcome, r, ex, done, ev = walk(after, "long", fill, t["stop"], t["t1"], t["t2"], full)
+    t["hits"] = {k: v.strftime("%Y-%m-%d") for k, v in ev.items()}
     t.update(outcome=outcome, r=round(r, 2), exit=round(ex, 2), done=done, held=len(after))
 
 
@@ -220,8 +231,9 @@ def main():
                 k["trades"].append(item[1])
 
     # follow open setups on fresh prices
-    oi = [t for t in doc["intraday"]["trades"] if not t["done"]]
-    os_ = [t for t in doc["swing"]["trades"] if not t["done"]]
+    # open setups, plus finished ones recorded before hit times were kept (filled in once)
+    oi = [t for t in doc["intraday"]["trades"] if not t["done"] or (t.get("trig") and "hits" not in t)]
+    os_ = [t for t in doc["swing"]["trades"] if not t["done"] or (t.get("trig") and "hits" not in t)]
     try:
         bars5 = yahoo(sorted({t["sym"] for t in oi}), period="1mo", interval="5m") if oi else {}
         for t in oi:

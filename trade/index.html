@@ -204,6 +204,9 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .chk.na{opacity:.6}
 .trk{width:100%;border-collapse:collapse;font-size:12.5px}.trk th{font-weight:500;color:var(--ink2);text-align:right;padding:3px 4px}
 .trk td{text-align:right;padding:4px;border-top:1px solid var(--line)}.trk th:first-child,.trk td:first-child{text-align:left}
+@media (max-width:430px){ .fresh:has(select) #getApp{display:none} }   /* Get app is also in Settings */
+.stock .head .px{flex-shrink:0}
+.why.outcome{color:var(--ink);margin-top:6px}
 .livetag{font-size:10px;color:var(--ink3);font-weight:500;letter-spacing:.02em}
 .sugg{margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--glass-hi)}
 .sugg button{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline;width:100%;padding:9px 12px;background:none;border:0;border-bottom:1px solid var(--line);color:inherit;text-align:left;font:inherit;font-size:13.5px;cursor:pointer}
@@ -1186,6 +1189,32 @@ function viewPlan(){
 function orbFor(sym){ return st.orb && st.orb.rows ? st.orb.rows.filter(function(r){ return r.symbol === sym; })[0] : null; }
 var STATUS = {"TRIGGERED":["go","Triggered"], "TRIGGERED (weak RS)":["weak","Triggered, weak"], "FAILED":["fail","Failed"],
               "WAITING":["","Waiting"], "RANGE FORMING":["","Range forming"], "NO DATA":["","No data"]};
+/* a triggered setup's outcome from the track record: whichever of stop or target was reached first decides it,
+   so a stop hit stays a loss even if price recovers to the target later */
+function outcomeOf(sym, side, day){
+  var T_ = st.track && st.track.intraday; if (!T_ || !T_.trades) return null;
+  return T_.trades.filter(function(t){ return t.d === day && t.sym === sym && t.side === side; })[0] || null;
+}
+function outcomePill(sym, side, status, day){
+  var t = outcomeOf(sym, side, day), h = t && t.hits || {}, o = t && t.outcome || "", at = function(k){ return h[k] ? " " + h[k] : ""; };
+  if (!t || !t.trig) return statusPill(status);
+  function pill(c, txt){ return '<span class="status ' + c + '">' + esc(txt).replace(/ /g, "&nbsp;") + "</span>"; }   // one unit: wraps whole, never mid-label
+  if (o === "Stop") return pill("fail", "Stopped" + at("stop"));
+  if (o === "Both targets") return pill("go", "Both targets" + at("t2"));
+  if (/^First target/.test(o) || /first target booked/.test(o)) return pill("go", "Target 1" + at("t1") + (/at entry/.test(o) ? ", rest at entry" : ""));
+  if (t.done) return pill("", "Closed 3:15 " + fmtR(t.r));
+  return statusPill(status);
+}
+function outcomeNote(sym, side, day){
+  var t = outcomeOf(sym, side, day); if (!t || !t.trig) return "";
+  var h = t.hits || {}, o = t.outcome || "", at = function(k){ return h[k] ? " at " + h[k] : ""; };
+  var txt = o === "Stop" ? "The stop was reached first" + at("stop") + ": a loss of 1R, even if price comes back to the target later." :
+    o === "Both targets" ? "Target 1" + at("t1") + ", then target 2" + at("t2") + ": " + fmtR(t.r) + "." :
+    /first target/i.test(o) ? "Target 1 was reached first" + at("t1") + ": half booked, stop on the rest moved to entry" + (/at entry/.test(o) ? " and hit" + at("entry") : "") + ". " + (t.done ? "Result " : "So far ") + fmtR(t.r) + "." :
+    t.done ? "Neither stop nor target by 3:15: closed at " + rs(t.exit) + ", " + fmtR(t.r) + "." :
+    "Neither stop nor target reached yet: " + fmtR(t.r) + " at the last check.";
+  return '<p class="why outcome">' + esc(txt) + "</p>";
+}
 function statusPill(s){ var x = STATUS[s]; return x ? '<span class="status ' + x[0] + '">' + x[1] + "</span>" : ""; }
 function viewIntraday(){
   var p = st.pre, list = p[st.side] || [], mult = p.regime && p.regime.size_mult, isLong = st.side === "longs";
@@ -1205,7 +1234,7 @@ function viewIntraday(){
       "<div><span>Target 1.5R</span><b>" + sgn + rs(1.5 * d) + "</b></div><div><span>Target 3R</span><b>" + sgn + rs(3 * d) + "</b></div>" +
       "<div><span>Stop distance</span><b>" + (ok(d) && x.price ? (d / x.price * 100).toFixed(1) + "%" : "–") + "</b></div>";
     return '<article class="stock glass"><div class="head">' +
-      '<span><span class="sym">' + esc(x.symbol) + "</span>" + (o ? statusPill(o.status) : "") + '<span class="ind">' + esc([indOf(x.industry), ok(x.lot) ? "lot " + x.lot : ""].filter(Boolean).join(", ")) + "</span></span>" +
+      '<span><span class="sym">' + esc(x.symbol) + "</span> " + (o ? outcomePill(x.symbol, isLong ? "long" : "short", o.status, st.orb.date) : "") + '<span class="ind">' + esc([indOf(x.industry), ok(x.lot) ? "lot " + x.lot : ""].filter(Boolean).join(", ")) + "</span></span>" +
       pxTag(x.symbol, x.price, x.chg1) + "</div>" +
       '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
       '<div class="levels">' + lv +
@@ -1234,11 +1263,13 @@ function viewLive(){
   var mult = o.size_mult, rows = o.rows || [];
   var trig = rows.filter(function(r){ return /^TRIGGERED/.test(r.status); }), wait = rows.filter(function(r){ return r.status === "WAITING" || r.status === "RANGE FORMING"; });
   var rest = rows.filter(function(r){ return r.status === "FAILED" || r.status === "NO DATA"; });
+  var tkd = st.track && st.track.intraday && st.track.intraday.by_day && st.track.intraday.by_day[o.date];   // first-hit outcomes so far
   var head = '<div class="glass tile"><div class="facts"><div class="fact"><b class="' + tone(o.nifty_chg) + '">' + pc(o.nifty_chg) + "</b><span>Nifty since open</span></div>" +
     (o.nifty_above_vwap == null ? "" : '<div class="fact"><b>' + (o.nifty_above_vwap ? "Above" : "Below") + "</b><span>Nifty vs VWAP</span></div>") +
     '<div class="fact"><b>' + esc(o.bars_to || "–") + "</b><span>Prices up to</span></div>" +
     '<div class="fact"><b class="up">' + trig.length + '</b><span>Triggered</span></div><div class="fact"><b>' + wait.length + "</b><span>Waiting</span></div>" +
-    '<div class="fact"><b>' + rest.length + "</b><span>Failed</span></div></div></div>" +
+    '<div class="fact"><b>' + rest.length + "</b><span>Back in range</span></div>" +
+    (tkd ? '<div class="fact"><b class="down">' + tkd.loss + '</b><span>Stopped first</span></div><div class="fact"><b class="up">' + tkd.profit + "</b><span>Target first</span></div>" : "") + "</div></div>" +
     (o.notes || []).map(function(x){ return '<p class="note">' + esc(x) + "</p>"; }).join("") +
     '<p class="note">Prices from Yahoo Finance can lag a few minutes. Always check your broker\'s chart; you decide whether to act. Swipe for each setup.</p>';
   var tk = st.track && st.track.intraday && st.track.intraday.by_day && st.track.intraday.by_day[o.date];
@@ -1251,7 +1282,7 @@ function viewLive(){
 }
 function ticket(r, mult){
   var long = r.side === "long", hot = r.status === "TRIGGERED";
-  var top = '<div class="head"><span><span class="sym">' + esc(r.symbol) + '</span><span class="side ' + (long ? "long" : "short") + '">' + (long ? "Long" : "Short") + "</span>" + statusPill(r.status) +
+  var top = '<div class="head"><span><span class="sym">' + esc(r.symbol) + '</span><span class="side ' + (long ? "long" : "short") + '">' + (long ? "Long" : "Short") + "</span> " + outcomePill(r.symbol, r.side, r.status, st.orb && st.orb.date) +
     '<span class="ind">' + esc(indOf(r.industry)) + "</span></span>" +
     (lv(r.symbol) ? pxTag(r.symbol) : ok(r.last) ? '<span class="px">' + rs(r.last) + '<small class="' + tone(r.chg) + '">' + pc(r.chg) + "</small></span>" : "") + "</div>";
   var info = ok(r.orh) ? '<p class="why">Range ' + rs(r.orl) + " to " + rs(r.orh) + ", VWAP " + rs(r.vwap) + (ok(r.rs) ? ", " + pc(r.rs) + " vs Nifty" : "") + "</p>" : "";
@@ -1262,8 +1293,9 @@ function ticket(r, mult){
     "<div><span>Position</span><b>" + n(q) + "</b></div><div><span>Target 1.5R</span><b>" + rs(r.t1) + "</b></div>" +
     "<div><span>Target 3R</span><b>" + rs(r.t2) + "</b></div><div><span>Since</span><b>" + esc(r.trigger_time || "–") + "</b></div></div>" +
     '<p class="why">Suggested position ' + n(q) + " shares" + (ok(r.lot) && r.lot > 0 && q >= r.lot ? ", " + (q / r.lot).toFixed(1) + " lots" : "") + ".</p>" +
-    (r.extended ? '<div class="warn">Already more than 1R past entry. Don\'t chase; wait for a pullback toward VWAP or skip.</div>' : "") +
-    (r.status === "TRIGGERED (weak RS)" ? '<div class="warn">Broke out but isn\'t beating Nifty. Half size or skip.</div>' : "") +
+    outcomeNote(r.symbol, r.side, st.orb && st.orb.date) +
+    (r.extended && !(outcomeOf(r.symbol, r.side, st.orb && st.orb.date) || {}).done ? '<div class="warn">Already more than 1R past entry. Don\'t chase; wait for a pullback toward VWAP or skip.</div>' : "") +
+    (r.status === "TRIGGERED (weak RS)" && !(outcomeOf(r.symbol, r.side, st.orb && st.orb.date) || {}).done ? '<div class="warn">Broke out but isn\'t beating Nifty. Half size or skip.</div>' : "") +
     ohlc(r.symbol) +
     '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="live:' + esc(r.symbol) + '">Paper trade</button>' + anBtn(r.symbol) + "</div>" +
     "</div>";

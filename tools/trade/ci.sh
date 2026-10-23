@@ -49,7 +49,7 @@ market() {  # every other NSE and BSE stock against the same rules; never fails 
 # Live session: every minute NSE prices (live.py); the screen at 9:10 if this run hasn't made it; breakout scans every
 # 5 minutes 9:31-11:00; 15-minute prices for paper trades every 15 minutes; the square-off reminder at 3:14.
 session() {  # session END_HHMM
-  local end=$((10#$1)) last_orb=0 last_bars=0 screened=0 sq=0 empty=0 closed=0 t0 h code
+  local end=$((10#$1)) last_orb=0 last_bars=0 last_track=0 screened=0 sq=0 empty=0 closed=0 t0 h code
   wait_until 0800
   while [ "$(hhmm)" -lt "$end" ]; do
     t0=$(date +%s); h=$(hhmm)
@@ -66,7 +66,9 @@ session() {  # session END_HHMM
       notify screen      # only does something if the screen failed and the scan rebuilt it
       notify breakouts
     fi
-    if [ "$h" -ge 930 ] && [ $((t0 - last_bars)) -ge 900 ]; then last_bars=$t0; bars; track; fi
+    if [ "$h" -ge 930 ] && [ $((t0 - last_bars)) -ge 900 ]; then last_bars=$t0; bars; fi
+    # outcomes of today's triggered setups (whichever of stop or target came first) every 5 minutes
+    if [ "$h" -ge 935 ] && [ $((t0 - last_track)) -ge 290 ]; then last_track=$t0; track; fi
     if [ "$h" -ge 1514 ] && [ "$sq" = 0 ]; then sq=1; bars; notify squareoff; fi
     publish "live $(date '+%H:%M')"
     local gap=60; [ "$h" -lt 858 ] && gap=120   # before the pre-open only world markets move: every 2 minutes
