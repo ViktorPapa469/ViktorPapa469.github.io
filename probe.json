@@ -1,0 +1,257 @@
+[
+ {
+  "warm": "/",
+  "status": 200,
+  "cookies": [
+   "_abck",
+   "ak_bmsc",
+   "bm_sz"
+  ]
+ },
+ {
+  "warm": "/market-data/live-equity-market",
+  "status": 200,
+  "cookies": [
+   "_abck",
+   "ak_bmsc",
+   "bm_mi",
+   "bm_sv",
+   "bm_sz",
+   "browse-url"
+  ]
+ },
+ {
+  "url": "/api/allIndices",
+  "referer": "t-data/live-equity-market",
+  "status": 200,
+  "keys": [
+   "data",
+   "timestamp",
+   "advances",
+   "declines",
+   "unchanged",
+   "dates"
+  ],
+  "rows": 139,
+  "body": null
+ },
+ {
+  "url": "/api/allIndices",
+  "referer": "https://www.nseindia.com/",
+  "status": 200,
+  "keys": [
+   "data",
+   "timestamp",
+   "advances",
+   "declines",
+   "unchanged",
+   "dates"
+  ],
+  "rows": 139,
+  "body": null
+ },
+ {
+  "url": "/api/equity-stockIndices?index=SECURITIES%20IN%20F%26O",
+  "referer": "t-data/live-equity-market",
+  "status": 404,
+  "keys": null,
+  "rows": null,
+  "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Resource not found</title>\n</head>\n<body style=\"background-color: #e8e8e8;\">\n  <div style=\"font-size: 32px; padding: 50px 25px; text-align: center;\">\n    Resource not found\n  </div>\n<script type=\"text/javascript\"  src=\"/f7nFS2"
+ },
+ {
+  "url": "/api/equity-stockIndices?index=SECURITIES%20IN%20F%26O",
+  "referer": "https://www.nseindia.com/",
+  "status": 404,
+  "keys": null,
+  "rows": null,
+  "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Resource not found</title>\n</head>\n<body style=\"background-color: #e8e8e8;\">\n  <div style=\"font-size: 32px; padding: 50px 25px; text-align: center;\">\n    Resource not found\n  </div>\n<script type=\"text/javascript\"  src=\"/f7nFS2"
+ },
+ {
+  "url": "/api/equity-stockIndices?index=NIFTY%2050",
+  "referer": "t-data/live-equity-market",
+  "status": 404,
+  "keys": null,
+  "rows": null,
+  "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Resource not found</title>\n</head>\n<body style=\"background-color: #e8e8e8;\">\n  <div style=\"font-size: 32px; padding: 50px 25px; text-align: center;\">\n    Resource not found\n  </div>\n<script type=\"text/javascript\"  src=\"/f7nFS2"
+ },
+ {
+  "url": "/api/equity-stockIndices?index=NIFTY%2050",
+  "referer": "https://www.nseindia.com/",
+  "status": 404,
+  "keys": null,
+  "rows": null,
+  "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Resource not found</title>\n</head>\n<body style=\"background-color: #e8e8e8;\">\n  <div style=\"font-size: 32px; padding: 50px 25px; text-align: center;\">\n    Resource not found\n  </div>\n<script type=\"text/javascript\"  src=\"/f7nFS2"
+ },
+ {
+  "url": "/api/equity-stockIndices?index=NIFTY%20500",
+  "referer": "t-data/live-equity-market",
+  "status": 404,
+  "keys": null,
+  "rows": null,
+  "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Resource not found</title>\n</head>\n<body style=\"background-color: #e8e8e8;\">\n  <div style=\"font-size: 32px; padding: 50px 25px; text-align: center;\">\n    Resource not found\n  </div>\n<script type=\"text/javascript\"  src=\"/f7nFS2"
+ },
+ {
+  "url": "/api/equity-stockIndices?index=NIFTY%20500",
+  "referer": "https://www.nseindia.com/",
+  "status": 404,
+  "keys": null,
+  "rows": null,
+  "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Resource not found</title>\n</head>\n<body style=\"background-color: #e8e8e8;\">\n  <div style=\"font-size: 32px; padding: 50px 25px; text-align: center;\">\n    Resource not found\n  </div>\n<script type=\"text/javascript\"  src=\"/f7nFS2"
+ },
+ {
+  "url": "/api/liveEquity-derivatives?index=stock_fut",
+  "referer": "t-data/live-equity-market",
+  "status": 200,
+  "keys": [
+   "data",
+   "timestamp",
+   "marketStatus"
+  ],
+  "rows": 20,
+  "body": null
+ },
+ {
+  "url": "/api/liveEquity-derivatives?index=stock_fut",
+  "referer": "https://www.nseindia.com/",
+  "status": 200,
+  "keys": [
+   "data",
+   "timestamp",
+   "marketStatus"
+  ],
+  "rows": 20,
+  "body": null
+ },
+ {
+  "url": "/api/live-analysis-variations?index=gainers",
+  "referer": "t-data/live-equity-market",
+  "status": 200,
+  "keys": [
+   "legends",
+   "NIFTY",
+   "BANKNIFTY",
+   "NIFTYNEXT50",
+   "SecGtr20",
+   "SecLwr20",
+   "FOSec",
+   "allSec"
+  ],
+  "rows": null,
+  "body": null
+ },
+ {
+  "url": "/api/live-analysis-variations?index=gainers",
+  "referer": "https://www.nseindia.com/",
+  "status": 200,
+  "keys": [
+   "legends",
+   "NIFTY",
+   "BANKNIFTY",
+   "NIFTYNEXT50",
+   "SecGtr20",
+   "SecLwr20",
+   "FOSec",
+   "allSec"
+  ],
+  "rows": null,
+  "body": null
+ },
+ {
+  "url": "/api/market-data-pre-open?key=FO",
+  "referer": "t-data/live-equity-market",
+  "status": 200,
+  "keys": [
+   "declines",
+   "unchanged",
+   "data",
+   "advances",
+   "timestamp",
+   "totalTradedValue",
+   "totalmarketcap",
+   "totalTradedVolume"
+  ],
+  "rows": 37,
+  "body": null
+ },
+ {
+  "url": "/api/market-data-pre-open?key=FO",
+  "referer": "https://www.nseindia.com/",
+  "status": 200,
+  "keys": [
+   "declines",
+   "unchanged",
+   "data",
+   "advances",
+   "timestamp",
+   "totalTradedValue",
+   "totalmarketcap",
+   "totalTradedVolume"
+  ],
+  "rows": 37,
+  "body": null
+ },
+ {
+  "url": "/api/quote-equity?symbol=INFY",
+  "referer": "t-data/live-equity-market",
+  "status": 403,
+  "keys": null,
+  "rows": null,
+  "body": "<HTML><HEAD>\n<TITLE>Access Denied</TITLE>\n</HEAD><BODY>\n<H1>Access Denied</H1>\n \nYou don't have permission to access \"http&#58;&#47;&#47;www&#46;nseindia&#46;com&#47;api&#47;quote&#45;equity&#63;\" on this server.<P>\nReference&#32;&#35;18&#46;f3b219b8&#46;1792726233&#46;b01ece4d\n<P>https&#58;&#47;&#4"
+ },
+ {
+  "url": "/api/quote-equity?symbol=INFY",
+  "referer": "https://www.nseindia.com/",
+  "status": 403,
+  "keys": null,
+  "rows": null,
+  "body": "<HTML><HEAD>\n<TITLE>Access Denied</TITLE>\n</HEAD><BODY>\n<H1>Access Denied</H1>\n \nYou don't have permission to access \"http&#58;&#47;&#47;www&#46;nseindia&#46;com&#47;api&#47;quote&#45;equity&#63;\" on this server.<P>\nReference&#32;&#35;18&#46;f3b219b8&#46;1792726234&#46;b01edc3f\n<P>https&#58;&#47;&#4"
+ },
+ {
+  "url": "/api/NextApi/apiClient?functionName=getIndexData&type=All",
+  "referer": "t-data/live-equity-market",
+  "status": 200,
+  "keys": [
+   "data"
+  ],
+  "rows": 15,
+  "body": null
+ },
+ {
+  "url": "/api/NextApi/apiClient?functionName=getIndexData&type=All",
+  "referer": "https://www.nseindia.com/",
+  "status": 200,
+  "keys": [
+   "data"
+  ],
+  "rows": 15,
+  "body": null
+ },
+ {
+  "url": "/api/marketStatus",
+  "referer": "t-data/live-equity-market",
+  "status": 200,
+  "keys": [
+   "marketState",
+   "marketcap",
+   "indicativenifty50",
+   "giftnifty",
+   "niftyusd"
+  ],
+  "rows": null,
+  "body": null
+ },
+ {
+  "url": "/api/marketStatus",
+  "referer": "https://www.nseindia.com/",
+  "status": 200,
+  "keys": [
+   "marketState",
+   "marketcap",
+   "indicativenifty50",
+   "giftnifty",
+   "niftyusd"
+  ],
+  "rows": null,
+  "body": null
+ }
+]
