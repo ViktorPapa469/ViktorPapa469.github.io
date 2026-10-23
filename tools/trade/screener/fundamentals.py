@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 
 MAX_AGE_DAYS = 7
+VERSION = 2          # bump to refetch everything once after a change in what is collected
 
 
 def _eps_row(df):
@@ -37,7 +38,7 @@ def _growth(new, old):
 def fetch_one(sym):
     import yfinance as yf
     t = yf.Ticker(sym + ".NS")
-    out = {"t": dt.date.today().isoformat()}
+    out = {"t": dt.date.today().isoformat(), "v": VERSION}
     try:
         q = _eps_row(t.quarterly_income_stmt)
         if q is not None and len(q) >= 5:
@@ -66,6 +67,17 @@ def fetch_one(sym):
             out["inst"] = round(float(info["heldPercentInstitutions"]) * 100, 1)
     except Exception:  # noqa: BLE001
         pass
+    if out.get("roe") is None:   # not in Yahoo's summary: last year's profit over shareholders' equity
+        try:
+            inc, bal = t.income_stmt, t.balance_sheet
+            ni = next((inc.loc[k].dropna() for k in ("Net Income Common Stockholders", "Net Income") if k in inc.index), None)
+            eq = next((bal.loc[k].dropna() for k in ("Stockholders Equity", "Common Stock Equity", "Total Equity Gross Minority Interest") if k in bal.index), None)
+            if ni is not None and eq is not None and len(ni) and len(eq):
+                e = float(eq.sort_index().iloc[-1])
+                if e > 0:
+                    out["roe"] = round(float(ni.sort_index().iloc[-1]) / e * 100, 1)
+        except Exception:  # noqa: BLE001
+            pass
     return sym, out
 
 
@@ -81,7 +93,8 @@ def refresh(pub, symbols, log, max_minutes=8):
     """Fetch stale or missing stocks (oldest first) until the time limit; save and return the cache."""
     cache = load(pub)
     cutoff = (dt.date.today() - dt.timedelta(days=MAX_AGE_DAYS)).isoformat()
-    todo = sorted((s for s in symbols if (cache.get(s) or {}).get("t", "") < cutoff), key=lambda s: (cache.get(s) or {}).get("t", ""))
+    stale = lambda s: (cache.get(s) or {}).get("t", "") < cutoff or (cache.get(s) or {}).get("v", 1) < VERSION
+    todo = sorted((s for s in symbols if stale(s)), key=lambda s: (cache.get(s) or {}).get("t", ""))
     if not todo:
         return cache
     start, done = time.time(), 0
@@ -94,7 +107,8 @@ def refresh(pub, symbols, log, max_minutes=8):
                 cache[sym] = rec
                 done += 1
     have = sum(1 for s in symbols if (cache.get(s) or {}).get("eps_q") is not None)
-    log(f"fundamentals: {done} refreshed; earnings data for {have} of {len(symbols)} stocks")
+    roe = sum(1 for s in symbols if (cache.get(s) or {}).get("roe") is not None)
+    log(f"fundamentals: {done} refreshed; earnings for {have}, ROE for {roe} of {len(symbols)} stocks")
     os.makedirs(os.path.join(pub, "state"), exist_ok=True)
     with open(os.path.join(pub, "state", "fundamentals.json"), "w", encoding="utf-8") as fh:
         json.dump(cache, fh, separators=(",", ":"))
