@@ -1344,6 +1344,14 @@ function trackPages(kind){
   return pages;
 }
 
+/* screens built before the wording changed say only "Results inside the holding window": spell it out */
+function plainWarn(w, x){
+  if (w !== "Results inside the holding window") return w;
+  var ev = (x.reasons || []).filter(function(r){ return /^Results/.test(r); })[0] || "", m = ev.match(/in (\d+)d/);
+  var when = /today/.test(ev) ? "today" : m ? "in " + m[1] + (m[1] === "1" ? " day" : " days") : "soon";
+  return "Quarterly results " + when + ", during the usual 2-10 day hold: the price can gap past the stop on the announcement. Consider skipping, a smaller position, or waiting for the reaction.";
+}
+
 /* ---- Swing: three setups a page */
 function viewSwing(){
   var p = st.pre, key = st.swing, list = p[key] || [], mult = p.regime && p.regime.size_mult, pb = key === "pullbacks";
@@ -1355,7 +1363,7 @@ function viewSwing(){
       '<div class="levels"><div><span>Setup above</span><b>' + rs(x.entry) + "</b></div><div><span>Stop</span><b>" + rs(x.stop) + "</b></div>" +
       "<div><span>Position</span><b>" + n(q) + "</b></div><div><span>Target 2R</span><b>" + rs(x.t1) + "</b></div>" +
       "<div><span>Target 3R</span><b>" + rs(x.t2) + "</b></div><div><span>Stop distance</span><b>" + (ok(x.risk_pct) ? x.risk_pct.toFixed(1) + "%" : "–") + "</b></div></div>" +
-      (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(w) + "</div>"; }).join("") +
+      (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(plainWarn(w, x)) + "</div>"; }).join("") +
       ohlc(x.symbol) +
       '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="swing:' + key + ":" + i + '">Paper trade</button>' + anBtn(x.symbol) + "</div></article>";
   });

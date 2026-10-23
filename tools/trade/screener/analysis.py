@@ -355,4 +355,13 @@ def _swing_row(sym, r, entry, stop, mult, setup, reasons):
             "score": r.score, "setup": setup, "reasons": reasons,
             "entry": entry, "stop": stop, "t1": entry + 2 * risk, "t2": entry + 3 * risk,
             "risk_pct": risk / entry * 100, "qty": size(entry, stop, mult), "lot": r.lot,
-            "warnings": ["Results inside the holding window"] if r.event.startswith("Results") else []}
+            "warnings": [results_warning(r.event)] if r.event.startswith("Results") else []}
+
+
+def results_warning(event):
+    """Plain words for a results date that falls inside a swing trade's usual 2 to 10 day hold."""
+    when = {"Results today": "today", "Results just out": "just announced"}.get(event, event.replace("Results in ", "in ").replace("d", " days").replace("in 1 days", "in 1 day"))
+    if event == "Results just out":
+        return "Quarterly results just announced: expect bigger swings than usual for a few days."
+    return (f"Quarterly results {when}, during the usual 2-10 day hold: the price can gap past the stop on the "
+            "announcement. Consider skipping, a smaller position, or waiting for the reaction.")
