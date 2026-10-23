@@ -70,6 +70,29 @@ def yahoo(symbols, out, errors):
         out["source"] = (out["source"] + " + " if out["source"] else "") + f"Yahoo ({n})"
 
 
+CUES = {"ES=F": "S&P 500 futures", "NQ=F": "Nasdaq futures", "^N225": "Nikkei", "^HSI": "Hang Seng",
+        "USDINR=X": "USD/INR", "BZ=F": "Brent crude", "GC=F": "Gold"}
+
+
+def cues(out, errors):
+    """World markets that trade before and during Indian hours (Yahoo daily bars: today's bar moves live)."""
+    try:
+        import yfinance as yf
+        data = yf.download(list(CUES), period="5d", interval="1d", group_by="ticker", auto_adjust=False,
+                           threads=True, progress=False)
+        res = []
+        for t, name in CUES.items():
+            try:
+                c = data[t]["Close"].dropna()
+                if len(c) >= 2:
+                    res.append({"name": name, "last": num(c.iloc[-1]), "chg_pct": num((c.iloc[-1] / c.iloc[-2] - 1) * 100)})
+            except Exception:  # noqa: BLE001
+                continue
+        out["cues"] = res
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"cues: {str(e)[:120]}")
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -90,8 +113,15 @@ def main():
 
     hm = now.hour * 100 + now.minute
     preopen = 900 <= hm < 915
-    out["phase"] = "preopen" if preopen else "open" if 915 <= hm < 1530 else "closed"
-    got = False
+    out["phase"] = "early" if hm < 900 else "preopen" if preopen else "open" if 915 <= hm < 1530 else "closed"
+    cues(out, errors)
+    got = bool(out.get("cues"))
+    if hm < 900:   # NSE has nothing new before the 9:00 pre-open: world markets only
+        if not got:
+            return 2
+        export._dump(os.path.join(pub, "live.json"), out)
+        print(f"live {now:%H:%M}: world markets only (before 9:00)")
+        return 0
     try:
         for r in nse.api("/api/allIndices").get("data", []):
             name = INDICES.get(str(r.get("index", "")).upper())
@@ -99,7 +129,7 @@ def main():
                 out["indices"][name] = {"last": num(r.get("last")), "chg": num(r.get("percentChange")),
                                         "open": num(r.get("open")), "high": num(r.get("high")),
                                         "low": num(r.get("low")), "prev": num(r.get("previousClose"))}
-        got = bool(out["indices"])
+        got = got or bool(out["indices"])
     except Exception as e:  # noqa: BLE001
         errors.append(f"indices: {str(e)[:120]}")
 
