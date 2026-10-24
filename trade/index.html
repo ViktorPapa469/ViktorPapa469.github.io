@@ -231,6 +231,11 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .an-strip > button.alert{border-color:var(--down);box-shadow:inset 0 0 0 1px var(--down)}
 .an-strip > button.alert[aria-selected=true]{box-shadow:inset 0 0 0 1px var(--down),0 0 0 2px var(--gold)}
 .an-strip .badge{position:absolute;top:-7px;right:8px;font:600 10px/1 var(--sans);font-style:normal;padding:3px 6px;border-radius:999px;background:var(--down);color:#fff}
+.winrow{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline;margin:6px 0 2px}
+.win{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--glass-hi)}
+.win.high{background:var(--up-soft);color:var(--up)}.win.medium{background:var(--gold-soft);color:var(--gold)}.win.low{background:var(--down-soft);color:var(--down)}
+.ranked th:nth-child(2),.ranked td:nth-child(2),.ranked th:nth-child(3),.ranked td:nth-child(3){text-align:left}.ranked td:first-child{font-weight:400;color:var(--ink2)}
+.ranked td.win-high{color:var(--up);font-weight:600}.ranked td.win-medium{color:var(--gold);font-weight:600}.ranked td.win-low{color:var(--down);font-weight:600}
 .livetag{font-size:10px;color:var(--ink3);font-weight:500;letter-spacing:.02em}
 .sugg{margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--glass-hi)}
 .sugg button{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline;width:100%;padding:9px 12px;background:none;border:0;border-bottom:1px solid var(--line);color:inherit;text-align:left;font:inherit;font-size:13.5px;cursor:pointer}
@@ -1316,6 +1321,7 @@ function viewPlan(){
       "<li>Skip stocks with results today unless studying the reaction after 10:00.</li></ol></div>" +
       '<p class="note">' + n(p.meta && p.meta.universe) + " F&amp;O stocks screened, " + n(p.meta && p.meta.liquid) +
       " liquid enough to study. Prices to the close of " + esc(niceDate(p.as_of)) + ". Built " + esc(niceDate(p.generated)) + " at " + esc(hmOf(p.generated)) + ".</p>"),
+    viewRanked(),
     page("Analyse a stock", '<div class="glass tile"><p style="margin:0 0 10px">Check any NSE or BSE stock against each rule the screener uses. Each setup gets a score: the % of its checks the stock meets, counting only the checks there is data for.</p>' +
       '<form class="inline" id="an-form"><input type="search" id="an-sym" placeholder="Symbol or company name" autocomplete="off" autocorrect="off" spellcheck="false" style="flex:1" aria-controls="an-sugg">' +
       '<button class="btn gold" type="submit">Analyse</button></form><div class="sugg" id="an-sugg" role="listbox" hidden></div></div>' +
@@ -1337,6 +1343,63 @@ function liveWarnings(list){
     if (/^Pre-open gap/.test(w)) return !preview && p.date === t.date && t.mins < 585;
     return entryWindowOpen();
   });
+}
+
+/* ---- Win score: one ranking for every setup (intraday long/short, pullback, base, CANSLIM, Minervini).
+   A rule-based estimate, not a measured probability: how fully the stock meets the setup (% of its checks, including
+   the ranking factors) minus 7 points for each risk already present (from Won't trigger / fail: market against the
+   trade, weak breakout volume, weak sector, futures against, results, stop inside daily noise...). Once the track
+   record has 20 or more finished trades of that kind, their actual win rate is blended in (40%). */
+var WIN_GROUP = {longs:"Intraday long setup", shorts:"Intraday short setup", pullbacks:"Swing: pullback to the 20-day average",
+                 bases:"Swing: tight base near highs", canslim:"Swing: CANSLIM (O'Neil)", minervini:"Swing: Minervini trend template"};
+var WIN_NAME = {longs:"Intraday long", shorts:"Intraday short", pullbacks:"Pullback", bases:"Tight base", canslim:"CANSLIM", minervini:"Minervini"};
+function trackRate(kind){
+  var T_ = st.track, rows;
+  if (!T_) return null;
+  if (kind === "longs" || kind === "shorts") rows = ((T_.intraday || {}).trades || []).filter(function(t){ return t.side === (kind === "longs" ? "long" : "short"); });
+  else rows = ((T_.swing || {}).trades || []).filter(function(t){ return t.setup === {pullbacks:"Pullback", bases:"Tight base", canslim:"CANSLIM", minervini:"Minervini"}[kind]; });
+  var fin = rows.filter(function(t){ return t.trig && t.done; });
+  return fin.length >= 20 ? {rate:fin.filter(function(t){ return t.r > 0; }).length / fin.length * 100, n:fin.length} : null;
+}
+function winScore(sym, kind, rank){
+  if (!AN.data || !AN.data.stocks[sym]) return null;
+  var x = AN.data.stocks[sym], g = x.groups.filter(function(g){ return g.name === WIN_GROUP[kind]; })[0]; if (!g) return null;
+  var pct = scoreOf(g).pct; if (pct === null) return null;
+  var r = kind === "longs" || kind === "shorts" ? riskIntraday(sym, x, kind === "longs" ? 1 : -1) : riskBlock(sym, x, g.name);
+  // the screener's own ranking strength (0-100) separates setups that tie on checks and risks
+  var now = r ? r.now : 0, sc = Math.max(5, Math.min(95, 25 + 0.45 * pct - 7 * now + 0.1 * (ok(rank) ? Math.max(0, Math.min(100, rank)) : 50))), tr = trackRate(kind);
+  if (tr) sc = 0.6 * sc + 0.4 * tr.rate;
+  sc = Math.round(sc);
+  return {score:sc, pct:pct, now:now, label:sc >= 65 ? "High" : sc >= 45 ? "Medium" : "Low", track:tr};
+}
+function winPill(w){
+  if (!w) return "";
+  return '<p class="winrow"><span class="win ' + w.label.toLowerCase() + '">Win score ' + w.score + " · " + w.label + '</span><span class="muted small">' + w.pct + "% met" +
+    (w.now ? ", " + w.now + (w.now === 1 ? " risk" : " risks") + " now" : ", no risks now") + (w.track ? ", track record " + Math.round(w.track.rate) + "% of " + w.track.n : "") + "</span></p>";
+}
+/* cards sorted by win score (highest first) once the rule check is loaded; until then the screener's order */
+function byWin(items, kind){
+  if (!AN.data){ loadAnalysis().then(function(){ if (st.tab === "intraday" || st.tab === "swing") render(); }, function(){}); return items; }
+  items.forEach(function(it){ it.w = winScore(it.sym, kind, it.rank); });
+  return items.slice().sort(function(a, b){ return ((b.w && b.w.score) || 0) - ((a.w && a.w.score) || 0); });
+}
+function viewRanked(){
+  if (!AN.data){
+    loadAnalysis().then(function(){ if (st.tab === "plan") render(); }, function(){});
+    return page("All setups by win score", '<div class="empty"><p>Loading the rule check…</p></div>');
+  }
+  var rows = [];
+  ["longs", "shorts", "pullbacks", "bases", "canslim", "minervini"].forEach(function(kind){
+    (st.pre[kind] || []).forEach(function(x){ var w = winScore(x.symbol, kind, x.score); if (w) rows.push({sym:x.symbol, kind:kind, w:w}); });
+  });
+  rows.sort(function(a, b){ return b.w.score - a.w.score; });
+  if (!rows.length) return page("All setups by win score", '<div class="empty"><p>No setups on today\'s screen.</p></div>');
+  return page("All setups by win score", '<p class="lede">Every setup on today\'s screen, intraday and swing, in one order: highest win score first. Tap a row for its rule check.</p>' +
+    '<div class="glass tile"><table class="trk allst ranked"><thead><tr><th>#</th><th>Stock</th><th>Setup</th><th>Score</th><th>Met</th><th>Risks</th></tr></thead><tbody>' +
+    rows.map(function(r, i){
+      return '<tr data-analyse="' + esc(r.sym) + '"><td>' + (i + 1) + "</td><td>" + esc(r.sym) + "</td><td>" + esc(WIN_NAME[r.kind]) + '</td><td class="win-' + r.w.label.toLowerCase() + '">' + r.w.score + "</td><td>" + r.w.pct + '%</td><td class="' + (r.w.now ? "down" : "") + '">' + r.w.now + "</td></tr>";
+    }).join("") + "</tbody></table></div>" +
+    '<p class="note">Win score: a rule-based estimate from the app\'s own checks, not a measured probability. It starts from how fully the stock meets the setup, adds a little for the screener\'s own ranking strength, and loses 7 points for each risk already present; once the track record has 20 finished trades of a kind, their actual win rate is blended in. High is 65 or more, Medium 45 to 64.</p>', rows.length + " setups");
 }
 
 /* ---- Intraday: three stocks a page */
@@ -1390,7 +1453,7 @@ function viewIntraday(){
     return '<article class="stock glass"><div class="head">' +
       '<span><span class="sym">' + esc(x.symbol) + "</span> " + (o ? outcomePill(x.symbol, isLong ? "long" : "short", o.status, st.orb.date) : "") + '<span class="ind">' + esc([indOf(x.industry), ok(x.lot) ? "lot " + x.lot : ""].filter(Boolean).join(", ")) + "</span></span>" +
       pxTag(x.symbol, x.price, x.chg1) + "</div>" +
-      '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
+      "<!--WIN-->" + '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
       '<div class="levels">' + lv +
         '<div><span>Prev high</span><b>' + rs(x.pdh) + "</b></div><div><span>Prev low</span><b>" + rs(x.pdl) + "</b></div>" +
         '<div><span>Daily ATR</span><b>' + rs(x.atr) + "</b></div></div>" +
@@ -1400,9 +1463,10 @@ function viewIntraday(){
       '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="intra:' + st.side + ":" + i + '">Paper trade</button>' + anBtn(x.symbol) + "</div>" +
       "</article>";
   });
+  cards = byWin(cards.map(function(h, i){ return {sym:list[i].symbol, rank:list[i].score, h:h}; }), st.side).map(function(it){ return it.h.replace("<!--WIN-->", winPill(it.w)); });
   if (!cards.length) return [page(isLong ? "Longs" : "Shorts", '<div class="empty"><p>No stocks qualify on this side today. That is a signal too: fewer trades.</p></div>')];
-  var lede = '<p class="lede">' + (isLong ? "Strongest liquid F&O stocks, ranked. Watch for a break of the 15-minute high with price above VWAP." :
-    "Weakest liquid F&O stocks, ranked. Watch for a break of the 15-minute low with price below VWAP.") + "</p>";
+  var lede = '<p class="lede">' + (isLong ? "Strongest liquid F&O stocks, in order of win score. Watch for a break of the 15-minute high with price above VWAP." :
+    "Weakest liquid F&O stocks, in order of win score. Watch for a break of the 15-minute low with price below VWAP.") + "</p>";
   return chunk(cards, 3).map(function(c, k){ return page((isLong ? "Longs " : "Shorts ") + (k * 3 + 1) + "–" + (k * 3 + c.length), (k === 0 ? lede : "") + c.join(""), list.length + " in all"); });
 }
 
@@ -1609,6 +1673,7 @@ var GLOSSARY = [
   ["Waiting", "A screened stock that hasn't broken out of its opening range yet."],
   ["Watchlist", "Your own lists of up to 10 stocks in the Test tab, with their paper trades."],
   ["Win rate", "Profitable setups divided by profitable plus losing ones."],
+  ["Win score", "A 5 to 95 ranking used to order every list and the Plan page's \"All setups by win score\": how fully the stock meets the setup (% of its checks) plus a little for the screener's ranking strength, minus 7 points for each risk already present (Won't trigger / fail). Once the track record has 20 finished trades of that kind, their actual win rate is blended in. High 65+, Medium 45-64, Low below 45. An estimate from the app's rules, not a measured probability."],
   ["World markets", "Global indices and prices that hint at the open: S&P 500 and Nasdaq futures, Nikkei, Hang Seng, USD/INR, Brent crude and gold. Live every 2 minutes from 8:00."]
 ];
 function glossaryHTML(q){
@@ -1646,7 +1711,7 @@ function viewSwing(){
   var cards = list.map(function(x, i){
     var q = qty(x.entry, x.entry - x.stop, (mult || 1) * (x.counter ? 0.5 : 1));   // counter-trend: half size
     return '<article class="stock glass"><div class="head"><span><span class="sym">' + esc(x.symbol) + '</span><span class="ind">' + esc(indOf(x.industry)) + "</span></span>" +
-      pxTag(x.symbol, x.price, x.chg1) + "</div>" +
+      pxTag(x.symbol, x.price, x.chg1) + "</div>" + "<!--WIN-->" +
       '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
       '<div class="levels"><div><span>Setup above</span><b>' + rs(x.entry) + "</b></div><div><span>Stop</span><b>" + rs(x.stop) + "</b></div>" +
       "<div><span>Position</span><b>" + n(q) + "</b></div><div><span>" + S_.t[0] + "</span><b>" + rs(x.t1) + "</b></div>" +
@@ -1655,6 +1720,7 @@ function viewSwing(){
       ohlc(x.symbol) +
       '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="swing:' + key + ":" + i + '">Paper trade</button>' + anBtn(x.symbol) + "</div></article>";
   });
+  cards = byWin(cards.map(function(h, i){ return {sym:list[i].symbol, rank:list[i].score, h:h}; }), key).map(function(it){ return it.h.replace("<!--WIN-->", winPill(it.w)); });
   var lede = '<p class="lede">' + esc(S_.lede) + "</p>";
   if (!p[key]) return [page(S_.name, lede + '<div class="empty"><p>This list arrives with the next screen.</p></div>')];
   if (!cards.length) return [page(S_.name, lede + '<div class="empty"><p>No stocks fit every rule today. All strategies shows how close each stock is.</p></div>')];
