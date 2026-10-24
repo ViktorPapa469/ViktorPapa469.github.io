@@ -192,6 +192,7 @@ def main():
                                 "p": f["price"], "c": f["chg1"], "o": last["open"], "h": last["high"], "l": last["low"],
                                 "i": None if f["industry"] == "Other" else f["industry"], "e": f["event"] or None,
                                 "g": [bool(g["pass"]) for g in groups],
+                                "k": export.key_levels(r),
                                 "v": [[None if x[1] is None else int(bool(x[1])), x[2]] for g in groups for x in g["items"]]}
                 done += 1
             except Exception as e:  # noqa: BLE001 - one odd stock never stops the rest

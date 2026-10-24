@@ -171,6 +171,17 @@ def _prices_meta(out_dir, generated):
     _dump(os.path.join(base, "meta.json"), {"schema": SCHEMA, "updated": generated, "daily_to": daily, "intraday_days": days})
 
 
+def key_levels(r):
+    """The numbers the app needs to say when a swing trade on this stock is likely to fail (compact keys)."""
+    g = lambda k: r.get(k) if hasattr(r, "get") else getattr(r, k, None)
+    f = lambda x, n=2: None if x is None or (isinstance(x, float) and (math.isnan(x) or math.isinf(x))) else round(float(x), n)
+    return {"p": f(g("price")), "e20": f(g("ema20")), "e50": f(g("ema50")), "s50": f(g("sma50")), "s150": f(g("sma150")),
+            "s200": f(g("sma200")), "h10": f(g("high10")), "l10": f(g("low10")), "l5": f(g("low5")), "pdh": f(g("pdh")),
+            "atr": f(g("atr")), "atrp": f(g("atr_pct")), "d52": f(g("dist_52wh"), 1), "rs": f(g("rs_rating"), 0),
+            "rvol": f(g("rvol")), "dry": f(g("dryup")), "ud": f(g("updown_vol")), "tight": f(g("tightening")),
+            "to": f(g("turnover_cr"), 0), "eq": f(g("eps_q"), 1)}
+
+
 def write_analysis(out_dir, ctx, res, generated):
     """analysis.json: every F&O stock checked against each screener rule, for the app's Analyse button."""
     from .analysis import rule_checks
@@ -182,9 +193,10 @@ def write_analysis(out_dir, ctx, res, generated):
     stocks = {}
     for sym, r in res["features"].iterrows():
         stocks[sym] = {"industry": r.industry, "price": r.price, "chg1": r.chg1, "event": r.event or None,
-                       "lists": lists.get(sym, []), "groups": rule_checks(r, res["top"], res["bottom"])}
+                       "lists": lists.get(sym, []), "groups": rule_checks(r, res["top"], res["bottom"]), "k": key_levels(r)}
     _dump(os.path.join(out_dir, "analysis.json"), clean({"schema": SCHEMA, "date": ctx["date"], "as_of": ctx["as_of_date"],
                                                        "generated": generated, "stocks": stocks,
                                                        "sectors": {"top": sorted(res["top"]), "bottom": sorted(res["bottom"])},
                                                        "market_up": ctx["regime"].get("label") == "Uptrend",
+                                                       "regime": {k: ctx["regime"].get(k) for k in ("label", "nifty", "nifty_vs20", "nifty_vs50")},
                                                        "rs_dist": [round(x, 2) for x in res.get("rs_dist", [])]}))

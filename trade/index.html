@@ -219,6 +219,11 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .allst td,.allst th{font-size:12px;padding:5px 3px}.allst tbody tr{cursor:pointer}.allst td.pass{color:var(--up);font-weight:600}
 .allst td.avg{font-weight:600}.allst td:first-child{font-weight:600;max-width:96px;overflow:hidden;text-overflow:ellipsis}
 .assess p{margin:0 0 10px;line-height:1.55;font-size:14.5px}.assess p:last-child{margin:0}
+.risk{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.risk-h{margin:8px 0 4px;font-weight:600;font-size:13.5px}.risk-h:first-child{margin-top:0}
+.risk-row{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:baseline;padding:4px 0;font-size:13px;line-height:1.45}
+.rtag{font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:5px;background:var(--glass-hi);color:var(--ink2);min-width:40px;text-align:center}
+.rtag.now{background:var(--down-soft);color:var(--down)}
 .livetag{font-size:10px;color:var(--ink3);font-weight:500;letter-spacing:.02em}
 .sugg{margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--glass-hi)}
 .sugg button{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline;width:100%;padding:9px 12px;background:none;border:0;border-bottom:1px solid var(--line);color:inherit;text-align:left;font:inherit;font-size:13.5px;cursor:pointer}
@@ -1908,7 +1913,7 @@ function analyse(sym){
           })};
         });
         showAnalysis(S1, {industry:x.i, price:x.p, chg1:x.c, event:x.e, lists:[], groups:groups,
-                          name:x.n, exchange:x.x, bar:{o:x.o, h:x.h, l:x.l, c:x.p, d:x.d}}, {fno:false, as_of:x.d});
+                          name:x.n, exchange:x.x, k:x.k, bar:{o:x.o, h:x.h, l:x.l, c:x.p, d:x.d}}, {fno:false, as_of:x.d});
       });
     }, function(e){
       anMsg(Q, e && e.status === 404 ? "This stock isn't in the F&amp;O list, and the all-market check (every NSE and BSE stock) is published after the close each trading day. Try again after about 8 PM." : "Couldn't load the rule check. Check the connection and try again.");
@@ -1951,6 +1956,77 @@ function anPager(total){
   document.querySelectorAll("#an-next,[data-an2=next]").forEach(function(b){ b.onclick = function(){ go(cur + 1, b.dataset.an2); }; });
   mark(0);
 }
+/* Swing pages of the rule check: when this setup on this stock won't trigger, and when a triggered trade is likely
+   to fail. Each condition uses the stock's own levels and is marked "Now" if it is already true. */
+var RISK_KEY = {"Swing: pullback to the 20-day average":"pullbacks", "Swing: tight base near highs":"bases",
+                "Swing: CANSLIM (O'Neil)":"canslim", "Swing: Minervini trend template":"minervini"};
+function riskBlock(sym, x, gname){
+  var key = RISK_KEY[gname], k = x.k; if (!key || !k || !ok(k.p)) return "";
+  var on = st.pre && (st.pre[key] || []).filter(function(y){ return y.symbol === sym; })[0];
+  var entry, stop;
+  if (on){ entry = on.entry; stop = on.stop; }
+  else if (key === "pullbacks"){ entry = k.pdh * 1.001; stop = Math.min(k.l5, k.e20 - 0.5 * k.atr); }
+  else if (key === "bases"){ entry = k.h10 * 1.001; stop = Math.max(k.l5, entry - 1.5 * k.atr); }
+  else if (key === "canslim"){ entry = k.h10 * 1.001; stop = entry * 0.92; }
+  else { entry = k.h10 * 1.001; stop = Math.max(k.l10, entry * 0.92); }
+  if (!ok(entry) || !ok(stop) || stop >= entry) return "";
+  var risk = entry - stop, rp = risk / entry * 100;
+  var reg = (AN.data && AN.data.regime) || (st.pre && st.pre.regime) || {}, mUp = reg.label === "Uptrend";
+  var n50 = ok(reg.nifty) && ok(reg.nifty_vs50) ? reg.nifty / (1 + reg.nifty_vs50 / 100) : null;
+  var ext = ok(k.e20) ? (k.p / k.e20 - 1) * 100 : null;
+  // add(list, true-now?, wording to watch for, wording when already true, show only when true?)
+  var no = [], fail = [], add = function(arr, now, watch, nowTxt, onlyNow){ if (onlyNow && !now) return; arr.push([!!now, now && nowTxt ? nowTxt : watch]); };
+  var below = function(lvl){ return ok(lvl) && k.p < lvl; };
+
+  // won't trigger (the setup never activates)
+  if (key === "pullbacks"){
+    add(no, false, "Price doesn't trade above yesterday's high, " + rs(entry) + ", within 3 sessions: the dip hasn't ended.");
+    add(no, ok(k.e20) && k.p < k.e20 * 0.99, "It closes more than 1% below its 20-day average, " + rs(k.e20) + ": the pullback would be turning into a decline.",
+        "It is already more than 1% below its 20-day average, " + rs(k.e20) + ": the pullback is turning into a decline.");
+  } else if (key === "bases"){
+    add(no, false, "No close above the 10-day high, " + rs(k.h10) + ": the base keeps going sideways.");
+    add(no, below(k.l10), "Price slips below the base low, " + rs(k.l10) + ": the base would be broken.", "Price is below the base low, " + rs(k.l10) + ": the base is broken.");
+    add(no, false, "The break above the high comes on below-average volume: such breakouts rarely count.");
+  } else if (key === "canslim"){
+    add(no, !mUp, "The market drops out of its uptrend: O'Neil stops buying then.", "The market isn't in an uptrend (now: " + esc(reg.label || "unknown") + "): O'Neil doesn't buy until it is.");
+    add(no, false, "No break above the buy point, " + rs(entry) + ", on volume at least 40% above average.");
+    add(no, false, "Price runs more than 5% past the buy point, above " + rs(entry * 1.05) + ", before you can buy: O'Neil's rule is not to chase it.");
+  } else {
+    add(no, false, "No break above the pivot, " + rs(entry) + ".");
+    add(no, ok(k.tight) && k.tight > 0.75, "The range stops tightening (now " + (ok(k.tight) ? k.tight.toFixed(2) + "x" : "–") + " of the prior 30 days; a contraction is 0.5x or less).",
+        "The range isn't tightening (" + (ok(k.tight) ? k.tight.toFixed(2) + "x" : "–") + " of the prior 30 days; a contraction is 0.5x or less).");
+    add(no, ok(k.rs) && k.rs < 70, "Its RS rating drops below 70 (now " + (ok(k.rs) ? k.rs : "–") + ").", "Its RS rating is below 70 (" + (ok(k.rs) ? k.rs : "–") + ").");
+  }
+  if (x.event && /Results/.test(x.event)) add(no, true, "", esc(x.event) + ": a results gap can jump past the entry or the stop before the setup plays out.");
+
+  // likely to fail (after the trade is taken)
+  if (key !== "canslim") add(fail, false, "Price closes below the stop, " + rs(stop) + " (" + rp.toFixed(1) + "% below the entry): the planned −1R exit.");
+  if (key === "pullbacks") add(fail, below(k.e50), "It closes below the 50-day average, " + rs(k.e50) + ": the uptrend itself would be in doubt.", "It is below its 50-day average, " + rs(k.e50) + ": the uptrend itself is in doubt.");
+  if (key === "bases") add(fail, false, "After the breakout it closes back inside the base, below " + rs(k.h10) + ": a failed breakout.");
+  if (key === "canslim"){
+    add(fail, false, "It falls 8% from the buy point, to " + rs(stop) + ": the stop, O'Neil's no-exceptions exit (−1R).");
+    add(fail, ok(k.eq) && k.eq < 25, "The next results show quarterly earnings growth below 25%" + (ok(k.eq) ? " (last: " + (k.eq > 0 ? "+" : "") + k.eq.toFixed(0) + "%)" : "") + ".",
+        "Quarterly earnings growth is already below 25% (last: " + (ok(k.eq) ? (k.eq > 0 ? "+" : "") + k.eq.toFixed(0) : "–") + "%): CANSLIM's C isn't met.");
+  }
+  if (key === "minervini") add(fail, below(k.s50), "It closes below its 50-day average, " + rs(k.s50) + ": the trend template breaks.", "It is below its 50-day average, " + rs(k.s50) + ": the trend template is broken.");
+  add(fail, !mUp, "The market weakens: watch for Nifty closing below its 50-day average" + (n50 ? ", near " + n(Math.round(n50)) : "") + ".",
+      "Nifty is not in an uptrend (" + esc(reg.label || "unknown") + "); about 3 in 4 stocks follow the market, so breakouts fail more often.");
+  add(fail, ok(k.atr) && risk < k.atr, "", "Normal daily moves of " + rs(k.atr) + " (ATR) are bigger than the stop distance of " + rs(risk) + ": everyday noise can hit the stop.", true);
+  add(fail, ok(ext) && ext > 8, "", "Price is " + (ok(ext) ? ext.toFixed(1) : "–") + "% above its 20-day average: stocks this stretched often pull back before going higher.", true);
+  if (key !== "pullbacks") add(fail, ok(k.d52) && k.d52 < -15, "", "The 52-week high is " + (ok(k.d52) ? Math.abs(k.d52).toFixed(0) : "–") + "% above: buyers from higher up may sell into the rally.", true);
+  add(fail, ok(k.rs) && k.rs < 50, "", "Relative strength is weak (RS rating " + (ok(k.rs) ? k.rs : "–") + "): laggards rarely lead a rally.", true);
+  add(fail, ok(k.ud) && k.ud < 1, "", "More volume on down days than up days (" + (ok(k.ud) ? k.ud.toFixed(2) + "x" : "–") + "): sellers have been heavier.", true);
+  add(fail, ok(k.to) && k.to < 50, "", "Low turnover (₹" + (ok(k.to) ? n(k.to) : "–") + " cr a day): wide spreads and slippage at the stop.", true);
+
+  function list(arr){
+    arr.sort(function(a, b){ return b[0] - a[0]; });
+    return arr.map(function(r){ return '<div class="risk-row"><span class="rtag ' + (r[0] ? "now" : "") + '">' + (r[0] ? "Now" : "Watch") + "</span><span>" + r[1] + "</span></div>"; }).join("");
+  }
+  var nowN = no.concat(fail).filter(function(r){ return r[0]; }).length;
+  return '<div class="risk"><p class="risk-h">Won\'t trigger if…</p>' + list(no) + '<p class="risk-h">Likely to fail if…</p>' + list(fail) +
+    '<p class="muted small" style="margin:8px 0 0">' + (on ? "Levels from today's " + esc(SWING[key].name) + " list." : "Levels the " + esc(SWING[key].name) + " rules would use for this stock.") +
+    " " + (nowN ? "<b>" + nowN + " already present.</b>" : "None present right now.") + " Rule-based, from the latest close: market study, not advice.</p></div>";
+}
 function showAnalysis(sym, x, o){
   var scores = x.groups.map(scoreOf);
   var strip = '<div class="an-strip" role="tablist">' + x.groups.map(function(g, gi){
@@ -1971,7 +2047,7 @@ function showAnalysis(sym, x, o){
         (g.pass ? "<b class=\"up\">Meets every required rule.</b>" : "Required rules met: " + req.filter(function(i){ return i[1] === true; }).length + " of " + req.length + ".") + "</p>" +
       req.map(row).join("") +
       (fac.length ? '<p class="muted small" style="margin:10px 0 2px">Ranking factors (not required, they decide the order)</p>' + fac.map(row).join("") : "") +
-      (/^Swing/.test(g.name) ? '<p class="muted small" style="margin:8px 0 0">Also needs the price and turnover filters on the Liquidity page.</p>' : "") + "</div>";
+      (/^Swing/.test(g.name) ? '<p class="muted small" style="margin:8px 0 0">Also needs the price and turnover filters on the Liquidity page.</p>' + riskBlock(sym, x, g.name) : "") + "</div>";
   }).join("");
   var arrow = function(id, d, label){ return '<button class="arrow" id="' + id + '" type="button" aria-label="' + label + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="' + d + '"/></svg></button>'; };
   var nav = '<div class="pagenav an-nav">' + arrow("an-prev", "M15 5l-7 7 7 7", "Previous setup") +
