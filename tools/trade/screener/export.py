@@ -179,7 +179,9 @@ def key_levels(r):
             "s200": f(g("sma200")), "h10": f(g("high10")), "l10": f(g("low10")), "l5": f(g("low5")), "pdh": f(g("pdh")),
             "atr": f(g("atr")), "atrp": f(g("atr_pct")), "d52": f(g("dist_52wh"), 1), "rs": f(g("rs_rating"), 0),
             "rvol": f(g("rvol")), "dry": f(g("dryup")), "ud": f(g("updown_vol")), "tight": f(g("tightening")),
-            "to": f(g("turnover_cr"), 0), "eq": f(g("eps_q"), 1)}
+            "to": f(g("turnover_cr"), 0), "eq": f(g("eps_q"), 1),
+            "pdl": f(g("pdl")), "rs5": f(g("rs5"), 1), "rs20": f(g("rs20"), 1), "gap": f(g("gap_pct"), 1),
+            "bu": g("buildup") or None, "cp": f(g("close_pos"))}
 
 
 def write_analysis(out_dir, ctx, res, generated):

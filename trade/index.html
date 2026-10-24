@@ -2027,6 +2027,63 @@ function riskBlock(sym, x, gname){
     '<p class="muted small" style="margin:8px 0 0">' + (on ? "Levels from today's " + esc(SWING[key].name) + " list." : "Levels the " + esc(SWING[key].name) + " rules would use for this stock.") +
     " " + (nowN ? "<b>" + nowN + " already present.</b>" : "None present right now.") + " Rule-based, from the latest close: market study, not advice.</p></div>";
 }
+/* Intraday pages of the rule check: when an opening-range breakout in this stock won't trigger, and when it is
+   likely to fail. Uses today's breakout scan for the stock when there is one (range, VWAP, breakout volume, stop). */
+function riskList(no, fail, foot, noHtml){
+  function list(arr){
+    arr.sort(function(a, b){ return b[0] - a[0]; });
+    return arr.map(function(r){ return '<div class="risk-row"><span class="rtag ' + (r[0] ? "now" : "") + '">' + (r[0] ? "Now" : "Watch") + "</span><span>" + r[1] + "</span></div>"; }).join("");
+  }
+  var nowN = no.concat(fail).filter(function(r){ return r[0]; }).length;
+  return '<div class="risk">' + (noHtml || '<p class="risk-h">Won\'t trigger if…</p>' + list(no)) + '<p class="risk-h">Likely to fail if…</p>' + list(fail) +
+    '<p class="muted small" style="margin:8px 0 0">' + foot + " " + (nowN ? "<b>" + nowN + " already present.</b>" : "None present right now.") + " Rule-based: market study, not advice.</p></div>";
+}
+function riskIntraday(sym, x, s){
+  var k = x.k; if (!k || !ok(k.p)) return "";
+  var long = s === 1, word = long ? "high" : "low", t = ist();
+  var orb = st.orb && st.orb.rows ? st.orb.rows.filter(function(r){ return r.symbol === sym && r.side === (long ? "long" : "short"); })[0] : null;
+  var O = orb || {};   // safe to read even when the stock has no scan row
+  var today = orb && st.orb.date === t.date, lv_ = lv(sym), last = lv_ ? lv_[0] : orb && ok(O.last) ? O.last : null;
+  var reg = (AN.data && AN.data.regime) || (st.pre && st.pre.regime) || {}, secs = (AN.data && AN.data.sectors) || {};
+  var badSector = (long ? secs.bottom : secs.top) || [], against = long ? reg.label === "Downtrend" : reg.label === "Uptrend";
+  var no = [], fail = [], add = function(arr, now, watch, nowTxt, onlyNow){ if (onlyNow && !now) return; arr.push([!!now, now && nowTxt ? nowTxt : watch]); };
+  var level = orb && ok(O.orh) ? rs(long ? O.orh : O.orl) : "the 9:30 range " + word;
+  var est = ok(k.atr) ? 0.5 * k.atr : null;
+
+  // won't trigger
+  var late = today && t.mins >= 660, trig = orb && ok(O.entry);
+  add(no, late && !trig, "No 5-minute close " + (long ? "above " : "below ") + level + " by 11:00: the screen takes no breakouts after that.",
+      "It hasn't broken " + (long ? "above " : "below ") + level + " and it's past 11:00: no trade from this setup today.");
+  add(no, today && orb && ok(O.vwap) && ok(last) && s * (last - O.vwap) < 0, "Price is " + (long ? "below" : "above") + " VWAP" + (orb && ok(O.vwap) ? " (" + rs(O.vwap) + ")" : "") + " when the break comes: the setup needs price on the right side of VWAP.",
+      "Price is " + (long ? "below" : "above") + " VWAP (" + rs(O.vwap) + "): a break now wouldn't qualify.");
+  add(no, today && orb && ok(O.rs) && s * O.rs < 0, (long ? "It lags Nifty since the open" : "It holds up better than Nifty since the open") + ": a break while " + (long ? "weaker" : "stronger") + " than the index counts only as \"weak RS\", half size or skip.",
+      "It is " + (long ? "weaker" : "stronger") + " than Nifty since the open (" + pc(O.rs) + "): a break would be \"weak RS\", half size or skip.");
+  add(no, ok(k.gap) && s * k.gap >= 2, "", "A pre-open gap of " + pc(k.gap) + " in the trade's direction: much of the move may be done before the range forms.", true);
+  if (x.event && /Results today|Results in 1d/.test(x.event)) add(no, true, "", esc(x.event) + ": results can swing the stock either way; the screen skips it unless studying the reaction after 10:00.");
+
+  // likely to fail
+  if (trig) add(fail, today && ok(last) && s * (last - O.stop) <= 0, "Price comes back to the stop, " + rs(O.stop) + " (the far side of the range or VWAP): −1R.",
+      "Price is at or past the stop, " + rs(O.stop) + ": the trade has failed (−1R).");
+  else add(fail, false, "Price falls back " + (long ? "below" : "above") + " VWAP or into the range after the break: the stop sits there" + (est ? ", about " + rs(est) + " from the entry" : "") + ".");
+  add(fail, trig && ok(O.breakout_vol) && O.breakout_vol < 1, "The breakout bar's volume is below average: breaks without volume often reverse.",
+      "The breakout came on below-average volume (" + (trig && ok(O.breakout_vol) ? O.breakout_vol.toFixed(1) : "–") + "x): breaks without volume often reverse.");
+  add(fail, trig && O.extended, "", "Price is already more than 1R past the entry: entering now means a far stop or chasing.", true);
+  add(fail, orb && ok(O.orh) && ok(O.orl) && ok(k.atr) && (O.orh - O.orl) > k.atr, "",
+      "The opening range (" + rs(O.orh - O.orl) + ") is wider than a normal day's move (" + rs(k.atr) + "): little room left for the targets.", true);
+  add(fail, today && st.orb.nifty_above_vwap != null && (long ? !st.orb.nifty_above_vwap : st.orb.nifty_above_vwap),
+      "Nifty turns " + (long ? "below" : "above") + " its own VWAP: stocks rarely hold a breakout against the index.",
+      "Nifty is " + (long ? "below" : "above") + " its own VWAP: breakouts against the index fail more often.");
+  add(fail, against, "", "The market is in " + (/^[aeiou]/i.test(reg.label || "") ? "an " : "a ") + esc(String(reg.label).toLowerCase()) + ": a " + (long ? "long" : "short") + " is counter-trend, half size or skip.", true);
+  add(fail, badSector.indexOf(x.industry) >= 0, "", "Its sector (" + esc(x.industry) + ") is among the " + (long ? "weakest" : "strongest") + ": the sector pulls against the trade.", true);
+  var badBu = long ? /Short buildup|Long unwinding/.test(k.bu || "") : /Long buildup|Short covering/.test(k.bu || "");
+  add(fail, badBu, "", "Futures show " + esc(k.bu || "") + ": traders are positioned against a " + (long ? "long" : "short") + ".", true);
+  add(fail, ok(k.atrp) && k.atrp < 1.2, "", "The stock moves only " + k.atrp.toFixed(1) + "% a day (ATR): the targets may not be reached before 3:15.", true);
+  add(fail, false, "It is still open after 11:00 without reaching target 1: breakouts that stall tend to drift back by the close (time exit 3:15).");
+  var trigHtml = trig ? '<p class="risk-h">Triggered</p><div class="risk-row"><span class="rtag">' + esc(O.trigger_time || "") + "</span><span>Broke " + (long ? "above" : "below") + " the range " + word + " at " + rs(O.entry) +
+    ", stop " + rs(O.stop) + ", targets " + rs(O.t1) + " and " + rs(O.t2) + ".</span></div>" : "";
+  return riskList(no.filter(function(){ return !trig; }), fail, today && orb ? "Levels from today's breakout scan" + (O.status ? " (" + esc(STATUS[O.status] ? STATUS[O.status][1] : O.status) + ")" : "") + "." :
+    "The range, VWAP and stop are set after 9:30; until then, levels from the last close.", trigHtml);
+}
 function showAnalysis(sym, x, o){
   var scores = x.groups.map(scoreOf);
   var strip = '<div class="an-strip" role="tablist">' + x.groups.map(function(g, gi){
@@ -2047,7 +2104,8 @@ function showAnalysis(sym, x, o){
         (g.pass ? "<b class=\"up\">Meets every required rule.</b>" : "Required rules met: " + req.filter(function(i){ return i[1] === true; }).length + " of " + req.length + ".") + "</p>" +
       req.map(row).join("") +
       (fac.length ? '<p class="muted small" style="margin:10px 0 2px">Ranking factors (not required, they decide the order)</p>' + fac.map(row).join("") : "") +
-      (/^Swing/.test(g.name) ? '<p class="muted small" style="margin:8px 0 0">Also needs the price and turnover filters on the Liquidity page.</p>' + riskBlock(sym, x, g.name) : "") + "</div>";
+      (/^Swing/.test(g.name) ? '<p class="muted small" style="margin:8px 0 0">Also needs the price and turnover filters on the Liquidity page.</p>' + riskBlock(sym, x, g.name) : "") +
+      (/^Intraday (long|short)/.test(g.name) ? riskIntraday(sym, x, /long/.test(g.name) ? 1 : -1) : "") + "</div>";
   }).join("");
   var arrow = function(id, d, label){ return '<button class="arrow" id="' + id + '" type="button" aria-label="' + label + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="' + d + '"/></svg></button>'; };
   var nav = '<div class="pagenav an-nav">' + arrow("an-prev", "M15 5l-7 7 7 7", "Previous setup") +
