@@ -195,7 +195,7 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .wl-stock .wl-top{padding-right:30px}
 .x.wl-del{position:absolute;top:6px;right:-4px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--glass);color:var(--ink2);cursor:pointer;font-size:13px;line-height:1}
 .x.wl-del:hover{color:var(--down);border-color:var(--down)}
-#wl-add{margin-bottom:4px}.sugg .add{color:var(--gold);font-weight:600}.sugg button[disabled]{opacity:.55;cursor:default}
+#wl-add{margin-top:12px}.sugg .add{color:var(--gold);font-weight:600}.sugg button[disabled]{opacity:.55;cursor:default}
 .wl-stock:last-child{border-bottom:0}
 .wl-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .wl-top .sym{font-size:17px}
@@ -1716,12 +1716,12 @@ function viewTest(){
   var others = {};   // trades in this list for stocks that were since removed from it
   trades.forEach(function(t){ if (l.symbols.indexOf(t.symbol) < 0) others[t.symbol] = 1; });
   var watch = '<div class="glass tile"><div class="wl-head"><b>' + esc(l.name) + '</b><span class="muted small">' + l.symbols.length + " of " + MAX_STOCKS + " stocks</span>" +
-      '<button class="btn ghost small" type="button" id="t-manage">Manage</button></div>' + strip(sm) + "</div>" +
-    '<div class="glass tile">' + (l.symbols.length < MAX_STOCKS ?
+      '<button class="btn ghost small" type="button" id="t-manage">Manage</button></div>' + strip(sm) + (l.symbols.length < MAX_STOCKS ?
       '<form class="inline" id="wl-add"><input type="search" id="wl-q" placeholder="Add a stock: symbol or company name" autocomplete="off" autocorrect="off" spellcheck="false" style="flex:1" aria-controls="wl-sugg">' +
       '<button class="btn" type="submit">Add</button></form><div class="sugg" id="wl-sugg" role="listbox" hidden></div>' :
-      '<p class="note" style="margin-top:0">This watchlist is full (' + MAX_STOCKS + " stocks). Remove one with ✕ to add another.</p>") +
-      (rows || '<p class="muted" style="margin:10px 0 4px">No stocks yet. Search above to add up to ' + MAX_STOCKS + " F&amp;O stocks, or use Paper trade on any setup in Intraday, Live or Swing.</p>") +
+      '<p class="note" style="margin:10px 0 0">This watchlist is full (' + MAX_STOCKS + " stocks). Remove one with ✕ to add another.</p>") + "</div>" +
+    '<div class="glass tile">' +
+      (rows || '<p class="muted" style="margin:4px 0">No stocks yet. Search above to add up to ' + MAX_STOCKS + " F&amp;O stocks, or use Paper trade on any setup in Intraday, Live or Swing.</p>") +
       (Object.keys(others).length ? '<p class="note" style="margin-bottom:0">Also traded here earlier: ' + esc(Object.keys(others).join(", ")) + ".</p>" : "") + "</div>" +
     (PX.err ? '<div class="warn">' + esc(PX.err) + "</div>" : "");
   var allPage = '<div class="glass tile"><p class="muted small" style="margin:0 0 8px">All ' + T.lists.length + " watchlists</p>" + strip(sa) + "</div>" +
