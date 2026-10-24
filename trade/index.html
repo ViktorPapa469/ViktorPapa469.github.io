@@ -191,7 +191,11 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .wl-head{display:flex;align-items:baseline;gap:10px;margin:0 0 10px}
 .wl-head b{font:600 18px/1.2 var(--cond)}
 .wl-head .btn{margin-left:auto}
-.wl-stock{padding:8px 0;border-bottom:1px solid var(--line)}
+.wl-stock{padding:8px 0;border-bottom:1px solid var(--line);position:relative}
+.wl-stock .wl-top{padding-right:30px}
+.x.wl-del{position:absolute;top:6px;right:-4px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--glass);color:var(--ink2);cursor:pointer;font-size:13px;line-height:1}
+.x.wl-del:hover{color:var(--down);border-color:var(--down)}
+#wl-add{margin-bottom:4px}.sugg .add{color:var(--gold);font-weight:600}.sugg button[disabled]{opacity:.55;cursor:default}
 .wl-stock:last-child{border-bottom:0}
 .wl-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .wl-top .sym{font-size:17px}
@@ -1703,7 +1707,8 @@ function viewTest(){
   }
   var rows = l.symbols.map(function(sym){
     var lp = lastPrice(sym);
-    return '<div class="wl-stock"><div class="wl-top"><span><span class="sym">' + esc(sym) + "</span>" +
+    return '<div class="wl-stock"><button class="x wl-del" type="button" data-wldel="' + esc(sym) + '" aria-label="Remove ' + esc(sym) + ' from this watchlist">✕</button>' +
+      '<div class="wl-top"><span><span class="sym">' + esc(sym) + "</span>" +
         '<span class="ind">' + (lp ? rs(lp.price) + ' <span class="' + tone(lp.chg) + '">' + pc(lp.chg) + "</span>" : "no price yet") + "</span></span>" +
         '<span class="inline">' + anBtn(sym) + '<button class="btn small" type="button" data-trade="' + esc(sym) + '">Paper trade</button></span></div>' +
       '<div class="wl-sum">' + stockLine(sym) + "</div>" + ohlc(sym) + "</div>";
@@ -1712,7 +1717,11 @@ function viewTest(){
   trades.forEach(function(t){ if (l.symbols.indexOf(t.symbol) < 0) others[t.symbol] = 1; });
   var watch = '<div class="glass tile"><div class="wl-head"><b>' + esc(l.name) + '</b><span class="muted small">' + l.symbols.length + " of " + MAX_STOCKS + " stocks</span>" +
       '<button class="btn ghost small" type="button" id="t-manage">Manage</button></div>' + strip(sm) + "</div>" +
-    '<div class="glass tile">' + (rows || '<p class="muted" style="margin:4px 0">No stocks yet. Tap <b>Manage</b> to add up to ' + MAX_STOCKS + " F&amp;O stocks, or use Paper trade on any setup in Intraday, Live or Swing.</p>") +
+    '<div class="glass tile">' + (l.symbols.length < MAX_STOCKS ?
+      '<form class="inline" id="wl-add"><input type="search" id="wl-q" placeholder="Add a stock: symbol or company name" autocomplete="off" autocorrect="off" spellcheck="false" style="flex:1" aria-controls="wl-sugg">' +
+      '<button class="btn" type="submit">Add</button></form><div class="sugg" id="wl-sugg" role="listbox" hidden></div>' :
+      '<p class="note" style="margin-top:0">This watchlist is full (' + MAX_STOCKS + " stocks). Remove one with ✕ to add another.</p>") +
+      (rows || '<p class="muted" style="margin:10px 0 4px">No stocks yet. Search above to add up to ' + MAX_STOCKS + " F&amp;O stocks, or use Paper trade on any setup in Intraday, Live or Swing.</p>") +
       (Object.keys(others).length ? '<p class="note" style="margin-bottom:0">Also traded here earlier: ' + esc(Object.keys(others).join(", ")) + ".</p>" : "") + "</div>" +
     (PX.err ? '<div class="warn">' + esc(PX.err) + "</div>" : "");
   var allPage = '<div class="glass tile"><p class="muted small" style="margin:0 0 8px">All ' + T.lists.length + " watchlists</p>" + strip(sa) + "</div>" +
@@ -1792,10 +1801,11 @@ function stockRows(){
   universe().forEach(function(sym){ if (!have[sym]) rows.push([sym, null, "NSE F&O", "fno"]); });
   return rows;
 }
-function suggest(q){
+function suggest(q, fnoOnly){
   var Q = String(q || "").trim().toUpperCase(); if (!Q) return [];
-  var out = [];
+  var out = [], uni = fnoOnly ? universe() : null;
   stockRows().forEach(function(x){
+    if (uni && uni.length && uni.indexOf(x[0]) < 0) return;   // watchlists: stocks the app has prices for
     var sym = x[0], name = String(x[1] || "").toUpperCase(), rank = -1;
     if (sym === Q) rank = 0;
     else if (sym.indexOf(Q) === 0) rank = 1;
@@ -1964,6 +1974,50 @@ function showAnalysis(sym, x, o){
   $("#an-close").onclick = closeSheet;
   anPager(x.groups.length);
   if (o.fno) $("#an-trade").onclick = function(){ closeSheet(); tradeForm({symbol:sym, listId:st.list || T.lists[0].id}); };
+}
+
+/* add to / remove from the current watchlist straight from its page */
+function addToList(sym){
+  var l = curList(), uni = universe(); sym = String(sym || "").trim().toUpperCase();
+  if (!sym) return false;
+  if (uni.length && uni.indexOf(sym) < 0){ toast(sym + " isn't in the F&O list the app has prices for."); return false; }
+  if (l.symbols.indexOf(sym) >= 0){ toast(sym + " is already in " + l.name + "."); return false; }
+  if (l.symbols.length >= MAX_STOCKS){ toast(l.name + " is full: remove a stock first."); return false; }
+  l.symbols.push(sym); l.updatedAt = Date.now(); touchT(); toast("Added " + sym + " to " + l.name + "."); render();
+  setTimeout(function(){ var f = $("#wl-q"); if (f) f.focus(); }, 60);
+  return true;
+}
+function removeFromList(sym){
+  var l = curList(), n_ = T.trades.filter(function(t){ return t.listId === l.id && t.symbol === sym; }).length;
+  if (n_ && !confirm("Remove " + sym + " from " + l.name + "? Its " + n_ + (n_ === 1 ? " paper trade stays" : " paper trades stay") + " in your results.")) return;
+  l.symbols = l.symbols.filter(function(x){ return x !== sym; }); l.updatedAt = Date.now(); touchT(); toast("Removed " + sym + " from " + l.name + "."); render();
+}
+function wireWatchAdd(){
+  var inp = $("#wl-q"), box = $("#wl-sugg"), form = $("#wl-add"); if (!inp || !box || !form) return;
+  var l = curList();
+  function draw(){
+    var Q = inp.value.trim().toUpperCase(), rows = suggest(Q, true);
+    if (!rows.length){ box.hidden = true; box.innerHTML = ""; return; }
+    box.innerHTML = rows.map(function(x){
+      var have = l.symbols.indexOf(x[0]) >= 0;
+      return '<button type="button" role="option" data-wladd="' + esc(x[0]) + '"' + (have ? " disabled" : "") + '><span class="sym">' + hl(x[0], Q) + "</span>" +
+        '<span class="nm">' + (x[1] ? hl(x[1], Q) : "") + '</span><span class="ex">' + (have ? "Added" : '<b class="add">+ Add</b>') + "</span></button>";
+    }).join("");
+    box.hidden = false;
+    box.querySelectorAll("[data-wladd]").forEach(function(b){
+      b.onmousedown = function(e){ e.preventDefault(); };
+      b.onclick = function(){ if (addToList(b.dataset.wladd)) inp.value = ""; };
+    });
+  }
+  inp.oninput = draw;
+  inp.onfocus = function(){ loadMarket().then(draw, function(){}); draw(); };
+  inp.onblur = function(){ setTimeout(function(){ box.hidden = true; }, 150); };
+  form.onsubmit = function(e){
+    e.preventDefault();
+    var Q = inp.value.trim().toUpperCase(), rows = suggest(Q, true);
+    var pick = rows.filter(function(x){ return x[0] === Q; })[0] || (rows.length === 1 ? rows[0] : null);
+    if (pick) addToList(pick[0]); else if (rows.length) { draw(); toast("Pick one of the suggestions."); } else toast("No F&O stock starts with \"" + inp.value.trim() + "\".");
+  };
 }
 
 /* manage a watchlist: name, stocks, clear, delete */
@@ -2247,6 +2301,8 @@ function bindView(){
     var l = {id:uid(), name:name, symbols:[], updatedAt:Date.now()}; T.lists.push(l); st.list = l.id; touchT(); render();
   };
   if ((x = $("#t-manage"))) x.onclick = manageList;
+  wireWatchAdd();
+  document.querySelectorAll("[data-wldel]").forEach(function(b){ b.onclick = function(){ removeFromList(b.dataset.wldel); }; });
   document.querySelectorAll("[data-analyse]").forEach(function(b){ b.onclick = function(){ analyse(b.dataset.analyse); }; });
   if ((x = $("#an-form"))) x.onsubmit = function(e){ e.preventDefault(); analyse($("#an-sym").value); };
   wireSuggest();
