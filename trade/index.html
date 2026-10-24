@@ -223,7 +223,14 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .risk-h{margin:8px 0 4px;font-weight:600;font-size:13.5px}.risk-h:first-child{margin-top:0}
 .risk-row{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:baseline;padding:4px 0;font-size:13px;line-height:1.45}
 .rtag{font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:5px;background:var(--glass-hi);color:var(--ink2);min-width:40px;text-align:center}
-.rtag.now{background:var(--down-soft);color:var(--down)}
+.rtag.is-now{background:var(--down-soft);color:var(--down)}
+.risk.has-now.qual .risk-row.is-hot{border-left:2px solid var(--down);padding-left:8px;margin-left:-10px}
+.risk-sep{margin:14px 0 0;padding-top:8px;border-top:1px dashed var(--line);font-size:12px;color:var(--ink2)}
+.risk-group{display:flex;justify-content:space-between;gap:8px;align-items:baseline;margin:0 0 2px}.risk-group span{font-size:12px;color:var(--ink2)}
+.an-strip > button{position:relative}
+.an-strip > button.alert{border-color:var(--down);box-shadow:inset 0 0 0 1px var(--down)}
+.an-strip > button.alert[aria-selected=true]{box-shadow:inset 0 0 0 1px var(--down),0 0 0 2px var(--gold)}
+.an-strip .badge{position:absolute;top:-7px;right:8px;font:600 10px/1 var(--sans);font-style:normal;padding:3px 6px;border-radius:999px;background:var(--down);color:#fff}
 .livetag{font-size:10px;color:var(--ink3);font-weight:500;letter-spacing:.02em}
 .sugg{margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--glass-hi)}
 .sugg button{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline;width:100%;padding:9px 12px;background:none;border:0;border-bottom:1px solid var(--line);color:inherit;text-align:left;font:inherit;font-size:13.5px;cursor:pointer}
@@ -1961,7 +1968,7 @@ function anPager(total){
 var RISK_KEY = {"Swing: pullback to the 20-day average":"pullbacks", "Swing: tight base near highs":"bases",
                 "Swing: CANSLIM (O'Neil)":"canslim", "Swing: Minervini trend template":"minervini"};
 function riskBlock(sym, x, gname){
-  var key = RISK_KEY[gname], k = x.k; if (!key || !k || !ok(k.p)) return "";
+  var key = RISK_KEY[gname], k = x.k; if (!key || !k || !ok(k.p)) return null;
   var on = st.pre && (st.pre[key] || []).filter(function(y){ return y.symbol === sym; })[0];
   var entry, stop;
   if (on){ entry = on.entry; stop = on.stop; }
@@ -1969,7 +1976,7 @@ function riskBlock(sym, x, gname){
   else if (key === "bases"){ entry = k.h10 * 1.001; stop = Math.max(k.l5, entry - 1.5 * k.atr); }
   else if (key === "canslim"){ entry = k.h10 * 1.001; stop = entry * 0.92; }
   else { entry = k.h10 * 1.001; stop = Math.max(k.l10, entry * 0.92); }
-  if (!ok(entry) || !ok(stop) || stop >= entry) return "";
+  if (!ok(entry) || !ok(stop) || stop >= entry) return null;
   var risk = entry - stop, rp = risk / entry * 100;
   var reg = (AN.data && AN.data.regime) || (st.pre && st.pre.regime) || {}, mUp = reg.label === "Uptrend";
   var n50 = ok(reg.nifty) && ok(reg.nifty_vs50) ? reg.nifty / (1 + reg.nifty_vs50 / 100) : null;
@@ -2018,28 +2025,21 @@ function riskBlock(sym, x, gname){
   add(fail, ok(k.ud) && k.ud < 1, "", "More volume on down days than up days (" + (ok(k.ud) ? k.ud.toFixed(2) + "x" : "–") + "): sellers have been heavier.", true);
   add(fail, ok(k.to) && k.to < 50, "", "Low turnover (₹" + (ok(k.to) ? n(k.to) : "–") + " cr a day): wide spreads and slippage at the stop.", true);
 
-  function list(arr){
-    arr.sort(function(a, b){ return b[0] - a[0]; });
-    return arr.map(function(r){ return '<div class="risk-row"><span class="rtag ' + (r[0] ? "now" : "") + '">' + (r[0] ? "Now" : "Watch") + "</span><span>" + r[1] + "</span></div>"; }).join("");
-  }
-  var nowN = no.concat(fail).filter(function(r){ return r[0]; }).length;
-  return '<div class="risk"><p class="risk-h">Won\'t trigger if…</p>' + list(no) + '<p class="risk-h">Likely to fail if…</p>' + list(fail) +
-    '<p class="muted small" style="margin:8px 0 0">' + (on ? "Levels from today's " + esc(SWING[key].name) + " list." : "Levels the " + esc(SWING[key].name) + " rules would use for this stock.") +
-    " " + (nowN ? "<b>" + nowN + " already present.</b>" : "None present right now.") + " Rule-based, from the latest close: market study, not advice.</p></div>";
+  return riskList(no, fail, on ? "Levels from today's " + esc(SWING[key].name) + " list." : "Levels the " + esc(SWING[key].name) + " rules would use for this stock.");
 }
 /* Intraday pages of the rule check: when an opening-range breakout in this stock won't trigger, and when it is
    likely to fail. Uses today's breakout scan for the stock when there is one (range, VWAP, breakout volume, stop). */
 function riskList(no, fail, foot, noHtml){
   function list(arr){
     arr.sort(function(a, b){ return b[0] - a[0]; });
-    return arr.map(function(r){ return '<div class="risk-row"><span class="rtag ' + (r[0] ? "now" : "") + '">' + (r[0] ? "Now" : "Watch") + "</span><span>" + r[1] + "</span></div>"; }).join("");
+    return arr.map(function(r){ return '<div class="risk-row' + (r[0] ? " is-hot" : "") + '">' + (r[0] ? '<span class="rtag is-now">Now</span>' : '<span class="rtag">Watch</span>') + "<span>" + r[1] + "</span></div>"; }).join("");
   }
   var nowN = no.concat(fail).filter(function(r){ return r[0]; }).length;
-  return '<div class="risk">' + (noHtml || '<p class="risk-h">Won\'t trigger if…</p>' + list(no)) + '<p class="risk-h">Likely to fail if…</p>' + list(fail) +
-    '<p class="muted small" style="margin:8px 0 0">' + foot + " " + (nowN ? "<b>" + nowN + " already present.</b>" : "None present right now.") + " Rule-based: market study, not advice.</p></div>";
+  return {now:nowN, html:(noHtml || '<p class="risk-h">Won\'t trigger if…</p>' + list(no)) + '<p class="risk-h">Likely to fail if…</p>' + list(fail) +
+    '<p class="muted small" style="margin:6px 0 0">' + foot + "</p>"};
 }
 function riskIntraday(sym, x, s){
-  var k = x.k; if (!k || !ok(k.p)) return "";
+  var k = x.k; if (!k || !ok(k.p)) return null;
   var long = s === 1, word = long ? "high" : "low", t = ist();
   var orb = st.orb && st.orb.rows ? st.orb.rows.filter(function(r){ return r.symbol === sym && r.side === (long ? "long" : "short"); })[0] : null;
   var O = orb || {};   // safe to read even when the stock has no scan row
@@ -2086,10 +2086,28 @@ function riskIntraday(sym, x, s){
 }
 function showAnalysis(sym, x, o){
   var scores = x.groups.map(scoreOf);
+  // one page for when each setup won't trigger or is likely to fail, after the strategy pages
+  var risks = x.groups.map(function(g, gi){
+    var r = /^Intraday (long|short)/.test(g.name) ? riskIntraday(sym, x, /long/.test(g.name) ? 1 : -1) : /^Swing/.test(g.name) ? riskBlock(sym, x, g.name) : null;
+    return r ? {name:g.name, sc:scores[gi], pass:g.pass, r:r} : null;
+  }).filter(Boolean);
+  // setups the stock qualifies for come first, then the rest by % met; only qualifying setups count towards the alert
+  risks.sort(function(a, b){ return (b.pass - a.pass) || ((b.sc.pct || 0) - (a.sc.pct || 0)); });
+  var riskNow = risks.filter(function(v){ return v.pass; }).reduce(function(a, v){ return a + v.r.now; }, 0), RI = x.groups.length;
+  var firstOther = risks.findIndex(function(v){ return !v.pass; });
+  var riskPage = risks.length ? '<div class="glass tile"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;margin-bottom:2px"><b>Won\'t trigger / likely to fail</b>' +
+      '<span class="pill ' + (riskNow ? "down" : "") + '">' + (riskNow ? riskNow + " now" : "None now") + "</span></div>" +
+      '<p class="muted small" style="margin:0 0 4px">For each setup: what would stop it from triggering, and what tends to make it fail once taken. Lines marked Now are already true for ' + esc(sym) + "; the rest are levels to watch. " +
+        (risks.some(function(v){ return v.pass; }) ? "The count covers the setups " + esc(sym) + " qualifies for." : esc(sym) + " doesn't qualify for any setup today, so nothing is flagged.") + "</p>" +
+      risks.map(function(v, i){
+        return (i === firstOther && i > 0 ? '<p class="risk-sep">Setups ' + esc(sym) + " doesn't qualify for</p>" : "") + '<div class="risk' + (v.r.now ? " has-now" : "") + (v.pass ? " qual" : "") + '"><p class="risk-group"><b>' + esc(shortName(v.name)) + "</b><span>" + (v.sc.pct === null ? "" : v.sc.pct + "% met") + (v.pass ? ", meets the rules" : "") +
+          (v.r.now ? ' · <b class="' + (v.pass ? "down" : "") + '">' + v.r.now + " now</b>" : "") + "</span></p>" + v.r.html + "</div>";
+      }).join("") + '<p class="muted small" style="margin:10px 0 0">Rule-based, from the latest prices: market study, not advice.</p></div>' : "";
   var strip = '<div class="an-strip" role="tablist">' + x.groups.map(function(g, gi){
     var sc = scores[gi];
     return '<button type="button" role="tab" class="glass" data-ang="' + gi + '"' + (gi === 0 ? ' aria-selected="true"' : "") + '><b class="' + (sc.pct >= 75 ? "up" : sc.pct !== null && sc.pct < 40 ? "down" : "") + '">' + (sc.pct === null ? "–" : sc.pct + "%") + "</b><span>" + esc(shortName(g.name)) + "</span></button>";
-  }).join("") + "</div>";
+  }).join("") + (riskPage ? '<button type="button" role="tab" class="glass' + (riskNow ? " alert" : "") + '" data-ang="' + RI + '">' + (riskNow ? '<i class="badge">' + riskNow + " now</i>" : "") +
+    "<b class=\"" + (riskNow ? "down" : "") + "\">" + (riskNow || "–") + "</b><span>Won't trigger / fail</span></button>" : "") + "</div>";
   var groups = x.groups.map(function(g, gi){
     var req = g.items.filter(function(i){ return !i[4]; }), fac = g.items.filter(function(i){ return i[4]; }), sc = scores[gi];
     function row(i){
@@ -2104,13 +2122,13 @@ function showAnalysis(sym, x, o){
         (g.pass ? "<b class=\"up\">Meets every required rule.</b>" : "Required rules met: " + req.filter(function(i){ return i[1] === true; }).length + " of " + req.length + ".") + "</p>" +
       req.map(row).join("") +
       (fac.length ? '<p class="muted small" style="margin:10px 0 2px">Ranking factors (not required, they decide the order)</p>' + fac.map(row).join("") : "") +
-      (/^Swing/.test(g.name) ? '<p class="muted small" style="margin:8px 0 0">Also needs the price and turnover filters on the Liquidity page.</p>' + riskBlock(sym, x, g.name) : "") +
-      (/^Intraday (long|short)/.test(g.name) ? riskIntraday(sym, x, /long/.test(g.name) ? 1 : -1) : "") + "</div>";
+      (/^Swing/.test(g.name) ? '<p class="muted small" style="margin:8px 0 0">Also needs the price and turnover filters on the Liquidity page.</p>' : "") + "</div>";
   }).join("");
   var arrow = function(id, d, label){ return '<button class="arrow" id="' + id + '" type="button" aria-label="' + label + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="' + d + '"/></svg></button>'; };
   var nav = '<div class="pagenav an-nav">' + arrow("an-prev", "M15 5l-7 7 7 7", "Previous setup") +
-    '<div class="dots" id="an-dots">' + x.groups.map(function(g, gi){ return '<button type="button" data-ang="' + gi + '" aria-label="' + esc(shortName(g.name)) + '"' + (gi === 0 ? ' aria-current="true"' : "") + "></button>"; }).join("") + "</div>" +
-    '<span class="pageno" id="an-no">1 / ' + x.groups.length + "</span>" + arrow("an-next", "M9 5l7 7-7 7", "Next setup") + "</div>";
+    '<div class="dots" id="an-dots">' + x.groups.map(function(g, gi){ return '<button type="button" data-ang="' + gi + '" aria-label="' + esc(shortName(g.name)) + '"' + (gi === 0 ? ' aria-current="true"' : "") + "></button>"; }).join("") +
+      (riskPage ? '<button type="button" data-ang="' + RI + '" aria-label="Won\'t trigger / fail"></button>' : "") + "</div>" +
+    '<span class="pageno" id="an-no">1 / ' + (x.groups.length + (riskPage ? 1 : 0)) + "</span>" + arrow("an-next", "M9 5l7 7-7 7", "Next setup") + "</div>";
   var lists = !o.fno ? "Not an F&amp;O stock, so it isn't on the screen (the screener lists F&amp;O stocks only) and futures open interest isn't available. The scores count only the checks with data." :
     x.lists && x.lists.length ? "On today's screen: <b>" + esc(x.lists.join(", ")) + "</b>." :
     "Not on today's screen. A stock can meet the rules and still be left out, because only the highest-ranked ones are listed.";
@@ -2119,11 +2137,11 @@ function showAnalysis(sym, x, o){
   var sub = o.fno ? (indOf(x.industry) || "F&O stock") + " · NSE F&O" : (x.name ? x.name + " · " : "") + (x.exchange || "") + (indOf(x.industry) ? " · " + x.industry : "");
   openSheet("<h3>" + esc(sym) + ': rule check</h3><p class="muted small" style="margin:0">' + esc(sub) +
       ". Prices to the close of " + esc(niceDate(o.as_of)) + ".</p>" + line + strip +
-    '<p style="margin:10px 0">' + lists + (x.event ? " " + esc(x.event) + "." : "") + "</p>" + nav + '<div class="an-pager" id="an-pager">' + groups + "</div>" + nav.replace(/id="an-(prev|next|dots|no)"/g, 'data-an2="$1"') +
+    '<p style="margin:10px 0">' + lists + (x.event ? " " + esc(x.event) + "." : "") + "</p>" + nav + '<div class="an-pager" id="an-pager">' + groups + riskPage + "</div>" + nav.replace(/id="an-(prev|next|dots|no)"/g, 'data-an2="$1"') +
     '<p class="note">Swipe left or right, or tap a score, to move between setups. Scores are the share of each setup\'s checks the stock meets, counting only checks with data. A rule check for market study, not a recommendation or investment advice.</p>' +
     '<div class="gate-actions"><button class="btn ghost" id="an-close" type="button">Close</button>' + (o.fno ? '<button class="btn gold" id="an-trade" type="button">Paper trade</button>' : "") + "</div>");
   $("#an-close").onclick = closeSheet;
-  anPager(x.groups.length);
+  anPager(x.groups.length + (riskPage ? 1 : 0));
   if (o.fno) $("#an-trade").onclick = function(){ closeSheet(); tradeForm({symbol:sym, listId:st.list || T.lists[0].id}); };
 }
 
