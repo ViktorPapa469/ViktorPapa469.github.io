@@ -214,6 +214,7 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .seg-scroll button{flex:0 0 auto;padding:6px 12px;white-space:nowrap}
 .allst td,.allst th{font-size:12px;padding:5px 3px}.allst tbody tr{cursor:pointer}.allst td.pass{color:var(--up);font-weight:600}
 .allst td.avg{font-weight:600}.allst td:first-child{font-weight:600;max-width:96px;overflow:hidden;text-overflow:ellipsis}
+.assess p{margin:0 0 10px;line-height:1.55;font-size:14.5px}.assess p:last-child{margin:0}
 .livetag{font-size:10px;color:var(--ink3);font-weight:500;letter-spacing:.02em}
 .sugg{margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--glass-hi)}
 .sugg button{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline;width:100%;padding:9px 12px;background:none;border:0;border-bottom:1px solid var(--line);color:inherit;text-align:left;font:inherit;font-size:13.5px;cursor:pointer}
@@ -1137,6 +1138,118 @@ function emptyState(){
 }
 
 /* ---- Plan: market, sectors, results, checklist */
+/* A plain-language reading of the Plan page's figures: trend, today's move, banks, volatility, flows, world markets,
+   sectors, then the balance of signals and the level that would change it. Rule-based text, not advice. */
+function assessment(p, L){
+  var r = p.regime || {}, out = [], score = 0, signals = 0, li = L && L.indices || {};
+  var live = L && (L.phase === "open" || L.phase === "preopen" || L.phase === "closed") && li["NIFTY 50"] && ok(li["NIFTY 50"].last);
+  var f1 = function(x){ return (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(1) + "%"; }, f2 = function(x){ return (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(2) + "%"; };
+  var vote = function(v){ signals++; score += v; };
+  if (!ok(r.nifty)) return "";
+
+  // 1. trend
+  var e20 = ok(r.nifty_vs20) ? r.nifty / (1 + r.nifty_vs20 / 100) : null, e50 = ok(r.nifty_vs50) ? r.nifty / (1 + r.nifty_vs50 / 100) : null;
+  var t = "At the last close Nifty was " + n(r.nifty) + ", " + (r.nifty_vs20 >= 0 ? "above" : "below") + " its 20-day average by " + Math.abs(r.nifty_vs20).toFixed(1) + "% and " +
+    (r.nifty_vs50 >= 0 ? "above" : "below") + " its 50-day by " + Math.abs(r.nifty_vs50).toFixed(1) + "%" + (ok(r.nifty_ret5) ? ", " + f1(r.nifty_ret5) + " over the last 5 sessions" : "") + ". ";
+  if (r.label === "Uptrend"){ t += "Short- and medium-term trends point up: dips have been getting bought."; vote(2); }
+  else if (r.label === "Downtrend"){ t += "Both trends point down: rallies are more likely to be sold until the index gets back above its 20-day average."; vote(-2); }
+  else { t += r.nifty_vs20 >= 0 && r.nifty_vs50 < 0 ? "Price has bounced above the 20-day but is still under the 50-day: a recovery that isn't confirmed yet." :
+                r.nifty_vs20 < 0 && r.nifty_vs50 >= 0 ? "Price has slipped under the 20-day while holding the 50-day: a pullback inside a larger uptrend, so far." :
+                "The averages are tangled: no clear trend, so moves tend to fade."; vote(r.nifty_vs50 >= 0 ? 0.5 : -0.5); }
+  out.push(t);
+
+  // 2. today's move and breadth (live) or the last session's
+  var nn = live ? li["NIFTY 50"] : null, nchg = nn ? nn.chg : r.nifty_chg, bk = live && li["BANK NIFTY"] ? li["BANK NIFTY"].chg : r.bank_chg;
+  t = "";
+  if (live && L.phase !== "closed") t += "Live at " + liveHM() + ", Nifty is " + n(nn.last) + " (" + f2(nn.chg) + " today). ";
+  else if (live) t += "Today Nifty closed " + f2(nn.chg) + " at " + n(nn.last) + ". ";
+  if (L && L.breadth && (L.breadth.adv + L.breadth.dec) > 20){
+    var a = L.breadth.adv, d = L.breadth.dec, share = a / (a + d);
+    t += a + " F&O stocks are up and " + d + " down: " + (share >= 0.65 ? "broad buying, the move has wide support." : share <= 0.35 ? "broad selling, most stocks are falling with the index." : "a mixed tape, stock picking matters more than the index.") + " ";
+    vote(share >= 0.65 ? 1 : share <= 0.35 ? -1 : 0);
+  } else if (p.preopen && String(p.generated).slice(0, 10) === p.date){
+    t += "In the pre-open " + p.preopen.adv + " F&O stocks were indicated higher and " + p.preopen.dec + " lower (average " + f2(p.preopen.avg) + "). ";
+  }
+  if (ok(bk) && ok(nchg)){
+    var gap = bk - nchg;
+    t += Math.abs(gap) < 0.3 ? "Bank Nifty moved in line with Nifty (" + f2(bk) + ")." :
+      gap < 0 ? "Bank Nifty did worse (" + f2(bk) + " against " + f2(nchg) + "): banks, which carry a large weight in Nifty, are dragging on the index." :
+                "Bank Nifty did better (" + f2(bk) + " against " + f2(nchg) + "): banks are supporting the index.";
+    if (Math.abs(gap) >= 0.3) vote(gap > 0 ? 0.5 : -0.5);
+  }
+  if (t) out.push(t);
+
+  // 3. volatility
+  var vx = live && li["INDIA VIX"] ? li["INDIA VIX"].last : r.vix, vc = live && li["INDIA VIX"] ? li["INDIA VIX"].chg : r.vix_chg;
+  if (ok(vx)){
+    var lvl = vx < 12 ? "very low: a calm market, where breakouts often lack follow-through" : vx < 15 ? "low to normal" : vx < 18 ? "normal" : vx < 22 ? "elevated: expect wider swings" : "high: a fearful market with large swings both ways";
+    t = "India VIX is " + vx.toFixed(2) + (ok(vc) ? " (" + f1(vc) + ")" : "") + ", " + lvl + ". ";
+    if (ok(vc) && vc >= 5) t += "The quick rise shows growing nervousness; options are pricing bigger moves, so stops need room and positions should be smaller.";
+    else if (ok(vc) && vc <= -5) t += "It is easing quickly, which usually goes with steadier prices.";
+    out.push(t);
+    vote(vx >= 22 || (ok(vc) && vc >= 5) ? -0.5 : vx < 15 && ok(vc) && vc < 0 ? 0.5 : 0);
+  }
+
+  // 4. institutional flows
+  var fl = {}; (p.fii_dii || []).forEach(function(f){ fl[/FII|FPI/i.test(f.category) ? "fii" : /DII/i.test(f.category) ? "dii" : "x"] = f; });
+  if (fl.fii && fl.dii && ok(fl.fii.net_cr) && ok(fl.dii.net_cr)){
+    var fi = fl.fii.net_cr, di = fl.dii.net_cr, cr = function(x){ return "₹" + n(Math.abs(Math.round(x))) + " cr"; };
+    t = "On " + esc(fl.fii.date || "the last session") + " foreign investors " + (fi >= 0 ? "bought " : "sold ") + cr(fi) + " and domestic institutions " + (di >= 0 ? "bought " : "sold ") + cr(di) + " in cash shares. ";
+    t += fi >= 0 && di >= 0 ? "Buying from both is supportive." :
+         fi < 0 && di >= 0 ? (di >= -fi ? "Domestic buying more than absorbed the foreign selling, which tends to cushion falls." : "Domestic buying absorbed only part of the foreign selling: net pressure stays on large caps.") :
+         fi >= 0 && di < 0 ? "Foreign buying with domestic selling: often a sign of foreign money returning." : "Both selling: a weak backdrop.";
+    if (Math.abs(fi) < 500 && Math.abs(di) < 500) t += " The amounts are small, so flows aren't a strong signal today.";
+    out.push(t);
+    vote(fi >= 0 && di >= 0 ? 1 : fi < 0 && di < 0 ? -1 : fi < 0 ? (di >= -fi ? 0 : -0.5) : 0.5);
+  }
+
+  // 5. world markets and GIFT Nifty
+  var cues = L && L.cues && L.cues.length ? L.cues : (p.cues || []), C_ = {};
+  cues.forEach(function(c){ C_[c.name.replace(/ futures$/, "")] = c.chg_pct; });
+  var us = ok(C_["S&P 500"]) ? C_["S&P 500"] : null, asia = [C_.Nikkei, C_["Hang Seng"]].filter(ok);
+  var bits = [];
+  if (us !== null) bits.push("US stocks " + (Math.abs(us) < 0.3 ? "were flat" : us > 0 ? "rose" : "fell") + " (S&P 500 " + f2(us) + (ok(C_.Nasdaq) ? ", Nasdaq " + f2(C_.Nasdaq) : "") + ")");
+  if (asia.length){ var am = asia.reduce(function(a, x){ return a + x; }, 0) / asia.length; bits.push("Asia was " + (Math.abs(am) < 0.4 || (asia.length > 1 && asia[0] * asia[1] < 0) ? "mixed" : am > 0 ? "firm" : "weak") + " (Nikkei " + (ok(C_.Nikkei) ? f2(C_.Nikkei) : "–") + ", Hang Seng " + (ok(C_["Hang Seng"]) ? f2(C_["Hang Seng"]) : "–") + ")"); }
+  if (bits.length){
+    t = bits.join("; ") + ". ";
+    if (ok(C_["USD/INR"]) && Math.abs(C_["USD/INR"]) >= 0.2) t += C_["USD/INR"] > 0 ? "The rupee weakened (USD/INR " + f2(C_["USD/INR"]) + "), which makes Indian shares less attractive to foreign investors. " : "The rupee strengthened (USD/INR " + f2(C_["USD/INR"]) + "), which helps foreign flows. ";
+    if (ok(C_["Brent crude"]) && Math.abs(C_["Brent crude"]) >= 1) t += C_["Brent crude"] > 0 ? "Crude rose " + f1(C_["Brent crude"]) + ": a cost for India as an oil importer, weighing on oil marketers, paints and airlines. " : "Crude fell " + f1(Math.abs(C_["Brent crude"])) + ": good for India's import bill and for oil marketers, paints and airlines. ";
+    var g = (us || 0) + (asia.length ? asia.reduce(function(a, x){ return a + x; }, 0) / asia.length : 0) - (ok(C_["USD/INR"]) ? C_["USD/INR"] : 0);
+    vote(g > 0.6 ? 0.5 : g < -0.6 ? -0.5 : 0);
+    if (L && L.gift && ok(L.gift.last) && ok(r.nifty) && L.phase !== "open" && L.phase !== "closed"){
+      var gp = (L.gift.last / (nn && nn.prev ? nn.prev : r.nifty) - 1) * 100;
+      t += "GIFT Nifty at " + n(L.gift.last) + " points to " + (Math.abs(gp) < 0.2 ? "a flat open." : (gp > 0 ? "a gap up" : "a gap down") + " of about " + Math.abs(gp).toFixed(1) + "%.");
+      vote(gp >= 0.4 ? 0.5 : gp <= -0.4 ? -0.5 : 0);
+    }
+    out.push(t);
+  }
+
+  // 6. sectors
+  var secs = p.sectors || [];
+  if (secs.length >= 4){
+    var nm = function(x){ return x.name.replace(/ and .*| & .*/, "").replace(/Fast Moving Consumer Goods/, "FMCG"); };
+    var strong = secs.slice(0, 2).filter(function(x){ return x.score > 0; }), weak = secs.slice(-2).reverse().filter(function(x){ return x.score < 0; });
+    t = (strong.length ? "Money is favouring " + strong.map(function(x, i){ return esc(nm(x)) + " (" + f1(x.rs20) + (i ? ")" : " vs Nifty over 20 days)"); }).join(" and ") : "No sector is beating Nifty clearly") +
+        (weak.length ? "; the weakest are " + weak.map(function(x){ return esc(nm(x)) + " (" + f1(x.rs20) + ")"; }).join(" and ") : "") + ". ";
+    var pos = secs.filter(function(x){ return x.score > 0; }).length;
+    t += pos <= secs.length / 4 ? "Only " + pos + " of " + secs.length + " sectors are outperforming: leadership is narrow." :
+         pos >= secs.length * 0.6 ? pos + " of " + secs.length + " sectors are outperforming: participation is broad." : "";
+    out.push(t);
+  }
+
+  // 7. balance of signals, what the screener does with it, and the level that would change the view
+  var avg = signals ? score / signals : 0;
+  var tone_ = avg >= 0.6 ? "clearly positive" : avg >= 0.2 ? "leaning positive" : avg > -0.2 ? "mixed, without an edge either way" : avg > -0.6 ? "leaning negative" : "clearly negative";
+  t = "Taken together the signals are " + tone_ + ". ";
+  t += r.label === "Uptrend" ? "That favours long setups in strong stocks and sectors; shorts only in clearly weak ones." :
+       r.label === "Downtrend" ? "That favours short setups in weak stocks and sectors; longs only in standout leaders, and swing buying methods such as CANSLIM stand aside." :
+       "That favours fewer trades and waiting for clean opening-range breaks.";
+  if (ok(r.size_mult) && r.size_mult < 1) t += " Suggested positions are cut to " + Math.round(r.size_mult * 100) + "%.";
+  if (e20 && e50) t += r.nifty < e20 ? " The view improves if Nifty closes back above its 20-day average, near " + n(Math.round(e20)) + (r.nifty < e50 ? ", and turns positive above the 50-day, near " + n(Math.round(e50)) : "") + "." :
+                       " The view weakens if Nifty closes below its 20-day average, near " + n(Math.round(e20)) + (r.nifty > e50 ? ", and turns negative below the 50-day, near " + n(Math.round(e50)) : "") + ".";
+  out.push(t);
+  return '<div class="glass tile assess">' + out.map(function(x){ return "<p>" + x + "</p>"; }).join("") + '<p class="muted small">* Do not trust, this is system-generated text.</p></div>';
+}
 function viewPlan(){
   var p = st.pre, r = p.regime || {};
   var cls = r.label === "Uptrend" ? "up" : r.label === "Downtrend" ? "down" : "gold";
@@ -1162,6 +1275,7 @@ function viewPlan(){
         "From the screen at " + esc(stamp(p.generated)) + ". Live figures arrive every minute from 9:00 to 3:30.") + "</p></div>" +
     (cues ? '<div class="glass tile"><div class="cues">' + cues + "</div>" + '<p class="muted small" style="margin:8px 0 0">' +
       (liveCues ? "World markets live at " + esc(liveHM()) + ", updated from 8:00." : "World markets from the screen at " + esc(hmOf(p.generated)) + "; live from 8:00 on trading days.") + "</p></div>" : "") +
+    assessment(p, L) +
     ((p.notes || []).length ? '<p class="note">Unavailable this run: ' + esc(p.notes.join(", ")) + ".</p>" : "");
 
   var secs = p.sectors || [], mx = secs.reduce(function(m, s){ return Math.max(m, Math.abs(s.score || 0)); }, 0) || 1;
