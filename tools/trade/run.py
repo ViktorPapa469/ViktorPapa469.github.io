@@ -124,6 +124,8 @@ def premarket(demo, open_browser=True, json_dir=None):
     fii = src.fii_dii()
     events = src.events()
     pre = src.preopen()
+    if session_date(demo) > today:   # built after the close for the next session: today's pre-open says nothing about it
+        pre = pre.iloc[0:0]
     cues = src.global_cues()
 
     regime = analysis.market_regime(indices)

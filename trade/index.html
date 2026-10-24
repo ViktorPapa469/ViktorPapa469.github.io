@@ -1311,6 +1311,22 @@ function viewPlan(){
   ];
 }
 
+/* Intraday cautions are about taking a new trade, so they stop when that decision has passed:
+   the pre-open gap note only on the morning's own screen and until 9:45 (the opening range has formed by then);
+   every other caution until 11:00, when the breakout window closes and no new trades are taken from the list.
+   A preview for the next session keeps the planning cautions (counter-trend, results) but never a gap note. */
+function entryWindowOpen(){
+  var p = st.pre, t = ist(); if (!p) return false;
+  return p.date > t.date || (p.date === t.date && t.mins < 660);
+}
+function liveWarnings(list){
+  var p = st.pre, t = ist(), preview = p && String(p.generated).slice(0, 10) < p.date;
+  return (list || []).filter(function(w){
+    if (/^Pre-open gap/.test(w)) return !preview && p.date === t.date && t.mins < 585;
+    return entryWindowOpen();
+  });
+}
+
 /* ---- Intraday: three stocks a page */
 function orbFor(sym){ return st.orb && st.orb.rows ? st.orb.rows.filter(function(r){ return r.symbol === sym; })[0] : null; }
 var STATUS = {"TRIGGERED":["go","Triggered"], "TRIGGERED (weak RS)":["weak","Triggered, weak"], "FAILED":["fail","Failed"],
@@ -1367,7 +1383,7 @@ function viewIntraday(){
         '<div><span>Prev high</span><b>' + rs(x.pdh) + "</b></div><div><span>Prev low</span><b>" + rs(x.pdl) + "</b></div>" +
         '<div><span>Daily ATR</span><b>' + rs(x.atr) + "</b></div></div>" +
       (live ? "" : '<p class="why" style="margin-top:6px">Stop and targets are distances from the entry, which the 9:30 range sets.' + (lots(q, x.lot) ? " Position" + lots(q, x.lot) + "." : "") + "</p>") +
-      (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(w) + "</div>"; }).join("") +
+      liveWarnings(x.warnings).map(function(w){ return '<div class="warn">' + esc(w) + "</div>"; }).join("") +
       ohlc(x.symbol) +
       '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="intra:' + st.side + ":" + i + '">Paper trade</button>' + anBtn(x.symbol) + "</div>" +
       "</article>";
@@ -1420,8 +1436,8 @@ function ticket(r, mult){
     "<div><span>Target 3R</span><b>" + rs(r.t2) + "</b></div><div><span>Since</span><b>" + esc(r.trigger_time || "–") + "</b></div></div>" +
     '<p class="why">Suggested position ' + n(q) + " shares" + (ok(r.lot) && r.lot > 0 && q >= r.lot ? ", " + (q / r.lot).toFixed(1) + " lots" : "") + ".</p>" +
     outcomeNote(r.symbol, r.side, st.orb && st.orb.date) +
-    (r.extended && !(outcomeOf(r.symbol, r.side, st.orb && st.orb.date) || {}).done ? '<div class="warn">Already more than 1R past entry. Don\'t chase; wait for a pullback toward VWAP or skip.</div>' : "") +
-    (r.status === "TRIGGERED (weak RS)" && !(outcomeOf(r.symbol, r.side, st.orb && st.orb.date) || {}).done ? '<div class="warn">Broke out but isn\'t beating Nifty. Half size or skip.</div>' : "") +
+    (r.extended && entryWindowOpen() && !(outcomeOf(r.symbol, r.side, st.orb && st.orb.date) || {}).done ? '<div class="warn">Already more than 1R past entry. Don\'t chase; wait for a pullback toward VWAP or skip.</div>' : "") +
+    (r.status === "TRIGGERED (weak RS)" && entryWindowOpen() && !(outcomeOf(r.symbol, r.side, st.orb && st.orb.date) || {}).done ? '<div class="warn">Broke out but isn\'t beating Nifty. Half size or skip.</div>' : "") +
     ohlc(r.symbol) +
     '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="live:' + esc(r.symbol) + '">Paper trade</button>' + anBtn(r.symbol) + "</div>" +
     "</div>";
@@ -1498,6 +1514,7 @@ var GLOSSARY = [
   ["Breakout scan", "The check every 5 minutes from 9:31 to 11:00 of each screened stock against its opening range, VWAP and Nifty. Its results are on the Live tab."],
   ["Breakout window", "9:30 to 11:00: when opening-range breakouts are watched."],
   ["BSE", "BSE Ltd, India's other main stock exchange. Analyse covers BSE-only stocks too."],
+  ["Caution (yellow note)", "A warning on a setup about taking the trade: a big pre-open gap (shown on the morning screen until 9:45), counter-trend or results day (until 11:00, when the breakout window closes). After that no new trades are taken from the list, so the notes go away."],
   ["Capital", "The amount you set in Settings. Used only to size suggested positions; the app never handles money."],
   ["Cautious reading", "When a stop and a target both fall inside the same price bar, the order can't be known, so the stop is assumed to have come first."],
   ["Closed 3:15", "An intraday setup that reached neither stop nor target: it's closed at 3:15 PM, before the market's close."],
