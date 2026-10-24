@@ -42,7 +42,7 @@ def _pick(p, keys):
 INTRADAY_KEYS = ("symbol", "industry", "side", "price", "chg1", "score", "reasons", "warnings",
                  "pdh", "pdl", "atr", "lot", "gap_pct", "est_stop_dist")
 SWING_KEYS = ("symbol", "industry", "setup", "price", "chg1", "score", "reasons", "warnings",
-              "entry", "stop", "t1", "t2", "risk_pct", "lot")
+              "entry", "stop", "t1", "t2", "risk_pct", "lot", "counter")
 ORB_KEYS = ("symbol", "side", "industry", "lot", "status", "last", "chg", "rs", "orh", "orl", "vwap",
             "trigger_time", "breakout_vol", "entry", "stop", "t1", "t2", "extended")
 

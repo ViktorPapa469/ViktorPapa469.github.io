@@ -222,6 +222,11 @@ def screen(daily, nifty_df, fo, industries, events, preopen, regime, today, fund
     pullbacks = _pullbacks(feat, top, mult)
     bases = _bases(feat.drop(index=[p["symbol"] for p in pullbacks]), top, mult)
     canslim, minervini = _by_rules(feat, top, bottom, mult)
+    if regime.get("label") == "Downtrend":   # swing longs against the index: flagged and half size, like intraday counter-trend
+        for row in pullbacks + bases + canslim + minervini:
+            row["counter"] = True
+            row["qty"] = row.get("qty", 0) // 2
+            row["warnings"] = ["Counter-trend: Nifty is in a downtrend - half size or skip"] + row.get("warnings", [])
     return {"features": feat, "sectors": sectors, "longs": longs, "shorts": shorts,
             "pullbacks": pullbacks, "bases": bases, "canslim": canslim, "minervini": minervini,
             "liquid_count": len(liquid), "top": top, "bottom": bottom,

@@ -1644,7 +1644,7 @@ var SWING = {
 function viewSwing(){
   var p = st.pre, key = st.swing, S_ = SWING[key] || SWING.pullbacks, list = p[key] || [], mult = p.regime && p.regime.size_mult;
   var cards = list.map(function(x, i){
-    var q = qty(x.entry, x.entry - x.stop, mult);
+    var q = qty(x.entry, x.entry - x.stop, (mult || 1) * (x.counter ? 0.5 : 1));   // counter-trend: half size
     return '<article class="stock glass"><div class="head"><span><span class="sym">' + esc(x.symbol) + '</span><span class="ind">' + esc(indOf(x.industry)) + "</span></span>" +
       pxTag(x.symbol, x.price, x.chg1) + "</div>" +
       '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
@@ -2097,7 +2097,7 @@ function showAnalysis(sym, x, o){
   var firstOther = risks.findIndex(function(v){ return !v.pass; });
   var riskPage = risks.length ? '<div class="glass tile"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;margin-bottom:2px"><b>Won\'t trigger / likely to fail</b>' +
       '<span class="pill ' + (riskNow ? "down" : "") + '">' + (riskNow ? riskNow + " now" : "None now") + "</span></div>" +
-      '<p class="muted small" style="margin:0 0 4px">For each setup: what would stop it from triggering, and what tends to make it fail once taken. Lines marked Now are already true for ' + esc(sym) + "; the rest are levels to watch. " +
+      '<p class="muted small" style="margin:0 0 4px">For each setup: what would stop it from triggering, and what tends to make it fail once taken. Lines marked Now are already true for ' + esc(sym) + "; the rest are levels to watch. A setup's own rules decide whether the stock is listed (one failing removes it); these are risks that make a listed setup more likely to fail, so they are flagged rather than removing it. " +
         (risks.some(function(v){ return v.pass; }) ? "The count covers the setups " + esc(sym) + " qualifies for." : esc(sym) + " doesn't qualify for any setup today, so nothing is flagged.") + "</p>" +
       risks.map(function(v, i){
         return (i === firstOther && i > 0 ? '<p class="risk-sep">Setups ' + esc(sym) + " doesn't qualify for</p>" : "") + '<div class="risk' + (v.r.now ? " has-now" : "") + (v.pass ? " qual" : "") + '"><p class="risk-group"><b>' + esc(shortName(v.name)) + "</b><span>" + (v.sc.pct === null ? "" : v.sc.pct + "% met") + (v.pass ? ", meets the rules" : "") +
@@ -2338,8 +2338,8 @@ function practiceFrom(ref){
     pre = {symbol:x.symbol, side:s === 1 ? "long" : "short", type:"intraday", entry:x.price, stop:+(x.price - s * x.est_stop_dist).toFixed(2), target:+(x.price + s * 2 * x.est_stop_dist).toFixed(2)}; }
   else if (p[0] === "live"){ var r = st.orb.rows.filter(function(y){ return y.symbol === p[1]; })[0];
     pre = {symbol:r.symbol, side:r.side, type:"intraday", entry:r.entry, stop:r.stop, target:r.t1, time:r.trigger_time && r.trigger_time > "09:15" ? r.trigger_time : null}; }
-  else { var w = st.pre[p[1]][+p[2]]; pre = {symbol:w.symbol, side:"long", type:"swing", entry:w.entry, stop:w.stop, target:w.t1}; }
-  pre.qty = qty(pre.entry, Math.abs(pre.entry - pre.stop), st.pre.regime && st.pre.regime.size_mult);
+  else { var w = st.pre[p[1]][+p[2]]; pre = {symbol:w.symbol, side:"long", type:"swing", entry:w.entry, stop:w.stop, target:w.t1, counter:w.counter}; }
+  pre.qty = qty(pre.entry, Math.abs(pre.entry - pre.stop), (st.pre.regime && st.pre.regime.size_mult || 1) * (pre.counter ? 0.5 : 1));
   if (!PX.daily) loadTestPrices();
   tradeForm(pre);
 }
