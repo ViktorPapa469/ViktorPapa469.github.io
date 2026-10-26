@@ -5,6 +5,7 @@
 #   MODE=morning    world markets every 2 min from 8:00, live prices every minute from 9:00, the screen ~9:10, breakout scans every 5 min 9:31-11:00, until 1:30 PM
 #   MODE=afternoon  live prices every minute from 1:30 PM to the close, with the 3:15 square-off reminder
 #   MODE=live       live prices every minute from now until the close (manual start)
+#   MODE=early      one update of GIFT Nifty (trades from 6:30) and the world markets
 #   MODE=premarket  just the screen
 #   MODE=orb        one breakout scan
 #   MODE=squareoff  the 3:15 reminder (only on days the market traded)
@@ -110,5 +111,7 @@ case "$MODE" in
     mark_done afternoon
     session 1531 ;;
   live) session 1531 ;;
+  early)   # GIFT Nifty opens at 6:30: one update of it and the world markets, long before the morning run
+    if [ "$(date +%u)" -le 5 ]; then python live.py "$PUB" && publish "early $(date '+%H:%M')"; fi ;;
   *) echo "unknown MODE $MODE"; exit 1 ;;
 esac

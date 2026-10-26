@@ -15,6 +15,8 @@ name: Opening Bell screener
 # Optional secrets TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID send the screen and each breakout to Telegram.
 on:
   schedule:
+    - cron: '7 1 * * 1-5'     # 06:37 IST early: GIFT Nifty (trades from 6:30) and world markets, once
+    - cron: '22 1 * * 1-5'    # 06:52 IST early, backup
     - cron: '23 2 * * 1-5'    # 07:53 IST morning (waits for the pre-open)
     - cron: '51 2 * * 1-5'    # 08:21 IST morning, backup
     - cron: '17 3 * * 1-5'    # 08:47 IST morning, backup
@@ -27,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'auto (by time of day), live (live prices every minute until the close), morning, afternoon, premarket (screen only), orb (one breakout scan), squareoff, market (all NSE and BSE stocks), track (track record only)'
+        description: 'auto (by time of day), live (live prices every minute until the close), morning, afternoon, early (GIFT Nifty and world markets once), premarket (screen only), orb (one breakout scan), squareoff, market (all NSE and BSE stocks), track (track record only)'
         default: auto
   push:
     branches: [main]
@@ -53,7 +55,8 @@ jobs:
       FB_PROJECT: opening-bell-4fdc9   # Opening Bell's own Firebase project
       FB_KEY: AIzaSyA7xZWmVuaRYNpyCHi5jVMnSIwDK-6mCL0   # its public web key (also in trade/index.html)
       # a push (new code) just refreshes the screen, without notifications; schedules and manual runs follow the time of day
-      MODE: ${{ github.event_name == 'push' && 'premarket' || (github.event.schedule == '13 7 * * 1-5' || github.event.schedule == '43 7 * * 1-5' || github.event.schedule == '11 8 * * 1-5') && 'afternoon' || github.event.inputs.mode || 'auto' }}
+      MODE: ${{ github.event_name == 'push' && 'premarket' || (github.event.schedule == '13 7 * * 1-5' || github.event.schedule == '43 7 * * 1-5' || github.event.schedule == '11 8 * * 1-5') && 'afternoon' ||
+            (github.event.schedule == '7 1 * * 1-5' || github.event.schedule == '22 1 * * 1-5') && 'early' || github.event.inputs.mode || 'auto' }}
       NOTIFY: ${{ github.event_name == 'push' && '0' || '1' }}
     steps:
       - uses: actions/checkout@v4
