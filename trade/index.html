@@ -236,6 +236,7 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .win.high{background:var(--up-soft);color:var(--up)}.win.medium{background:var(--gold-soft);color:var(--gold)}.win.low{background:var(--down-soft);color:var(--down)}
 .ranked th:nth-child(2),.ranked td:nth-child(2),.ranked th:nth-child(3),.ranked td:nth-child(3){text-align:left}.ranked td:first-child{font-weight:400;color:var(--ink2)}
 .ranked td.win-high{color:var(--up);font-weight:600}.ranked td.win-medium{color:var(--gold);font-weight:600}.ranked td.win-low{color:var(--down);font-weight:600}
+.inr{display:block;font-size:11.5px;font-weight:500;opacity:.8;margin-top:1px}
 .livetag{font-size:10px;color:var(--ink3);font-weight:500;letter-spacing:.02em}
 .sugg{margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--glass-hi)}
 .sugg button{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline;width:100%;padding:9px 12px;background:none;border:0;border-bottom:1px solid var(--line);color:inherit;text-align:left;font:inherit;font-size:13.5px;cursor:pointer}
@@ -377,7 +378,12 @@ function ok(x){ return typeof x === "number" && isFinite(x); }
 function rs(x, d){ if (!ok(x)) return "–"; d = d == null ? 2 : d; return "₹" + x.toLocaleString("en-IN", {minimumFractionDigits:d, maximumFractionDigits:d}); }
 function n(x, d){ return ok(x) ? x.toLocaleString("en-IN", {minimumFractionDigits:d||0, maximumFractionDigits:d||0}) : "–"; }
 function pc(x, d){ if (!ok(x)) return "–"; d = d == null ? 2 : d; return (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(d) + "%"; }
-function rr(x){ return ok(x) ? (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(2) + "R" : "–"; }
+/* R results with their rupee value in brackets: 1R = your risk per trade (capital x risk %, Settings) */
+function oneR(){ var u = (+S.capital || 0) * (+S.risk || 0) / 100; return u > 0 ? u : 0; }
+function inr(x){ var u = oneR(); return ok(x) && u ? "(" + (x > 0 ? "+" : x < 0 ? "−" : "") + "₹" + n(Math.round(Math.abs(x * u))) + ")" : ""; }
+function rBare(x){ return ok(x) ? (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(2) + "R" : "–"; }
+function rr(x){ return rBare(x) + (ok(x) && oneR() ? " " + inr(x) : ""); }                      // inline text: "+2.25R (+₹5,625)"
+function rrH(x){ return rBare(x) + (ok(x) && oneR() ? '<small class="inr">' + inr(x) + "</small>" : ""); }   // tiles: rupees on the line below
 function tone(x){ return !ok(x) || x === 0 ? "" : x > 0 ? "up" : "down"; }
 function $(s){ return document.querySelector(s); }
 function indOf(x){ return x && x !== "Other" ? x : ""; }
@@ -1520,7 +1526,8 @@ function ticket(r, mult){
 }
 
 /* ---- Track record: how the screener's own setups worked out (track.json, built on GitHub by track.py) */
-function fmtR(r){ return ok(r) ? (r > 0 ? "+" : r < 0 ? "−" : "") + Math.abs(r).toFixed(2) + "R" : "–"; }
+function fmtR(r){ return rr(r); }
+function fmtRH(r){ return rrH(r); }
 function trackPages(kind){
   var T_ = st.track && st.track[kind], intra = kind === "intraday", name = intra ? "Intraday" : "Swing";
   if (!T_) return [page(name + " track record", '<div class="empty"><p>The track record builds up from the first trading day with the live scan. It updates every 15 minutes in market hours and after the close.</p></div>')];
@@ -1528,19 +1535,19 @@ function trackPages(kind){
   var fin = (R.profit || 0) + (R.loss || 0);
   var facts = [["Signals", n(R.signals)], ["Triggered", n(R.triggered)], ["Profitable", '<span class="up">' + n(R.profit) + "</span>"],
                ["Loss", '<span class="down">' + n(R.loss) + "</span>"], ["Open", n(R.open)],
-               ["Win rate", fin ? Math.round(R.profit / fin * 100) + "%" : "–"], ["Total", '<span class="' + tone(R.r) + '">' + fmtR(R.r) + "</span>"],
-               ["Average", '<span class="' + tone(R.r) + '">' + (fin ? fmtR(R.r / (fin + (R.flat || 0))) : "–") + "</span>"]];
+               ["Win rate", fin ? Math.round(R.profit / fin * 100) + "%" : "–"], ["Total", '<span class="' + tone(R.r) + '">' + fmtRH(R.r) + "</span>"],
+               ["Average", '<span class="' + tone(R.r) + '">' + (fin ? fmtRH(R.r / (fin + (R.flat || 0))) : "–") + "</span>"]];
   if (!intra) facts.splice(5, 0, ["Not triggered", n(R.not_triggered)]);
   var byDay = Object.keys(T_.by_day || {}).sort().reverse().map(function(d){
     var x = T_.by_day[d];
-    return "<tr><td>" + esc(niceDate(d)) + "</td><td>" + n(x.signals) + "</td><td>" + n(x.triggered) + '</td><td class="up">' + n(x.profit) + '</td><td class="down">' + n(x.loss) + '</td><td class="' + tone(x.r) + '">' + fmtR(x.r) + "</td></tr>";
+    return "<tr><td>" + esc(niceDate(d)) + "</td><td>" + n(x.signals) + "</td><td>" + n(x.triggered) + '</td><td class="up">' + n(x.profit) + '</td><td class="down">' + n(x.loss) + '</td><td class="' + tone(x.r) + '">' + fmtRH(x.r) + "</td></tr>";
   }).join("");
   var older = A.triggered || A.signals ? '<div class="glass tile"><b>Before ' + esc(niceDate(A.to)) + " (counts only)</b>" +
       '<div class="facts" style="margin-top:6px"><div class="fact"><b>' + n(A.triggered) + "</b><span>Triggered of " + n(A.signals) + '</span></div><div class="fact"><b class="up">' + n(A.profit) +
-      '</b><span>Profitable</span></div><div class="fact"><b class="down">' + n(A.loss) + '</b><span>Loss</span></div><div class="fact"><b class="' + tone(A.r) + '">' + fmtR(A.r) + "</b><span>Total</span></div></div></div>" :
+      '</b><span>Profitable</span></div><div class="fact"><b class="down">' + n(A.loss) + '</b><span>Loss</span></div><div class="fact"><b class="' + tone(A.r) + '">' + fmtRH(A.r) + "</b><span>Total</span></div></div></div>" :
     '<p class="note">Setups are kept in detail for ' + days + " days; after that only the counts are kept, here.</p>";
   var head = '<div class="glass tile"><div class="facts">' + facts.map(function(f){ return '<div class="fact"><b>' + f[1] + "</b><span>" + esc(f[0]) + "</span></div>"; }).join("") + "</div>" +
-      '<p class="muted small" style="margin:8px 0 0">Last ' + days + " days. " + esc((st.track.rules || {})[kind] || "") + " R is the stop distance; the cautious reading is used when a stop and a target fall in the same bar.</p></div>" +
+      '<p class="muted small" style="margin:8px 0 0">Last ' + days + " days. " + esc((st.track.rules || {})[kind] || "") + " R is the stop distance; the cautious reading is used when a stop and a target fall in the same bar." + (oneR() ? " Rupees in brackets: R × your risk per trade of ₹" + n(Math.round(oneR())) + " (capital × risk %, Settings)." : "") + "</p></div>" +
     (byDay ? '<div class="glass tile"><table class="trk"><thead><tr><th>Day</th><th>Signals</th><th>Trig.</th><th>Profit</th><th>Loss</th><th>Total</th></tr></thead><tbody>' + byDay + "</tbody></table></div>" : "") +
     older + '<p class="note">Rule outcomes on past prices for market study: not trades anyone made, and not a promise of future results. Updated ' + esc(niceDate(st.track.updated)) + " " + esc(hmOf(st.track.updated)) + ".</p>";
   var trades = (T_.trades || []).filter(function(t){ return intra || t.trig || t.outcome === "Not triggered" || t.outcome === "Waiting"; });
@@ -1553,7 +1560,7 @@ function trackPages(kind){
         '<span class="pill ' + cls + '">' + esc(lbl) + "</span></div>" +
       (t.trig ? '<div class="levels"><div><span>' + (t.fill && t.fill !== t.entry ? "Filled (gap)" : "Entry") + "</span><b>" + rs(entry) + "</b></div><div><span>Stop</span><b>" + rs(t.stop) + "</b></div>" +
         "<div><span>Exit" + (t.done ? "" : " (now)") + "</span><b>" + (ok(t.exit) ? rs(t.exit) : "–") + "</b></div><div><span>" + (intra ? "Target 1.5R" : "Target 2R") + "</span><b>" + rs(t.t1) + "</b></div>" +
-        "<div><span>Target 3R</span><b>" + rs(t.t2) + '</b></div><div><span>Result</span><b class="' + tone(t.r) + '">' + fmtR(t.r) + (ok(pct) ? " (" + pc(pct) + ")" : "") + "</b></div></div>" +
+        "<div><span>Target 3R</span><b>" + rs(t.t2) + '</b></div><div><span>Result</span><b class="' + tone(t.r) + '">' + rBare(t.r) + '<small class="inr">' + [inr(t.r).replace(/[()]/g, ""), ok(pct) ? pc(pct) : ""].filter(Boolean).join(", ").replace(/^(.+)$/, "($1)") + "</small></b></div></div>" +
         '<p class="why">' + esc(t.outcome) + (!intra && t.held ? ", " + t.held + (t.held === 1 ? " session" : " sessions") : "") + ".</p>"
       : '<p class="why">Setup above ' + rs(t.entry) + ", stop " + rs(t.stop) + "." + (t.outcome === "Waiting" ? " Watching for 3 sessions." : " Price never reached the level within 3 sessions.") + "</p>") + "</div>";
   });
@@ -1775,19 +1782,19 @@ function viewTest(){
   function stats(s){
     return '<div class="stats"><div class="fact"><b>' + s.closed + "</b><span>Closed</span></div>" +
       '<div class="fact"><b>' + (s.winRate == null ? "–" : Math.round(s.winRate) + "%") + "</b><span>Win rate</span></div>" +
-      '<div class="fact"><b class="' + tone(s.avgR) + '">' + rr(s.avgR) + "</b><span>Average</span></div>" +
-      '<div class="fact"><b class="' + tone(s.totalR) + '">' + rr(s.totalR) + "</b><span>Total closed</span></div>" +
+      '<div class="fact"><b class="' + tone(s.avgR) + '">' + rrH(s.avgR) + "</b><span>Average</span></div>" +
+      '<div class="fact"><b class="' + tone(s.totalR) + '">' + rrH(s.totalR) + "</b><span>Total closed</span></div>" +
       '<div class="fact"><b>' + s.open + "</b><span>Open</span></div>" +
-      '<div class="fact"><b class="' + tone(s.openR) + '">' + (s.open ? rr(s.openR) : "–") + "</b><span>Open now</span></div></div>";
+      '<div class="fact"><b class="' + tone(s.openR) + '">' + (s.open ? rrH(s.openR) : "–") + "</b><span>Open now</span></div></div>";
   }
   var asOf = PX.meta && PX.meta.updated ? "Prices up to " + niceDate(PX.meta.updated) + " " + hmOf(PX.meta.updated) + "." : "";
   function strip(s){   // the compact summary at the top of a watchlist
     return '<div class="stats"><div class="fact"><b>' + (s.closed + s.open) + "</b><span>Paper trades</span></div>" +
       '<div class="fact"><b>' + (s.winRate == null ? "–" : Math.round(s.winRate) + "%") + "</b><span>Win rate (" + s.closed + " closed)</span></div>" +
-      '<div class="fact"><b class="' + tone(s.totalR) + '">' + rr(s.totalR) + "</b><span>Total closed</span></div>" +
-      '<div class="fact"><b class="' + tone(s.avgR) + '">' + rr(s.avgR) + "</b><span>Average</span></div>" +
+      '<div class="fact"><b class="' + tone(s.totalR) + '">' + rrH(s.totalR) + "</b><span>Total closed</span></div>" +
+      '<div class="fact"><b class="' + tone(s.avgR) + '">' + rrH(s.avgR) + "</b><span>Average</span></div>" +
       '<div class="fact"><b>' + s.open + "</b><span>Open</span></div>" +
-      '<div class="fact"><b class="' + tone(s.openR) + '">' + (s.open ? rr(s.openR) : "–") + "</b><span>Open now</span></div></div>";
+      '<div class="fact"><b class="' + tone(s.openR) + '">' + (s.open ? rrH(s.openR) : "–") + "</b><span>Open now</span></div></div>";
   }
   function stockLine(sym){   // what this watchlist's paper trades in one stock add up to
     var ts = trades.filter(function(t){ return t.symbol === sym; });
@@ -1821,6 +1828,7 @@ function viewTest(){
     (PX.err ? '<div class="warn">' + esc(PX.err) + "</div>" : "");
   var allPage = '<div class="glass tile"><p class="muted small" style="margin:0 0 8px">All ' + T.lists.length + " watchlists</p>" + strip(sa) + "</div>" +
     '<p class="note">R is the result measured in units of the risk between entry and stop: +2R means twice what the stop would have cost. ' +
+      (oneR() ? "Rupees in brackets: R × your risk per trade of ₹" + n(Math.round(oneR())) + " (capital × risk %, Settings). " : "") +
       "Paper results are hypothetical: they ignore brokerage, taxes, slippage and liquidity, and do not predict real results. " + esc(asOf) + "</p>";
 
   var order = trades.slice().sort(function(a, b){
@@ -1854,7 +1862,7 @@ function tradeCard(t, r){
       '<span class="ind">' + (t.type === "intraday" ? "Intraday" : "Swing, up to " + (t.maxDays || 10) + " days") + ", entered " + esc(when) + "</span></span></div>" +
     '<div class="levels"><div><span>Entry</span><b>' + rs(t.entry) + "</b></div><div><span>Stop</span><b>" + rs(t.stop) + "</b></div>" +
       "<div><span>Target</span><b>" + (ok(t.target) ? rs(t.target) : "–") + "</b></div><div><span>Position</span><b>" + n(t.qty) + "</b></div>" +
-      "<div><span>Exit</span><b>" + (r.exitPrice != null ? rs(r.exitPrice) : "–") + "</b></div><div><span>Result</span><b class=\"" + tone(r.r) + '">' + rr(r.r) + "</b></div></div>" +
+      "<div><span>Exit</span><b>" + (r.exitPrice != null ? rs(r.exitPrice) : "–") + "</b></div><div><span>Result</span><b class=\"" + tone(r.r) + '">' + rrH(r.r) + "</b></div></div>" +
     '<div class="result">' + line + (extra ? "<br>" + extra : "") + "</div>" + ohlc(t.symbol) +
     (r.entryOk === false ? '<div class="warn">That entry price did not trade at that time. Check the date, time and price.</div>' : "") +
     (r.approx ? '<div class="warn">Approximate: 15-minute prices were not available for part of this trade.</div>' : "") +
