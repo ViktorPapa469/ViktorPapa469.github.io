@@ -401,7 +401,15 @@ def rule_checks(r, top, bottom, fno=True):
         ["I: institutional sponsorship", None, (num(inst, ".0f") + "% held by institutions; the trend isn't available") if not np.isnan(inst) else "Not available: no holding data", "more institutions buying each quarter", 1],
         ["Volume 40%+ above average", ok(r.rvol >= 1.4, r.rvol), num(r.rvol, ".1f") + "x", "1.4x or more on the breakout", 1],
     ]
-    for it in mv + cs:
+    # Conditions against any swing long, scored (not required) in every swing setup, so "% met" never reads 100%
+    # while the market or the selling pressure is against the trade (CANSLIM has them already as M and S).
+    mup = g_("market_up")
+    mup = None if mup is None or (isinstance(mup, float) and np.isnan(mup)) else bool(mup)
+    udv = g_("updown_vol")
+    for items in (pb, base, mv):
+        items += [["Market (Nifty) in an uptrend", mup, "Nifty in an uptrend" if mup else "Nifty not in an uptrend" if mup is False else "Not available", "uptrend", 1],
+                  ["More volume on up days than down days", ok(udv > 1, udv), num(udv, ".2f") + "x (50 days)", "above 1x", 1]]
+    for it in mv + cs + pb + base:
         if it[1] is None and not str(it[2]).startswith("Not available") and "isn't available" not in str(it[2]):
             it[2] = "Not available: not enough price data"
     liq_ok = all(x[1] for x in liq)

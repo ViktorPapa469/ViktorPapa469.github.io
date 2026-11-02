@@ -1740,8 +1740,8 @@ function viewSwing(){
 }
 
 /* ---- All strategies: every F&O stock's % of checks met for each swing strategy (from the rule check) */
-var STRATS = [["Swing: pullback to the 20-day average", "Pullback"], ["Swing: tight base near highs", "Base"],
-              ["Swing: CANSLIM (O'Neil)", "CANSLIM"], ["Swing: Minervini trend template", "Minervini"]];
+var STRATS = [["Swing: pullback to the 20-day average", "Pullback", "Swing pullbacks"], ["Swing: tight base near highs", "Base", "Swing tight bases"],
+              ["Swing: CANSLIM (O'Neil)", "CANSLIM", "CANSLIM"], ["Swing: Minervini trend template", "Minervini", "Minervini"]];
 function viewAllStrategies(){
   if (!AN.data){
     loadAnalysis().then(function(){ if (st.tab === "swing" && st.swing === "all") render(); }, function(){});
@@ -1750,14 +1750,17 @@ function viewAllStrategies(){
   var rows = Object.keys(AN.data.stocks).map(function(sym){
     var x = AN.data.stocks[sym], by = {};
     x.groups.forEach(function(g){ by[g.name] = g; });
-    var sc = STRATS.map(function(t){ var g = by[t[0]]; return g ? {pct:scoreOf(g).pct, pass:g.pass} : {pct:null, pass:false}; });
+    var on = (x.lists || []).map(function(l){ return l.split(" #")[0]; });
+    // ✓ only when the stock is really on that list; ◦ when it meets every required rule but isn't (a stock on the
+    // Pullback list is not repeated on Base, and each list keeps only its top picks)
+    var sc = STRATS.map(function(t){ var g = by[t[0]]; return g ? {pct:scoreOf(g).pct, pass:g.pass && on.indexOf(t[2]) >= 0, meets:g.pass} : {pct:null, pass:false}; });
     var have = sc.filter(function(v){ return v.pct !== null; });
     return {sym:sym, sc:sc, avg:have.length ? Math.round(have.reduce(function(a, v){ return a + v.pct; }, 0) / have.length) : null,
             all:sc.filter(function(v){ return v.pass; }).length};
   }).sort(function(a, b){ return (b.avg || 0) - (a.avg || 0) || b.all - a.all; });
-  var cell = function(v){ return '<td class="' + (v.pass ? "pass" : v.pct >= 75 ? "up" : v.pct !== null && v.pct < 40 ? "down" : "") + '">' + (v.pct === null ? "–" : v.pct + "%") + (v.pass ? "✓" : "") + "</td>"; };
+  var cell = function(v){ return '<td class="' + (v.pass ? "pass" : v.pct >= 75 ? "up" : v.pct !== null && v.pct < 40 ? "down" : "") + '">' + (v.pct === null ? "–" : v.pct + "%") + (v.pass ? "✓" : v.meets ? "◦" : "") + "</td>"; };
   var head = "<thead><tr><th>Stock</th>" + STRATS.map(function(t){ return "<th>" + esc(t[1]) + "</th>"; }).join("") + "<th>Avg</th></tr></thead>";
-  var lede = '<p class="lede">Every F&amp;O stock against each swing strategy: the % of its checks met (only checks with data count). ✓ means every required rule is met, so the stock is on that list. Sorted by the average; tap a stock for its full rule check.</p>' +
+  var lede = '<p class="lede">Every F&amp;O stock against each swing strategy: the % of its checks met (only checks with data count). The % includes the market trend and up-day vs down-day volume, so a stock only reaches 100% with nothing against it. ✓ means the stock is on that list; ◦ means it meets every required rule but isn\'t on it (a Pullback stock isn\'t repeated on Base, and each list keeps only its top picks). Sorted by the average; tap a stock for its full rule check.</p>' +
     '<p class="note">Rule check from ' + esc(niceDate(AN.data.as_of)) + " prices. For any other NSE or BSE stock, use Analyse on the Plan page.</p>";
   return chunk(rows, 14).map(function(c, k, all){
     return page("All strategies " + (k + 1) + "/" + all.length, (k === 0 ? lede : "") +
