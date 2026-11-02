@@ -52,6 +52,42 @@ def pct_rank(s):
     return s.rank(pct=True).fillna(0.5)
 
 
+# ------------------------------------------------------------------ support and resistance
+def sr_levels(df, atr_v, lookback=250, w=3):
+    """Two supports below and two resistances above the last close, from the past year's swing points.
+    A swing high/low is the highest/lowest price of the w sessions either side; turns within half an ATR (or 1% of
+    price) are merged into one zone, counted as touches; the 52-week high and low are included. Zones closer than a
+    quarter ATR to the price are treated as the level price is sitting on, not above or below it.
+    Returns {"s": [[price, touches], ...], "r": [...]} nearest first."""
+    d = df.iloc[-lookback:]
+    n = len(d)
+    if n < 2 * w + 5 or not atr_v or np.isnan(atr_v):
+        return {"s": [], "r": []}
+    hi, lo, last = d["high"].values, d["low"].values, float(d["close"].iloc[-1])
+    piv = []
+    for i in range(w, n - w):
+        if hi[i] == hi[i - w:i + w + 1].max():
+            piv.append(float(hi[i]))
+        if lo[i] == lo[i - w:i + w + 1].min():
+            piv.append(float(lo[i]))
+    piv += [float(hi.max()), float(lo.min())]
+    piv.sort()
+    tol = max(0.5 * atr_v, 0.01 * last)
+    zones, cur = [], [piv[0]]
+    for x in piv[1:]:
+        if x - cur[0] <= tol:          # a zone is never wider than tol, so neighbours don't chain together
+            cur.append(x)
+        else:
+            zones.append(cur)
+            cur = [x]
+    zones.append(cur)
+    zs = [(float(np.mean(z)), len(z)) for z in zones]
+    gap = 0.25 * atr_v
+    sup = sorted([z for z in zs if z[0] < last - gap], key=lambda z: -z[0])[:2]
+    res = sorted([z for z in zs if z[0] > last + gap], key=lambda z: z[0])[:2]
+    return {"s": [[round(a, 2), b] for a, b in sup], "r": [[round(a, 2), b] for a, b in res]}
+
+
 # ------------------------------------------------------------------ per-stock features
 def stock_features(df, nifty):
     c, h, l, v = df["close"], df["high"], df["low"], df["volume"]
@@ -99,6 +135,7 @@ def stock_features(df, nifty):
         "updown_vol": v50[up50].sum() / dn_vol if dn_vol else np.nan,
         "tightening": r10 / r30 if r30 else np.nan,
         "low10": l.iloc[-10:].min(),
+        "sr": sr_levels(df, a.iloc[-1]),
         "rs_raw": (0.4 * q[0] + 0.2 * q[1] + 0.2 * q[2] + 0.2 * q[3]) if n > 252 * 0.9 and not any(np.isnan(x) for x in q) else np.nan,
     }
 

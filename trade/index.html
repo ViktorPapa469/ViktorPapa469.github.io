@@ -237,6 +237,10 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .ranked th:nth-child(2),.ranked td:nth-child(2),.ranked th:nth-child(3),.ranked td:nth-child(3){text-align:left}.ranked td:first-child{font-weight:400;color:var(--ink2)}
 .ranked td.win-high{color:var(--up);font-weight:600}.ranked td.win-medium{color:var(--gold);font-weight:600}.ranked td.win-low{color:var(--down);font-weight:600}
 .inr{display:block;font-size:11.5px;font-weight:500;opacity:.8;margin-top:1px}
+.sr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;margin:8px 0 0;background:var(--line);border-radius:11px;overflow:hidden}
+.sr-c{background:rgba(14,20,27,.55);padding:6px 8px;display:flex;flex-direction:column}
+.sr-c span{font-size:10.5px;font-weight:600;letter-spacing:.04em}.sr-c b{font-size:13.5px;font-weight:600}.sr-c small{font-size:10.5px;color:var(--ink2)}
+.sr-c.sup span{color:var(--up)}.sr-c.res span{color:var(--down)}
 .livetag{font-size:10px;color:var(--ink3);font-weight:500;letter-spacing:.02em}
 .sugg{margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--glass-hi)}
 .sugg button{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline;width:100%;padding:9px 12px;background:none;border:0;border-bottom:1px solid var(--line);color:inherit;text-align:left;font:inherit;font-size:13.5px;cursor:pointer}
@@ -1579,6 +1583,7 @@ var GLOSSARY = [
   ["Institutional sponsorship", "How much of a company mutual funds, insurers and other institutions own. O'Neil wants more of them buying each quarter; only the current holding is available, so it's shown for reference and not scored."],
   ["Minervini trend template", "Mark Minervini's checklist (\"Trade Like a Stock Market Wizard\"): price above the 50-, 150- and 200-day averages; 50 above 150 above 200; the 200-day rising for a month; at least 30% above the 52-week low; within 25% of the 52-week high; RS rating 70+."],
   ["Pivot (buy point)", "The level whose break starts a CANSLIM or Minervini trade: here, just above the recent 10-day high."],
+  ["S1, S2 / R1, R2", "Support and resistance in the rule check: the two nearest price zones below (S1 nearest, then S2) and above (R1, R2) the price where the stock turned in the past year. Swing highs and lows (the extreme of 3 sessions either side) within half an ATR are one zone; touches count the turns there. The 52-week high and low are included."],
   ["RS rating", "Relative-strength rank from 1 to 99, like IBD's: the stock's 12-month return, with the latest quarter counting double, ranked against the F&O stocks. 80 means it beat 80% of them."],
   ["ROE (return on equity)", "Yearly profit as a % of shareholders' equity: how well the company uses its capital. CANSLIM wants 17% or more."],
   ["Up/down volume", "Volume on the days the stock rose divided by volume on the days it fell, over 50 sessions. Above 1x means buyers were heavier (CANSLIM's S)."],
@@ -2158,6 +2163,18 @@ function riskIntraday(sym, x, s){
   return riskList(no.filter(function(){ return !trig; }), fail, today && orb ? "Levels from today's breakout scan" + (O.status ? " (" + esc(STATUS[O.status] ? STATUS[O.status][1] : O.status) + ")" : "") + "." :
     "The range, VWAP and stop are set after 9:30; until then, levels from the last close.", trigHtml);
 }
+/* support and resistance: the two nearest zones below (S1, S2) and above (R1, R2) the price, from a year of swing points */
+function srRow(k, price){
+  var sr = k && k.sr; if (!sr) return "";
+  var p = ok(price) ? price : k.p;
+  function cell(lbl, z, cls){
+    if (!z) return '<div class="sr-c ' + cls + '"><span>' + lbl + "</span><b>–</b><small>" + (cls === "res" ? "at a 1-year high" : "at a 1-year low") + "</small></div>";
+    var d = ok(p) ? (z[0] / p - 1) * 100 : null;
+    return '<div class="sr-c ' + cls + '"><span>' + lbl + "</span><b>" + rs(z[0]) + "</b><small>" + (ok(d) ? pc(d) : "") + " · " + z[1] + (z[1] === 1 ? " touch" : " touches") + "</small></div>";
+  }
+  return '<div class="sr">' + cell("S2", sr.s[1], "sup") + cell("S1", sr.s[0], "sup") + cell("R1", sr.r[0], "res") + cell("R2", sr.r[1], "res") + "</div>" +
+    '<p class="muted small" style="margin:2px 0 0">Support (S) and resistance (R): the nearest price zones where the stock turned in the past year; more touches, stronger level.</p>';
+}
 function showAnalysis(sym, x, o){
   var scores = x.groups.map(scoreOf);
   // one page for when each setup won't trigger or is likely to fail, after the strategy pages
@@ -2210,7 +2227,7 @@ function showAnalysis(sym, x, o){
     '<span class="d">' + esc(niceDate(b.d)) + "</span></p>" : "";
   var sub = o.fno ? (indOf(x.industry) || "F&O stock") + " · NSE F&O" : (x.name ? x.name + " · " : "") + (x.exchange || "") + (indOf(x.industry) ? " · " + x.industry : "");
   openSheet("<h3>" + esc(sym) + ': rule check</h3><p class="muted small" style="margin:0">' + esc(sub) +
-      ". Prices to the close of " + esc(niceDate(o.as_of)) + ".</p>" + line + strip +
+      ". Prices to the close of " + esc(niceDate(o.as_of)) + ".</p>" + line + srRow(x.k, (lv(sym) || [])[0]) + strip +
     '<p style="margin:10px 0">' + lists + (x.event ? " " + esc(x.event) + "." : "") + "</p>" + nav + '<div class="an-pager" id="an-pager">' + groups + riskPage + "</div>" + nav.replace(/id="an-(prev|next|dots|no)"/g, 'data-an2="$1"') +
     '<p class="note">Swipe left or right, or tap a score, to move between setups. Scores are the share of each setup\'s checks the stock meets, counting only checks with data. A rule check for market study, not a recommendation or investment advice.</p>' +
     '<div class="gate-actions"><button class="btn ghost" id="an-close" type="button">Close</button>' + (o.fno ? '<button class="btn gold" id="an-trade" type="button">Paper trade</button>' : "") + "</div>");

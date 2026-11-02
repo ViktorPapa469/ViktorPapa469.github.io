@@ -181,7 +181,7 @@ def key_levels(r):
             "rvol": f(g("rvol")), "dry": f(g("dryup")), "ud": f(g("updown_vol")), "tight": f(g("tightening")),
             "to": f(g("turnover_cr"), 0), "eq": f(g("eps_q"), 1),
             "pdl": f(g("pdl")), "rs5": f(g("rs5"), 1), "rs20": f(g("rs20"), 1), "gap": f(g("gap_pct"), 1),
-            "bu": g("buildup") or None, "cp": f(g("close_pos"))}
+            "bu": g("buildup") or None, "cp": f(g("close_pos")), "sr": g("sr") if isinstance(g("sr"), dict) else None}
 
 
 def write_analysis(out_dir, ctx, res, generated):
