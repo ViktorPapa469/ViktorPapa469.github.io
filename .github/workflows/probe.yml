@@ -12,13 +12,16 @@ jobs:
           UA='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
           P=https://priceapi.moneycontrol.com/technicalCompanyData/globalMarket
           for u in \
-            "$P/getGlobalIndicesListingData?view=overview&deviceType=W" \
-            "$P/getGlobalCommodityListingData?view=overview&deviceType=W" \
-            "$P/getGlobalCurrencyListingData?view=overview&deviceType=W" \
-            "https://priceapi.moneycontrol.com/technicalCompanyData/commodity/getCommodityListingData?view=overview&deviceType=W" \
-            "https://priceapi.moneycontrol.com/pricefeed/notapplicable/currencyspot/%24%24%3BUSDINR" \
-            "https://appfeeds.moneycontrol.com/jsonapi/market/indices&format=json&ind_id=23&t_device=iphone" \
-            "https://appfeeds.moneycontrol.com/jsonapi/market/indices&format=json&ind_id=36&t_device=iphone" \
+            "https://api.gold-api.com/symbols" \
+            "https://api.gold-api.com/price/XAU" \
+            "https://api.gold-api.com/price/XAG" \
+            "https://api.frankfurter.app/latest?from=USD&to=INR" \
+            "https://priceapi.moneycontrol.com/pricefeed/notapplicable/commodityspot/%24%24%3BGOLD" \
+            "https://priceapi.moneycontrol.com/technicalCompanyData/commodity/getCommodityListingData?view=overview&deviceType=W&exchange=MCX" \
+            "https://appfeeds.moneycontrol.com/jsonapi/market/global_indices&format=json" \
+            "https://appfeeds.moneycontrol.com/jsonapi/commodity/index&format=json" \
+            "https://priceapi.moneycontrol.com/pricefeed/mcx/commodityfuture/CRUDEOIL" \
+            "https://priceapi.moneycontrol.com/pricefeed/mcx/commodityfuture/GOLD" \
             ; do
             echo "=== $u"
             curl -sS -m 20 -A "$UA" -H "Origin: $O" -D /tmp/h -o /tmp/b "$u" || true
@@ -33,6 +36,6 @@ jobs:
             for g in j['dataList']:
               print('##', g.get('heading') or g.get('name') or '')
               for r in g.get('data',[]): print('  ', dict(zip(h,r)) if isinstance(r,list) else r)
-          else: print(json.dumps(j)[:1500])
+          else: print(json.dumps(j)[:900])
           "
           done
