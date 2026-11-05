@@ -1,0 +1,16 @@
+name: CORS probe
+on:
+  push:
+    branches: [ci-logs-nse-probe]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - run: |
+          O='https://viktorpapa469.github.io'
+          for u in https://api.dhan.co/v2/marketfeed/ltp https://api.dhan.co/v2/profile; do
+            echo "=== $u"
+            curl -sS -m 20 -X OPTIONS -H "Origin: $O" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: access-token,client-id,content-type' -D - -o /dev/null "$u" | grep -i -E '^HTTP|^access-control' || true
+            curl -sS -m 20 -X POST -H "Origin: $O" -H 'Content-Type: application/json' -H 'access-token: x' -H 'client-id: 1' -d '{"NSE_EQ":[11536]}' -D /tmp/h -o /tmp/b "$u"; grep -i -E '^HTTP|^access-control' /tmp/h; head -c 300 /tmp/b; echo
+          done
