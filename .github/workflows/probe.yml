@@ -1,0 +1,29 @@
+name: CORS probe
+on:
+  push:
+    branches: [ci-logs-nse-probe]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          O='https://viktorpapa469.github.io'
+          UA='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+          for u in \
+            'https://query1.finance.yahoo.com/v8/finance/chart/ES=F?range=1d&interval=1m' \
+            'https://query2.finance.yahoo.com/v8/finance/chart/GC=F?range=1d&interval=1m' \
+            'https://query1.finance.yahoo.com/v7/finance/spark?symbols=ES=F,NQ=F,GC=F&range=1d&interval=5m' \
+            'https://query1.finance.yahoo.com/v7/finance/quote?symbols=ES=F' \
+            'https://stooq.com/q/l/?s=es.f&f=sd2t2ohlc&h&e=json' \
+            'https://www.nseindia.com/api/marketStatus' \
+            'https://priceapi.moneycontrol.com/technicalCompanyData/globalMarket/getGlobalIndicesListingData?view=overview&deviceType=W' \
+            'https://appfeeds.moneycontrol.com/jsonapi/market/indices&format=json&ind_id=9&t_device=iphone' \
+            ; do
+            echo "=== $u"
+            curl -sS -m 20 -A "$UA" -H "Origin: $O" -H 'Accept: application/json,*/*' -D /tmp/h -o /tmp/b "$u" || true
+            head -1 /tmp/h; grep -i -E '^access-control-allow-(origin|credentials)' /tmp/h || echo "(no ACAO)"
+            head -c 600 /tmp/b; echo
+            echo "--- preflight"
+            curl -sS -m 20 -X OPTIONS -A "$UA" -H "Origin: $O" -H 'Access-Control-Request-Method: GET' -D - -o /dev/null "$u" | grep -i -E '^HTTP|^access-control' || true
+          done
