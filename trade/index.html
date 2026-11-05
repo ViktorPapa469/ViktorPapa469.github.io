@@ -110,6 +110,8 @@ h2 .count{font-weight:400;font-size:12.5px;color:var(--ink2)}
 .facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 10px}
 .fact b{display:block;font-weight:600;font-size:16.5px}
 .fact > span{font-size:11.5px;color:var(--ink2)}
+.fact i.ft{display:block;font-style:normal;font-size:10.5px;color:var(--ink3);margin-top:1px}
+.cues i.ft-in{font-style:normal;font-size:10.5px;color:var(--ink3)}
 .cues{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12.5px;color:var(--ink2)}
 .cues b{font-weight:600}
 
@@ -503,6 +505,7 @@ function resolveBase(){
 function load(day){
   if (document.body.classList.contains("locked")) return Promise.resolve();
   st.loading = true; st.error = null; render();
+  if (!day) fetchQuotes();   // live market prices alongside the published files
   return resolveBase().then(function(base){
     if (base.replace(/[0-9a-f]{40}\/$/, "") !== (st.base || "").replace(/[0-9a-f]{40}\/$/, "")) PX.reset();
     st.base = base;
@@ -517,6 +520,7 @@ function load(day){
   }).then(function(r){
     st.pre = r[0]; st.orb = r[1] && r[1].date === r[0].date ? r[1] : null;
     st.live = r[2] && r[2].date === ist().date ? r[2] : null;
+    st.goldRef = r[2] && r[2].gold_ref || st.goldRef || null;   // gold spot at the last India close (kept from earlier days too)
     st.track = r[3] || st.track || null;   // how the screener's setups worked out (track.py)   // today's NSE prices, refreshed every minute in market hours
     st.day = st.pre.date; st.noData = false; st.loadedAt = Date.now();
     checkAlerts();
@@ -1235,7 +1239,7 @@ function assessment(p, L){
   }
 
   // 5. world markets and GIFT Nifty
-  var cues = L && L.cues && L.cues.length ? L.cues : (p.cues || []), C_ = {};
+  var cues = marketCues(p, L), C_ = {};
   cues.forEach(function(c){ C_[c.name.replace(/ futures$/, "")] = c.chg_pct; });
   var us = ok(C_["S&P 500"]) ? C_["S&P 500"] : null, asia = [C_.Nikkei, C_["Hang Seng"]].filter(ok);
   var bits = [];
@@ -1247,9 +1251,12 @@ function assessment(p, L){
     if (ok(C_["Brent crude"]) && Math.abs(C_["Brent crude"]) >= 1) t += C_["Brent crude"] > 0 ? "Crude rose " + f1(C_["Brent crude"]) + ": a cost for India as an oil importer, weighing on oil marketers, paints and airlines. " : "Crude fell " + f1(Math.abs(C_["Brent crude"])) + ": good for India's import bill and for oil marketers, paints and airlines. ";
     var g = (us || 0) + (asia.length ? asia.reduce(function(a, x){ return a + x; }, 0) / asia.length : 0) - (ok(C_["USD/INR"]) ? C_["USD/INR"] : 0);
     vote(g > 0.6 ? 0.5 : g < -0.6 ? -0.5 : 0);
-    if (L && L.gift && ok(L.gift.last) && ok(r.nifty) && L.phase !== "open" && L.phase !== "closed"){
-      var gp = (L.gift.last / (nn && nn.prev ? nn.prev : r.nifty) - 1) * 100;
-      t += "GIFT Nifty at " + n(L.gift.last) + " points to " + (Math.abs(gp) < 0.2 ? "a flat open." : (gp > 0 ? "a gap up" : "a gap down") + " of about " + Math.abs(gp).toFixed(1) + "%.");
+    // before the open (or after the close, for the next day): GIFT Nifty against Nifty's last close
+    var gN = giftNow(L), tN = ist(), inSession = !tN.weekend && tN.mins >= 555 && tN.mins < 930, qn = QX.items.nifty;
+    var nClose = qn && !qn.open ? qn.last : nn ? (L.phase === "closed" ? nn.last : nn.prev) : r.nifty;
+    if (gN && ok(nClose) && !inSession){
+      var gp = (gN.last / nClose - 1) * 100;
+      t += "GIFT Nifty at " + n(gN.last) + " (" + qtime(gN.t) + ") points to " + (Math.abs(gp) < 0.2 ? "a flat open." : (gp > 0 ? "a gap up" : "a gap down") + " of about " + Math.abs(gp).toFixed(1) + "%.");
       vote(gp >= 0.4 ? 0.5 : gp <= -0.4 ? -0.5 : 0);
     }
     out.push(t);
@@ -1284,28 +1291,40 @@ function assessment(p, L){
 function viewPlan(){
   var p = st.pre, r = p.regime || {};
   var cls = r.label === "Uptrend" ? "up" : r.label === "Downtrend" ? "down" : "gold";
-  var L = st.live, li = L && L.indices || {}, I = function(k){ return li[k] && ok(li[k].last) ? li[k] : null; };
-  var facts = [["Nifty 50", n(I("NIFTY 50") ? I("NIFTY 50").last : r.nifty), I("NIFTY 50") ? I("NIFTY 50").chg : r.nifty_chg],
-               ["Bank Nifty", n(I("BANK NIFTY") ? I("BANK NIFTY").last : r.bank), I("BANK NIFTY") ? I("BANK NIFTY").chg : r.bank_chg],
-               ["India VIX", I("INDIA VIX") ? I("INDIA VIX").last.toFixed(2) : ok(r.vix) ? r.vix.toFixed(2) : "–", I("INDIA VIX") ? I("INDIA VIX").chg : r.vix_chg, true]];
-  if (L && L.gift && ok(L.gift.last)) facts.splice(1, 0, ["GIFT Nifty", n(L.gift.last), L.gift.chg]);   // NSE IX futures: the early guide to the open
-  if (L && L.breadth && (L.breadth.adv + L.breadth.dec)) facts.push([(L.phase === "preopen" ? "Pre-open" : "F&O stocks") + " up / down", L.breadth.adv + " / " + L.breadth.dec, null]);
+  var L = st.live, li = L && L.indices || {}, lt = L ? isoMs(L.generated) : null, q = QX.items;
+  var I = function(k, qk){ var pub = li[k] && ok(li[k].last) ? li[k] : null; return freshest(q[qk], pub, lt); };
+  var nI = I("NIFTY 50", "nifty"), bI = I("BANK NIFTY", "bank"), vI = I("INDIA VIX", "vix"), gI = giftNow(L), pT = isoMs(p.generated);
+  // [label, value, change, lower is better?, time]
+  var facts = [["Nifty 50", n(nI ? nI.last : r.nifty), nI ? nI.chg : r.nifty_chg, false, nI ? nI.t : pT],
+               ["Bank Nifty", n(bI ? bI.last : r.bank), bI ? bI.chg : r.bank_chg, false, bI ? bI.t : pT],
+               ["India VIX", vI ? vI.last.toFixed(2) : ok(r.vix) ? r.vix.toFixed(2) : "–", vI ? vI.chg : r.vix_chg, true, vI ? vI.t : pT]];
+  if (gI) facts.splice(1, 0, ["GIFT Nifty", n(gI.last), gI.chg, false, gI.t]);   // NSE IX futures: the early guide to the open
+  if (L && L.breadth && (L.breadth.adv + L.breadth.dec)) facts.push([(L.phase === "preopen" ? "Pre-open" : "F&O stocks") + " up / down", L.breadth.adv + " / " + L.breadth.dec, null, false, lt]);
   else if (p.preopen && String(p.generated).slice(0, 10) === p.date) facts.push(["Pre-open up / down", p.preopen.adv + " / " + p.preopen.dec, p.preopen.avg]);   // a preview carries the previous day's pre-open: leave it out
-  (p.fii_dii || []).forEach(function(f){ facts.push([f.category + " net", '<span class="' + tone(f.net_cr) + '">' + (f.net_cr > 0 ? "+" : "") + n(f.net_cr) + " cr</span>", null]); });
+  (p.fii_dii || []).forEach(function(f){ facts.push([f.category + " net", '<span class="' + tone(f.net_cr) + '">' + (f.net_cr > 0 ? "+" : "") + n(f.net_cr) + " cr</span>", null, false, null, f.date]); });
   var fh = facts.map(function(f){
     var sub = f[2] == null ? "" : ' <span class="' + tone(f[3] ? -f[2] : f[2]) + '">' + pc(f[2]) + "</span>";
-    return '<div class="fact"><b>' + f[1] + "</b><span>" + esc(f[0]) + sub + "</span></div>";
+    return '<div class="fact"><b>' + f[1] + "</b><span>" + esc(f[0]) + sub + "</span>" + (ok(f[4]) ? '<i class="ft">' + esc(qtime(f[4])) + "</i>" : f[5] ? '<i class="ft">' + esc(f[5]) + "</i>" : "") + "</div>";
   }).join("");
-  var liveCues = L && L.cues && L.cues.length ? L.cues : null;
-  var cues = (liveCues || p.cues || []).map(function(c){ return "<span>" + esc(c.name) + ' <b class="' + tone(c.chg_pct) + '">' + pc(c.chg_pct) + "</b></span>"; }).join("");
+  var mc = marketCues(p, L), checked = QX.at && Object.keys(q).length;
+  var cues = mc.map(function(c){
+    var v = c.gold ? "$" + n(c.last, 0) + (ok(c.chg_pct) ? ' <b class="' + tone(c.chg_pct) + '">' + pc(c.chg_pct) + "</b>" : "") : '<b class="' + tone(c.chg_pct) + '">' + pc(c.chg_pct) + "</b>";
+    return "<span>" + esc(c.name) + (c.closed ? ' <i class="ft-in">close</i>' : "") + " " + v + (ok(c.t) ? ' <i class="ft-in">' + esc(qtime(c.t)) + "</i>" : "") + "</span>";
+  }).join("");
+  var goldSince = mc.filter(function(c){ return c.gold && c.since; })[0];
+  var cueNote = checked ? "Checked at " + esc(qtime(QX.at)) + " from Moneycontrol and gold-api.com, and again with every Refresh; the small time is each price's own time" +
+      (mc.some(function(c){ return c.closed; }) ? ", and \u201cclose\u201d marks a market that is shut (its last session)" : "") + "." +
+      (goldSince ? " Gold is the spot price in $ an ounce, change since " + esc(stamp(goldSince.since)) + " (India close)." : mc.some(function(c){ return c.gold && !ok(c.chg_pct); }) ? " Gold is the spot price in $ an ounce; its change appears after the next India close." : "") +
+      (mc.some(function(c){ return c.pub; }) ? " Others from the last publish." : "")
+    : "Couldn't reach the market price feeds; " + (L && L.cues && L.cues.length ? "published at " + esc(stamp(L.generated)) : "from the screen at " + esc(stamp(p.generated))) + ". Tap Refresh to try again.";
   var market = '<div class="glass tile"><div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><span class="pill ' + cls + '">' + esc(r.label || "Unknown") + "</span>" +
       (r.size_mult < 1 ? '<span class="muted small">Suggested positions cut to ' + Math.round(r.size_mult * 100) + "% today</span>" : "") + "</div>" +
       '<p style="margin:8px 0 0">' + esc(r.bias || "") + "</p></div>" +
     '<div class="glass tile"><div class="facts">' + fh + "</div>" +
-      '<p class="muted small" style="margin:8px 0 0">' + (L && L.phase === "early" ? "From the screen at " + esc(stamp(p.generated)) + ". NSE figures go live at 9:00 with the pre-open." : L ? "Live from NSE at " + esc(liveHM()) + (L.status ? " (market " + esc(String(L.status).toLowerCase()) + ")" : "") + ", updated every minute 9:00 to 3:30. Regime and flows from the screen at " + esc(hmOf(p.generated)) + "." :
+      '<p class="muted small" style="margin:8px 0 0">' + (checked ? "Each figure shows its own time. Newest of the phone\'s check at " + esc(qtime(QX.at)) + (L ? " and the published NSE data (" + esc(stamp(L.generated)) + ")" : "") + "; regime and flows from the screen at " + esc(stamp(p.generated)) + "." :
+        L ? "Live from NSE at " + esc(liveHM()) + (L.status ? " (market " + esc(String(L.status).toLowerCase()) + ")" : "") + ", updated every minute 9:00 to 3:30. Regime and flows from the screen at " + esc(hmOf(p.generated)) + "." :
         "From the screen at " + esc(stamp(p.generated)) + ". Live figures arrive every minute from 9:00 to 3:30.") + "</p></div>" +
-    (cues ? '<div class="glass tile"><div class="cues">' + cues + "</div>" + '<p class="muted small" style="margin:8px 0 0">' +
-      (liveCues ? "World markets live at " + esc(liveHM()) + ", updated from 8:00." : "World markets from the screen at " + esc(hmOf(p.generated)) + "; live from 8:00 on trading days.") + "</p></div>" : "") +
+    (cues ? '<div class="glass tile"><div class="cues">' + cues + "</div>" + '<p class="muted small" style="margin:8px 0 0">' + cueNote + "</p></div>" : "") +
     assessment(p, L) +
     ((p.notes || []).length ? '<p class="note">Unavailable this run: ' + esc(p.notes.join(", ")) + ".</p>" : "");
 
@@ -2595,6 +2614,80 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("mess
 });
 /* Refresh: drop everything held in memory and fetch the newest of everything GitHub has: the screen, the live scan,
    prices for paper trades, the rule checks and your profile. Then say what's new and when the next update is due. */
+/* ---- Live market check straight from the phone, on every open and Refresh (not tied to GitHub's schedule).
+   Moneycontrol's price feed (GIFT Nifty, Dow futures, S&P 500, Nasdaq, Nikkei, Hang Seng, USD/INR, Nifty, Bank Nifty,
+   India VIX) and gold-api.com (gold spot) both allow apps to read them. Each price keeps its own time. */
+var QX = {at:0, items:{}, ok:0, busy:null};
+var MC = "https://priceapi.moneycontrol.com", MCF = "https://appfeeds.moneycontrol.com/jsonapi/market/indices&format=json&t_device=iphone&ind_id=";
+var QX_GLOBAL = {"in;gsx":"gift", "INDU:FUT":"dow", "SPX:IND":"spx", "CCMP:IND":"ndx", "JP;N225":"n225", "cn;hsi":"hsi"};
+function qnum(x){ var v = parseFloat(String(x == null ? "" : x).replace(/,/g, "")); return isFinite(v) ? v : null; }
+function qget(url){
+  var ctl = window.AbortController ? new AbortController() : null, k = ctl ? setTimeout(function(){ ctl.abort(); }, 8000) : 0;
+  return fetch(url, {cache:"no-store", signal:ctl ? ctl.signal : undefined}).then(function(r){
+    clearTimeout(k); if (!r.ok) throw new Error("HTTP " + r.status); return r.json();
+  });
+}
+function fetchQuotes(){
+  if (QX.busy) return QX.busy;
+  var got = {}, add = function(key, last, chg, t, open){ if (ok(last) && last > 0) got[key] = {last:last, chg:chg, t:t || Date.now(), open:open}; };
+  var jobs = [
+    qget(MC + "/technicalCompanyData/globalMarket/getGlobalIndicesListingData?view=overview&deviceType=W").then(function(j){
+      var h = (j.header || []).map(function(x){ return x.name; });
+      (j.dataList || []).forEach(function(g){ (g.data || []).forEach(function(row){
+        var o = {}; h.forEach(function(name, i){ o[name] = row[i]; });
+        var key = QX_GLOBAL[o.symbol]; if (key) add(key, qnum(o.price), qnum(o.percent_change), qnum(o.last_updated), o.state !== "CLOSED");   // AFTER = US after-hours: futures still trade
+      }); });
+    }),
+    qget(MC + "/pricefeed/notapplicable/currencyspot/%24%24%3BUSDINR").then(function(j){
+      var d = j.data || {}; add("usdinr", qnum(d.pricecurrent), qnum(d.pricepercentchange), qnum(d.lastupd_epoch) * 1000);
+    }),
+    qget("https://api.gold-api.com/price/XAU").then(function(j){ add("gold", qnum(j.price), null, Date.parse(j.updatedAt)); }),
+    qget(MCF + "9").then(function(j){ var d = j.indices || {}; add("nifty", qnum(d.lastprice), qnum(d.percentchange), qnum(d.epoch_time) * 1000, d.market_state === "OPEN"); }),
+    qget(MCF + "23").then(function(j){ var d = j.indices || {}; add("bank", qnum(d.lastprice), qnum(d.percentchange), qnum(d.epoch_time) * 1000, d.market_state === "OPEN"); }),
+    qget(MCF + "36").then(function(j){ var d = j.indices || {}; add("vix", qnum(d.lastprice), qnum(d.percentchange), qnum(d.epoch_time) * 1000, d.market_state === "OPEN"); })
+  ].map(function(p){ return p.then(function(){ return 1; }, function(){ return 0; }); });
+  QX.busy = Promise.all(jobs).then(function(r){
+    QX.busy = null; QX.ok = r.reduce(function(a, x){ return a + x; }, 0);
+    if (Object.keys(got).length){ QX.items = got; QX.at = Date.now(); }
+    if (!st.loading && st.tab === "plan") render();
+    return QX;
+  });
+  return QX.busy;
+}
+/* a price's own time, IST: "07:01" today, "Wed 15:30" before */
+function qtime(ms){
+  if (!ok(ms)) return "";
+  var d = new Date(ms), o = {timeZone:"Asia/Kolkata", hour:"2-digit", minute:"2-digit", hourCycle:"h23"};
+  var day = d.toLocaleDateString("en-CA", {timeZone:"Asia/Kolkata"});
+  return (day === ist().date ? "" : d.toLocaleDateString("en-GB", {timeZone:"Asia/Kolkata", weekday:"short"}) + " ") + d.toLocaleTimeString("en-GB", o);
+}
+function isoMs(iso){ var v = iso ? Date.parse(iso) : NaN; return isFinite(v) ? v : null; }
+/* the newest of the phone's check and the published live file, for one figure */
+function freshest(q, pub, pubMs){ return q && (!pub || !ok(pubMs) || q.t >= pubMs) ? q : pub ? {last:pub.last, chg:pub.chg, t:pubMs} : q || null; }
+/* GIFT Nifty: from the phone's check or the published file, whichever is newer */
+function giftNow(L){
+  var g = L && L.gift && ok(L.gift.last) ? L.gift : null;
+  return freshest(QX.items.gift, g, g ? isoMs(L.generated) : null);
+}
+/* world markets for the Plan page and the assessment: the phone's check first, published figures for the rest */
+function marketCues(p, L){
+  var pubC = L && L.cues && L.cues.length ? L.cues : (p.cues || []), pubT = isoMs(L && L.cues && L.cues.length ? L.generated : p.generated);
+  var by = {}; pubC.forEach(function(c){ by[c.name] = c; });
+  var q = QX.items, out = [];
+  var pub = function(name, label){ var c = by[name]; if (c) out.push({name:label || name, last:c.last, chg_pct:c.chg_pct, t:pubT, pub:true}); };
+  var mine = function(key, name){ var x = q[key]; if (!x) return false; out.push({name:name, last:x.last, chg_pct:x.chg, t:x.t, closed:x.open === false}); return true; };
+  if (!mine("dow", "Dow futures")){ pub("S&P 500 futures"); pub("Nasdaq futures"); }
+  mine("spx", "S&P 500"); mine("ndx", "Nasdaq");
+  if (!mine("n225", "Nikkei")) pub("Nikkei");
+  if (!mine("hsi", "Hang Seng")) pub("Hang Seng");
+  if (!mine("usdinr", "USD/INR")) pub("USD/INR");
+  pub("Brent crude");
+  if (q.gold){
+    var ref = st.goldRef, gp = ref && ok(ref.price) ? (q.gold.last / ref.price - 1) * 100 : null;
+    out.push({name:"Gold", last:q.gold.last, chg_pct:gp, t:q.gold.t, gold:true, since:ref && ok(gp) ? ref.at : null});
+  } else pub("Gold");
+  return out;
+}
 function hardRefresh(){
   var btn = $("#reload"); if (st.refreshing) return;
   st.refreshing = true; btn.disabled = true; btn.textContent = "Checking…";
@@ -2602,17 +2695,21 @@ function hardRefresh(){
   PX.reset(); AN.data = null; MK.index = null; MK.rules = null; MK.bySym = null; MK.shards = {};
   var wait = st.loading ? new Promise(function(res){ var k = setInterval(function(){ if (!st.loading){ clearInterval(k); res(); } }, 150); }) : Promise.resolve();
   wait.then(function(){
-    return Promise.all([load(st.day === st.latest ? null : st.day), pullProfile(false).catch(function(){})]);
+    return Promise.all([load(st.day === st.latest ? null : st.day), pullProfile(false).catch(function(){}), fetchQuotes()]);
   }).then(function(){
     st.refreshing = false; btn.disabled = false; btn.textContent = "Refresh";
-    if (st.error) return toast("Couldn't reach the data. Check the connection; showing what was loaded before.");
-    if (st.noData) return toast("No data published yet.");
+    render();
+    var q = QX.items, qs = QX.at > Date.now() - 30e3 && Object.keys(q).length;
+    var mk = qs ? "Market prices checked at " + qtime(QX.at) + (q.gift ? ": GIFT Nifty " + n(q.gift.last) + " " + pc(q.gift.chg) + " (" + qtime(q.gift.t) + ")" : "") + ". " :
+             "Couldn't reach the market price feeds just now; showing the last published prices. ";
+    if (st.error) return toast(mk + "The screen data couldn't be reached; showing what was loaded before.", 6000);
+    if (st.noData) return toast(mk + "No screen published yet.", 6000);
     var fresh = (st.pre && st.pre.generated) !== before.pre || (st.orb && st.orb.generated) !== before.orb || (st.live && st.live.generated) !== before.live || st.day !== before.day;
     var parts = [];
     if (st.pre) parts.push((st.pre.date > ist().date ? "Preview" : "Screen") + " " + hmOf(st.pre.generated));
     if (st.orb) parts.push("breakout scan " + hmOf(st.orb.generated));
     if (st.live) parts.push("live prices " + liveHM());
-    toast((fresh ? "Updated: " : "Already the latest: ") + parts.join(", ") + "." + nextUpdate() + (GH.limited ? " GitHub is limiting checks from this network, so data can be up to a few minutes behind." : ""));
+    toast(mk + (fresh ? "Screen data updated: " : "Screen data already the latest: ") + parts.join(", ") + "." + nextUpdate() + (GH.limited ? " GitHub is limiting checks from this network, so data can be up to a few minutes behind." : ""), 6500);
   });
 }
 /* when GitHub is due to publish next (IST), for the Refresh message */
@@ -2638,6 +2735,8 @@ function due(){
 setInterval(function(){
   drawClock();
   if (!document.hidden && !st.loading && $("#sheet").hidden && (!st.day || st.day === st.latest) && due()){ PX.reset(); load(); }
+  // market prices straight from the feeds: every minute while the Plan page is on screen
+  else if (!document.hidden && st.tab === "plan" && !document.body.classList.contains("locked") && Date.now() - QX.at > 55e3) fetchQuotes();
 }, 30e3);
 var hiddenAt = 0, REASK_AFTER = 30 * 60e3;   // coming back after 30 minutes away counts as a new visit: accept again
 document.addEventListener("visibilitychange", function(){

@@ -16,6 +16,8 @@ import json
 import os
 import sys
 
+import requests
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from screener.data_live import NSEClient, now_ist  # noqa: E402
@@ -91,6 +93,29 @@ def cues(out, errors):
         out["cues"] = res
     except Exception as e:  # noqa: BLE001
         errors.append(f"cues: {str(e)[:120]}")
+
+
+def gold_ref(pub, out, now, hm, errors):
+    """Gold spot (gold-api.com, the source the app reads on Refresh) at the India close, 3:25 to 3:45 PM, kept until the
+    next close: the app shows gold's move since then. Carried over from the previous live.json at other times."""
+    prev = {}
+    try:
+        with open(os.path.join(pub, "live.json"), encoding="utf-8") as fh:
+            prev = json.load(fh)
+    except (OSError, ValueError):
+        pass
+    if prev.get("gold_ref"):
+        out["gold_ref"] = prev["gold_ref"]
+    if not (1525 <= hm <= 1545 and now.weekday() < 5):
+        return
+    try:
+        r = requests.get("https://api.gold-api.com/price/XAU", timeout=15)
+        r.raise_for_status()
+        price = float(r.json()["price"])
+        if price > 0:
+            out["gold_ref"] = {"price": round(price, 2), "at": now.isoformat(timespec="seconds")}
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"gold spot: {str(e)[:100]}")
 
 
 def main():
@@ -170,6 +195,7 @@ def main():
     if not got:
         print("live: NSE unreachable; previous live.json kept")
         return 2
+    gold_ref(pub, out, now, hm, errors)
     export._dump(os.path.join(pub, "live.json"), out)
     n50 = out["indices"].get("NIFTY 50", {})
     print(f"live {now:%H:%M}: {out['status']}, Nifty {n50.get('last')} ({n50.get('chg')}%), {len(out['stocks'])} stocks from {out['source']}"
