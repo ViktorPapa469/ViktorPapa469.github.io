@@ -1,0 +1,30 @@
+{
+ "week": 33,
+ "title": "The Inner Critic",
+ "aspect": "Self-talk",
+ "line": "You can hear the critic without believing every word.",
+ "invite": "When the inner critic speaks this week, name it gently, \"there's the critic\", and then ask what a kind coach would say instead.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 173.5
+  },
+  {
+   "name": "Breath",
+   "at": 253.7
+  },
+  {
+   "name": "Practice",
+   "at": 445.0
+  },
+  {
+   "name": "Closing",
+   "at": 1212.2
+  }
+ ]
+}

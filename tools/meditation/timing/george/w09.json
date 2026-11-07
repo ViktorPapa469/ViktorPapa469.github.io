@@ -1,0 +1,30 @@
+{
+ "week": 9,
+ "title": "Letting Go",
+ "aspect": "Release",
+ "line": "An open hand can receive what a closed fist cannot.",
+ "invite": "Each night this week, before sleep, name one thing from the day you are ready to set down, and breathe it out.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 181.3
+  },
+  {
+   "name": "Breath",
+   "at": 263.1
+  },
+  {
+   "name": "Practice",
+   "at": 466.3
+  },
+  {
+   "name": "Closing",
+   "at": 1208.7
+  }
+ ]
+}

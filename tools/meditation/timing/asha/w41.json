@@ -1,0 +1,30 @@
+{
+ "week": 41,
+ "title": "Purpose",
+ "aspect": "Direction",
+ "line": "Purpose is found less in what we achieve and more in how we give.",
+ "invite": "This week, notice the moments when you feel most useful and alive, and write a few of them down.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 170.2
+  },
+  {
+   "name": "Breath",
+   "at": 243.3
+  },
+  {
+   "name": "Practice",
+   "at": 461.4
+  },
+  {
+   "name": "Closing",
+   "at": 1215.6
+  }
+ ]
+}

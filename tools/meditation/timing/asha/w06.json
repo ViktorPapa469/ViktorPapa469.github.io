@@ -1,0 +1,30 @@
+{
+ "week": 6,
+ "title": "Patience",
+ "aspect": "Waiting well",
+ "line": "Some things open only in their own time.",
+ "invite": "When you find yourself waiting this week, in a queue, for a reply, for a page to load, use it as a moment to breathe instead of a moment to rush.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 190.9
+  },
+  {
+   "name": "Breath",
+   "at": 272.3
+  },
+  {
+   "name": "Practice",
+   "at": 491.1
+  },
+  {
+   "name": "Closing",
+   "at": 1231.3
+  }
+ ]
+}

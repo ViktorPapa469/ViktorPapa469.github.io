@@ -1,0 +1,30 @@
+{
+ "week": 34,
+ "title": "Failure as Teacher",
+ "aspect": "Learning",
+ "line": "Every fall carries a lesson, if we stay long enough to hear it.",
+ "invite": "This week, when something goes wrong, write down one thing it taught you before you move on.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 197.8
+  },
+  {
+   "name": "Breath",
+   "at": 285.5
+  },
+  {
+   "name": "Practice",
+   "at": 476.4
+  },
+  {
+   "name": "Closing",
+   "at": 1224.7
+  }
+ ]
+}
