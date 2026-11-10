@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Riyaz</title>
+<meta name="description" content="Sing in tune: live pitch check, Hindustani basics, practice pieces and a daily riyaz streak.">
+<meta name="theme-color" content="#17121F">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317121F'/%3E%3Cpath d='M8 38c8-14 14 12 22-4s14 10 26-8' fill='none' stroke='%23F2A93B' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind:wght@400;500;600&family=Yatra+One&display=swap">
+<style>
+/* Layout: one phone-width column, a pitch canvas as the centrepiece of Practice, five tabs fixed at the bottom. */
+:root{
+  --bg:#F3F1F7; --surface:#FFFFFF; --sunk:#E9E5F0; --ink:#2A1F3D; --muted:#6B6080; --line:#D9D3E4;
+  --accent:#B86A00; --accent-ink:#FFFFFF; --teal:#0F7C78;
+  --ok:#1F8A4C; --flat:#2F6FD6; --sharp:#C73B62;
+  --display:'Yatra One','Hind',system-ui,sans-serif; --body:'Hind',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){ :root{
+  --bg:#17121F; --surface:#221A2E; --sunk:#1C1526; --ink:#EDE7F4; --muted:#A99DBD; --line:#372C48;
+  --accent:#F2A93B; --accent-ink:#221604; --teal:#4FC4BE;
+  --ok:#57C785; --flat:#7FAAF5; --sharp:#F07C9C; color-scheme:dark;
+} }
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:400 16px/1.55 var(--body);-webkit-text-size-adjust:100%}
+[hidden]{display:none!important}
+h1,h2,h3{margin:0;line-height:1.2;text-wrap:balance}
+h2{font:400 26px/1.15 var(--display)}
+h3{font-size:17px;font-weight:600}
+p{margin:0}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+.wrap{max-width:720px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.muted{color:var(--muted)} .small{font-size:14px}
+.stack{display:flex;flex-direction:column;gap:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:10px 18px;font-weight:600;min-height:44px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.5;cursor:default}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 14px;min-height:40px;font-weight:500}
+.chip[aria-pressed="true"],.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:14px;font-weight:600}
+.field input,select{background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:46px;width:100%}
+.label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+/* login */
+#login{min-height:100dvh;display:flex;align-items:center;padding-block:32px}
+#login .wrap{width:100%;max-width:440px}
+.brand{font:400 54px/1 var(--display);color:var(--accent)}
+.wave{width:100%;height:56px;display:block}
+
+/* app shell */
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:10px;height:54px}
+header.top .name{font:400 26px/1 var(--display);color:var(--accent)}
+main{padding-block:18px calc(96px + env(safe-area-inset-bottom,0px))}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.tabs .wrap{display:grid;grid-template-columns:repeat(5,1fr);padding-left:max(4px,env(safe-area-inset-left,0px));padding-right:max(4px,env(safe-area-inset-right,0px))}
+nav.tabs button{border:0;background:none;padding:8px 2px 10px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;font-weight:600;color:var(--muted);min-height:58px}
+nav.tabs button .dev{font:400 20px/1.1 var(--display)}
+nav.tabs button[aria-current="page"]{color:var(--accent)}
+
+/* swara keys */
+.swaras{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
+.swara{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:0;min-height:64px}
+.swara b{font:400 22px/1.2 var(--display)} .swara span{font-size:12px;color:var(--muted)}
+.swara.vik{background:var(--sunk)}
+.swara:active,.swara.hit{border-color:var(--accent);color:var(--accent)}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:8px 10px 8px 0;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.scroll{overflow-x:auto}
+.theka{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.theka div{border:1px solid var(--line);border-radius:10px;padding:8px 2px;text-align:center;font-weight:600;font-size:14px;background:var(--surface)}
+.theka div small{display:block;font-weight:400;color:var(--muted);font-size:11px}
+.theka div.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.theka div.on small{color:inherit}
+
+/* practice */
+.stage{background:var(--sunk);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+canvas#roll{display:block;width:100%;height:250px}
+.meter{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;padding:12px 14px;border-top:1px solid var(--line);background:var(--surface)}
+.now{min-width:84px;text-align:center}
+.now b{display:block;font:400 44px/1 var(--display)}
+.now span{font-size:13px;color:var(--muted)}
+.needle{position:relative;height:30px;border-radius:8px;background:linear-gradient(90deg,var(--flat) 0 30%,var(--ok) 38% 62%,var(--sharp) 70% 100%);opacity:.9}
+.needle i{position:absolute;top:-4px;bottom:-4px;width:4px;margin-left:-2px;left:50%;background:var(--ink);border-radius:2px;transition:left .08s linear}
+.needlecap{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:4px}
+.verdict{font-weight:600;min-height:1.5em}
+.gauges{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.gauge{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;min-width:0}
+.gauge .bar{height:6px;border-radius:3px;background:var(--sunk);overflow:hidden;margin:6px 0 4px}
+.gauge .bar i{display:block;height:100%;width:0;background:var(--teal);transition:width .12s linear}
+.gauge em{font-style:normal;font-size:13px;color:var(--muted)}
+.notation{font:500 17px/2 var(--body);letter-spacing:.02em;word-spacing:.25em;overflow-wrap:anywhere}
+.notation span{padding:2px 3px;border-radius:5px}
+.notation span.cur{background:var(--accent);color:var(--accent-ink)}
+.notation span.good{color:var(--ok)} .notation span.low{color:var(--flat)} .notation span.high{color:var(--sharp)}
+.pieces{display:flex;flex-direction:column;gap:8px}
+.piece{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface);text-align:left;width:100%}
+.piece.on{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.piece .t{flex:1;min-width:0} .piece .t b{display:block;font-weight:600} .piece .t span{font-size:13px;color:var(--muted)}
+.piece .lv{font-size:12px;color:var(--muted);white-space:nowrap}
+.result{border-left:4px solid var(--ok)}
+.big{font:400 40px/1 var(--display)}
+audio{width:100%}
+
+/* fix + instruments */
+details{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:0 16px}
+summary{padding:14px 0;font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:10px}
+summary::after{content:"+";color:var(--muted);font-weight:400}
+details[open] summary::after{content:"–"}
+details .in{padding:0 0 16px;display:flex;flex-direction:column;gap:8px}
+details ul,details ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.keys{position:relative;display:flex;height:150px;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.keys .w{flex:1;border:1px solid var(--line);border-radius:0 0 8px 8px;background:#FBFAFD;color:#2A1F3D;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding:0 0 8px;font-size:12px;font-weight:600}
+.keys .w small{font-weight:400;opacity:.7}
+.keys .b{position:absolute;top:0;width:8.5%;height:92px;background:#2A1F3D;color:#EDE7F4;border-radius:0 0 6px 6px;border:0;font-size:10px;display:flex;align-items:flex-end;justify-content:center;padding:0 0 6px}
+.keys button.hit{background:var(--accent);color:var(--accent-ink)}
+.strings{display:flex;flex-direction:column;gap:6px}
+.strings button{display:flex;justify-content:space-between;align-items:center;border:0;border-bottom:3px solid var(--line);background:none;padding:8px 2px;min-height:44px;font-weight:600}
+.strings button span{font-weight:400;color:var(--muted);font-size:14px}
+.strings button.hit{border-bottom-color:var(--accent);color:var(--accent)}
+
+/* profile */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0}
+.stat b{display:block;font:400 30px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--muted)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal div{aspect-ratio:1;border-radius:8px;background:var(--sunk);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.cal div.l1{background:color-mix(in srgb,var(--accent) 35%,var(--sunk));color:var(--ink)}
+.cal div.l2{background:color-mix(in srgb,var(--accent) 65%,var(--sunk));color:var(--ink)}
+.cal div.l3{background:var(--accent);color:var(--accent-ink)}
+.cal div.today{outline:2px solid var(--ink)}
+.cal .dow{background:none;aspect-ratio:auto;font-weight:600}
+.goal{height:10px;border-radius:5px;background:var(--sunk);overflow:hidden}
+.goal i{display:block;height:100%;background:var(--ok);width:0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;z-index:9;max-width:90vw}
+@media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<section id="login" hidden>
+  <div class="wrap stack">
+    <div>
+      <div class="brand">Riyaz</div>
+      <svg class="wave" viewBox="0 0 400 56" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40 C40 40 50 12 90 12 S150 44 190 30 S250 8 290 22 S360 44 400 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="color:var(--teal)"/><path d="M0 28 H400" stroke="currentColor" stroke-dasharray="2 8" style="color:var(--muted)"/></svg>
+      <p class="muted">Sing a note, see where it lands. Daily practice for Hindustani singing, with a live pitch check.</p>
+    </div>
+    <form class="card" id="loginForm" novalidate>
+      <div class="field"><label for="lgEmail">Email</label><input id="lgEmail" type="email" autocomplete="email" inputmode="email" maxlength="80" placeholder="you@example.com" required></div>
+      <div class="field"><label for="lgPass">Password</label><input id="lgPass" type="password" autocomplete="current-password" minlength="6" placeholder="At least 6 characters" required></div>
+      <p class="small" id="lgMsg" aria-live="polite"></p>
+      <div class="row">
+        <button class="btn primary" type="submit" id="lgIn">Sign in</button>
+        <button class="btn" type="button" id="lgNew">Create account</button>
+      </div>
+      <button class="btn ghost small" type="button" id="lgForgot" style="align-self:flex-start;padding-left:0;border:0">Forgot password</button>
+      <p class="small muted">The same account works in Fovea. New accounts get an email with a link to confirm the address.</p>
+    </form>
+    <button class="btn ghost small" type="button" id="lgSkip" style="align-self:center;border:0">Try without an account (progress stays on this device)</button>
+  </div>
+</section>
+
+<!-- ============ APP ============ -->
+<div id="app" hidden>
+<header class="top"><div class="wrap">
+  <span class="name">Riyaz</span>
+  <button class="chip" id="saChip" type="button" aria-label="Change your Sa">Sa = <span id="saName">C3</span></button>
+</div></header>
+
+<main class="wrap">
+
+<!-- ---------- LEARN ---------- -->
+<section id="p-learn" class="stack" hidden>
+  <div><h2>Basics of Hindustani music</h2><p class="muted">Tap any note to hear it at your own Sa.</p></div>
+
+  <div class="card">
+    <h3>The seven swaras</h3>
+    <p>Every melody is built from seven notes, the <b>saptak</b>: Sa Re Ga Ma Pa Dha Ni. Sa is your home note. You choose where it sits for your voice, and every other note is measured from it. Sa and Pa never change. The other five each have a second form, which gives twelve notes in all.</p>
+    <div class="swaras" id="swaraPad"></div>
+    <p class="small muted"><b>Shuddha</b> means natural. <b>Komal</b> (flat) forms exist for Re, Ga, Dha and Ni, written in small letters: r g d n. <b>Tivra</b> (sharp) exists only for Ma, written M♯.</p>
+  </div>
+
+  <div class="card">
+    <h3>Three octaves</h3>
+    <div class="scroll"><table>
+      <tr><th>Saptak</th><th>Where</th><th>Written</th><th>Hear Sa</th></tr>
+      <tr><td>Mandra</td><td>Low, chest</td><td>'S (mark before)</td><td><button class="chip" data-play="-12">Play</button></td></tr>
+      <tr><td>Madhya</td><td>Middle, speaking range</td><td>S</td><td><button class="chip" data-play="0">Play</button></td></tr>
+      <tr><td>Taar</td><td>High, head</td><td>S' (mark after)</td><td><button class="chip" data-play="12">Play</button></td></tr>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <h3>Thaat: the ten parent scales</h3>
+    <p>Bhatkhande grouped ragas under ten seven-note scales. Bilawal uses all natural notes and is where beginners start.</p>
+    <div class="scroll"><table id="thaatTable"><tr><th>Thaat</th><th>Notes</th><th></th></tr></table></div>
+  </div>
+
+  <div class="card">
+    <h3>Raga</h3>
+    <p>A raga is more than a scale. It has rules for moving through the notes, and those rules give it a mood.</p>
+    <ul style="margin:0;padding-left:20px">
+      <li><b>Aroha</b> and <b>avroha</b>: the way up and the way down. They can differ.</li>
+      <li><b>Vadi</b> and <b>samvadi</b>: the most important note and its partner.</li>
+      <li><b>Pakad</b>: a short phrase that identifies the raga at once.</li>
+      <li><b>Samay</b>: the time of day it is traditionally sung.</li>
+    </ul>
+    <p class="small muted">Good first ragas: Bhupali (five notes: S R G P D, evening) and Yaman (all seven with tivra Ma, early night). Both are in Practice.</p>
+  </div>
+
+  <div class="card">
+    <h3>Taal and laya</h3>
+    <p><b>Taal</b> is the repeating rhythm cycle, counted in <b>matras</b> (beats). The first beat is <b>sam</b>, where phrases resolve. <b>Tali</b> is a clap and <b>khali</b> a wave of the hand. <b>Laya</b> is tempo: vilambit (slow), madhya (medium), drut (fast).</p>
+    <p class="label">Teentaal: 16 beats, 4 + 4 + 4 + 4</p>
+    <div class="theka" id="theka"></div>
+    <div class="row"><button class="btn" id="taalBtn" type="button">Play Teentaal</button><label class="small muted" for="taalBpm">Tempo</label><input id="taalBpm" type="range" min="50" max="160" value="80" style="flex:1;min-width:120px"></div>
+  </div>
+
+  <div class="card">
+    <h3>A 15-minute daily riyaz</h3>
+    <ol style="margin:0;padding-left:20px">
+      <li><b>3 min</b> Sa with the tanpura. Hold it steady on "aa".</li>
+      <li><b>4 min</b> Aroha and avroha, slowly, then long notes.</li>
+      <li><b>4 min</b> One alankar. Raise the tempo only when it is clean.</li>
+      <li><b>4 min</b> One raga piece or a song.</li>
+    </ol>
+    <button class="btn primary" type="button" data-go="practice" style="align-self:flex-start">Start practising</button>
+  </div>
+</section>
+
+<!-- ---------- PRACTICE ---------- -->
+<section id="p-practice" class="stack" hidden>
+  <div><h2 id="prTitle">Practice</h2><p class="muted" id="prSub">Pick a piece, press Start and sing. Headphones give the most accurate reading.</p></div>
+
+  <div class="stage">
+    <canvas id="roll" aria-label="Pitch graph: target notes as bars, your voice as a line"></canvas>
+    <div class="meter">
+      <div class="now"><b id="nowSw">–</b><span id="nowHz">mic off</span></div>
+      <div>
+        <div class="needle" aria-hidden="true"><i id="needle"></i></div>
+        <div class="needlecap"><span>flat</span><span id="cents">0 cents</span><span>sharp</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="verdict" id="verdict" aria-live="polite">Press Start to switch the microphone on.</p>
+
+  <div class="gauges">
+    <div class="gauge"><span class="label">Steadiness</span><div class="bar"><i id="gSteady"></i></div><em id="tSteady">–</em></div>
+    <div class="gauge"><span class="label">Tone clarity</span><div class="bar"><i id="gClear"></i></div><em id="tClear">–</em></div>
+    <div class="gauge"><span class="label">Volume</span><div class="bar"><i id="gVol"></i></div><em id="tVol">–</em></div>
+  </div>
+
+  <div class="row">
+    <button class="btn primary" id="startBtn" type="button">Start</button>
+    <button class="btn" id="listenBtn" type="button">Listen first</button>
+    <button class="chip" id="droneBtn" type="button" aria-pressed="false">Tanpura</button>
+    <button class="chip" id="guideBtn" type="button" aria-pressed="true">Guide tone</button>
+  </div>
+  <div class="row" id="tempoRow"><label class="small muted" for="tempo">Tempo <span id="tempoVal">60</span></label><input id="tempo" type="range" min="40" max="160" value="60" style="flex:1;min-width:140px"></div>
+
+  <div class="card" id="notationCard"><span class="label">Notation</span><div class="notation" id="notation"></div></div>
+
+  <div class="card result" id="result" hidden>
+    <span class="label">Last take</span>
+    <div class="row" style="align-items:baseline"><span class="big" id="rAcc">0%</span><span id="rLine"></span></div>
+    <p id="rTip"></p>
+    <button class="btn" type="button" data-go="fix" style="align-self:flex-start">How to correct this</button>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h3>Practice pieces</h3><span class="small muted">10 built in</span></div>
+    <div class="pieces" id="pieces"></div>
+    <div class="row"><button class="btn" id="dlBtn" type="button">Download this piece (WAV)</button></div>
+    <p class="small muted">The download is the melody played at your Sa and tempo, so you can practise with it anywhere.</p>
+  </div>
+
+  <div class="card">
+    <h3>Your own songs</h3>
+    <p class="small muted">Load any audio file from your phone. Play it in headphones and sing along: the graph shows which swara your voice is on and whether it sits on the note. Set your Sa to the song's key first, using the tanpura to match by ear.</p>
+    <div class="row"><input id="songFile" type="file" accept="audio/*" style="flex:1;min-width:0"></div>
+    <div class="pieces" id="mySongs"></div>
+    <audio id="player" controls hidden></audio>
+    <p class="small" id="songMsg" aria-live="polite"></p>
+  </div>
+</section>
+
+<!-- ---------- FIX ---------- -->
+<section id="p-fix" class="stack" hidden>
+  <div><h2>Common problems and how to correct them</h2><p class="muted">Start with what your own takes show, then open the matching fix.</p></div>
+  <div class="card" id="pattern"><span class="label">Your pattern</span><p id="patternText">Sing a piece in Practice and your most common slip will show here.</p></div>
+  <div class="stack" id="fixes"></div>
+  <div><h2>Nuances that make it sound Hindustani</h2><p class="muted">Add these once plain notes are steady.</p></div>
+  <div class="stack" id="nuances"></div>
+</section>
+
+<!-- ---------- INSTRUMENTS ---------- -->
+<section id="p-inst" class="stack" hidden>
+  <div><h2>Learn with an instrument</h2><p class="muted">An instrument gives your ear a fixed reference. Start with one.</p></div>
+  <div class="row" id="instTabs" role="tablist"></div>
+  <div class="card" id="instBody"></div>
+</section>
+
+<!-- ---------- PROFILE ---------- -->
+<section id="p-me" class="stack" hidden>
+  <div><h2>Your riyaz</h2><p class="muted" id="meEmail"></p></div>
+  <div class="stats">
+    <div class="stat"><b id="sStreak">0</b><span>day streak</span></div>
+    <div class="stat"><b id="sBest">0</b><span>best streak</span></div>
+    <div class="stat"><b id="sAcc">–</b><span>avg accuracy</span></div>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h3>Today</h3><span class="small muted" id="goalText">0 of 10 min</span></div>
+    <div class="goal"><i id="goalBar"></i></div>
+  </div>
+  <div class="card">
+    <h3>Last five weeks</h3>
+    <div class="cal" id="cal"></div>
+    <p class="small muted">Darker days had more practice. <span id="sTotal"></span></p>
+  </div>
+  <div class="card">
+    <h3>Accuracy, last 12 takes</h3>
+    <svg id="trend" viewBox="0 0 320 110" style="width:100%;height:auto" role="img" aria-label="Accuracy trend"></svg>
+  </div>
+  <div class="card">
+    <h3>Your Sa</h3>
+    <p class="small muted">Sa is the home note every other note is measured from. Men usually sit near C3 to D3 (Safed 1, 2), women near G3 to A3 (Safed 5, 6).</p>
+    <div class="field"><label for="saSel">Sa</label><select id="saSel"></select></div>
+    <div class="row"><button class="btn" id="findSa" type="button">Find my Sa by humming</button><button class="chip" type="button" data-play="0">Hear it</button></div>
+    <p class="small" id="findMsg" aria-live="polite"></p>
+  </div>
+  <div class="card">
+    <h3>Account</h3>
+    <p id="acLine" class="small"></p>
+    <div class="row"><button class="btn" id="acVerify" type="button" hidden>Send the confirmation email again</button><button class="btn" id="acSync" type="button" hidden>Save progress now</button><button class="btn" id="acOut" type="button">Sign out</button></div>
+  </div>
+</section>
+
+</main>
+
+<nav class="tabs" aria-label="Pages"><div class="wrap">
+  <button data-tab="learn" type="button"><span class="dev">सा</span>Learn</button>
+  <button data-tab="practice" type="button"><span class="dev">रे</span>Practice</button>
+  <button data-tab="fix" type="button"><span class="dev">ग</span>Correct</button>
+  <button data-tab="inst" type="button"><span class="dev">म</span>Instruments</button>
+  <button data-tab="me" type="button"><span class="dev">प</span>Profile</button>
+</div></nav>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+/* Sign-in uses the same Firebase project as Fovea, so one account works in both apps. */
+window.RIYAZ_FIREBASE = { apiKey:"AIzaSyAjuDlySp9coYIyI4KVFd0o7t2sqV3n5Ew", projectId:"fovea-25d37" };
+</script>
+<script>
+(function(){
+'use strict';
+var $ = function(s){ return document.querySelector(s); };
+function el(tag, attrs, kids){ var e = document.createElement(tag); if (attrs) Object.keys(attrs).forEach(function(k){ if (k === 'text') e.textContent = attrs[k]; else if (k === 'html') e.innerHTML = attrs[k]; else e.setAttribute(k, attrs[k]); }); (kids || []).forEach(function(c){ e.append(c); }); return e; }
+var PFX = 'riyaz:';
+var LS = {
+  get:function(k, d){ try { var v = localStorage.getItem(PFX + k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } },
+  set:function(k, v){ try { localStorage.setItem(PFX + k, JSON.stringify(v)); } catch(e){} },
+  del:function(k){ try { localStorage.removeItem(PFX + k); } catch(e){} }
+};
+var toastT;
+function toast(m){ var t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function(){ t.hidden = true; }, 3200); }
+
+/* ================= music data ================= */
+var SW = { S:0, r:1, R:2, g:3, G:4, M:5, 'M#':6, P:7, d:8, D:9, n:10, N:11 };
+var SEMI = [
+  { k:'S', dev:'सा', name:'Sa' }, { k:'r', dev:'रे', name:'komal Re' }, { k:'R', dev:'रे', name:'Re' }, { k:'g', dev:'ग', name:'komal Ga' },
+  { k:'G', dev:'ग', name:'Ga' }, { k:'M', dev:'म', name:'Ma' }, { k:'M♯', dev:'म', name:'tivra Ma' }, { k:'P', dev:'प', name:'Pa' },
+  { k:'d', dev:'ध', name:'komal Dha' }, { k:'D', dev:'ध', name:'Dha' }, { k:'n', dev:'नि', name:'komal Ni' }, { k:'N', dev:'नि', name:'Ni' }
+];
+var WEST = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+var PATTI = { 0:'Safed 1', 1:'Kali 1', 2:'Safed 2', 3:'Kali 2', 4:'Safed 3', 5:'Safed 4', 6:'Kali 3', 7:'Safed 5', 8:'Kali 4', 9:'Safed 6', 10:'Kali 5', 11:'Safed 7' };
+function midiHz(m){ return 440 * Math.pow(2, (m - 69) / 12); }
+function midiName(m){ return WEST[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1); }
+function swLabel(st){ var o = Math.floor(st / 12), s = SEMI[((st % 12) + 12) % 12].k; return (o < 0 ? "'" : '') + s + (o > 0 ? "'" : ''); }
+
+/* Notation: one token = one beat. "-" holds the previous note, "," is a rest, 'S is the low octave, S' the high one, X:1.5 sets a length. */
+function parse(str){
+  var out = [];
+  str.split(/\s+/).forEach(function(t){
+    if (!t || t === '|') return;
+    if (t === '-'){ if (out.length) out[out.length - 1].d += 1; return; }
+    if (t === ','){ out.push({ n:null, d:1 }); return; }
+    var d = 1, parts = t.split(':'); t = parts[0]; if (parts[1]) d = +parts[1];
+    var oct = 0; if (t[0] === "'"){ oct = -1; t = t.slice(1); } if (t[t.length - 1] === "'"){ oct = 1; t = t.slice(0, -1); }
+    if (!(t in SW)) return;
+    out.push({ n:SW[t] + 12 * oct, d:d });
+  });
+  return out;
+}
+var PIECES = [
+  { id:'aroha', name:'Aroha and avroha', sub:'All seven shuddha swaras, up and down', lv:'Start here', bpm:60, s:"S R G M P D N S' - , S' N D P M G R S -" },
+  { id:'long', name:'Long notes', sub:'Four beats on each note, for a steady voice', lv:'Start here', bpm:60, s:"S - - - R - - - G - - - M - - - P - - - M - - - G - - - R - - - S - - -" },
+  { id:'al1', name:'Alankar 1', sub:'S R G, R G M, G M P…', lv:'Easy', bpm:76, s:"S R G - R G M - G M P - M P D - P D N - D N S' - S' N D - N D P - D P M - P M G - M G R - G R S -" },
+  { id:'al2', name:'Alankar 2', sub:'S R G M, R G M P…', lv:'Easy', bpm:84, s:"S R G M | R G M P | G M P D | M P D N | P D N S' | S' N D P | N D P M | D P M G | P M G R | M G R S" },
+  { id:'al3', name:'Alankar 3: skips', sub:'S G, R M, G P… jumps of a third', lv:'Medium', bpm:72, s:"S G R M G P M D P N D S' - , S' D N P D M P G M R G S -" },
+  { id:'twinkle', name:'Twinkle Twinkle in sargam', sub:'A tune you already know, to test your ear', lv:'Easy', bpm:92, s:"S S P P D D P - | M M G G R R S - | P P M M G G R - | P P M M G G R - | S S P P D D P - | M M G G R R S -" },
+  { id:'ode', name:'Ode to Joy in sargam', sub:'Stepwise melody inside five notes', lv:'Easy', bpm:100, s:"G G M P | P M G R | S S R G | G:1.5 R:0.5 R - | G G M P | P M G R | S S R G | R:1.5 S:0.5 S -" },
+  { id:'bhup1', name:'Raga Bhupali: chalan', sub:'Aroha, avroha and pakad. No Ma, no Ni', lv:'Medium', bpm:66, s:"S R G P D S' - , S' D P G R S - , G R S 'D S R G - P G D P G R S -" },
+  { id:'bhup2', name:'Raga Bhupali: sargam in Teentaal', sub:'A two-line practice composition, 16 beats each', lv:'Medium', bpm:84, s:"G G R S | 'D S R G | P G R G | P - D P | G P D S' | D P G R | G P D P | G R S -" },
+  { id:'yaman', name:'Raga Yaman: chalan', sub:'Tivra Ma. The climb starts from low Ni', lv:'Harder', bpm:66, s:"'N R G M# D N S' - , S' N D P M# G R S - , 'N R G - R S - , P M# G - R - S -" }
+];
+PIECES.forEach(function(p){ p.notes = parse(p.s); });
+var THAATS = [['Bilawal','S R G M P D N'],['Kalyan','S R G M# P D N'],['Khamaj','S R G M P D n'],['Bhairav','S r G M P d N'],['Kafi','S R g M P D n'],['Asavari','S R g M P d n'],['Bhairavi','S r g M P d n'],['Poorvi','S r G M# P d N'],['Marwa','S r G M# P D N'],['Todi','S r g M# P d N']];
+var THEKA = ['Dha','Dhin','Dhin','Dha','Dha','Dhin','Dhin','Dha','Dha','Tin','Tin','Ta','Ta','Dhin','Dhin','Dha'];
+
+/* ================= state ================= */
+var state = LS.get('state', null) || { saMidi:48, saAt:0, hist:[] };
+function saveState(){ LS.set('state', state); queueSync(); }
+function saHz(){ return midiHz(state.saMidi); }
+function stHz(st){ return saHz() * Math.pow(2, st / 12); }
+
+/* ================= audio ================= */
+var AC = null, master = null;
+function ac(){
+  if (!AC){ var C = window.AudioContext || window.webkitAudioContext; AC = new C(); master = AC.createGain(); master.gain.value = 0.9; master.connect(AC.destination); }
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(ctx, dest, hz, t0, dur, vol){   // reed-like sustained note
+  var o = ctx.createOscillator(), o2 = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+  o.type = 'sawtooth'; o.frequency.value = hz; o2.type = 'sine'; o2.frequency.value = hz;
+  f.type = 'lowpass'; f.frequency.value = Math.min(2400, hz * 6); f.Q.value = 0.6;
+  var v = vol == null ? 0.22 : vol, end = t0 + Math.max(0.08, dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(v, t0 + 0.03); g.gain.setValueAtTime(v, Math.max(t0 + 0.04, end - 0.06)); g.gain.linearRampToValueAtTime(0.0001, end);
+  var g2 = ctx.createGain(); g2.gain.value = 0.5;
+  o.connect(f); f.connect(g); o2.connect(g2); g2.connect(g); g.connect(dest);
+  o.start(t0); o2.start(t0); o.stop(end + 0.05); o2.stop(end + 0.05);
+  return [o, o2];
+}
+function pluck(ctx, dest, hz, t0, dur, vol){   // plucked string
+  var o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain(); dur = dur || 2.5;
+  o.type = 'sawtooth'; o.frequency.value = hz; f.type = 'lowpass'; f.Q.value = 2;
+  f.frequency.setValueAtTime(Math.min(6000, hz * 12), t0); f.frequency.exponentialRampToValueAtTime(Math.max(300, hz * 2), t0 + dur * 0.6);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(vol == null ? 0.3 : vol, t0 + 0.008); g.gain.exponentialRampToValueAtTime(0.0005, t0 + dur);
+  o.connect(f); f.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + dur + 0.05);
+  return [o];
+}
+function click(ctx, dest, t0, strong){
+  var o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'square'; o.frequency.value = strong ? 1400 : 900;
+  g.gain.setValueAtTime(strong ? 0.25 : 0.12, t0); g.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.06); o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + 0.08);
+  return [o];
+}
+function playSt(st, dur){ var c = ac(); tone(c, master, stHz(st), c.currentTime + 0.02, dur || 0.9); }
+function schedule(ctx, dest, notes, bpm, t0, vol, hzOf){
+  var beat = 60 / bpm, t = t0, nodes = [];
+  notes.forEach(function(n){ var d = n.d * beat; if (n.n != null) nodes = nodes.concat(tone(ctx, dest, hzOf(n.n), t, d * 0.96, vol)); t += d; });
+  return { end:t, nodes:nodes };
+}
+function totalBeats(notes){ return notes.reduce(function(a, n){ return a + n.d; }, 0); }
+function stopNodes(list){ (list || []).forEach(function(o){ try { o.stop(); } catch(e){} }); }
+
+/* tanpura: Pa, Sa, Sa, low Sa, round and round */
+var droneT = null, droneNext = 0, droneI = 0, droneGain = null;
+function droneOn(){
+  var c = ac(); droneGain = c.createGain(); droneGain.gain.value = 0.5; droneGain.connect(master); droneNext = c.currentTime + 0.05; droneI = 0;
+  droneT = setInterval(function(){
+    while (droneNext < c.currentTime + 0.4){ var r = [0.75, 1, 1, 0.5][droneI % 4]; pluck(c, droneGain, saHz() * r, droneNext, 4.5, 0.22); droneNext += 0.95; droneI++; }
+  }, 120);
+}
+function droneOff(){ clearInterval(droneT); droneT = null; if (droneGain){ var g = droneGain; try { g.gain.linearRampToValueAtTime(0.0001, AC.currentTime + 0.4); } catch(e){} setTimeout(function(){ try { g.disconnect(); } catch(e){} }, 600); droneGain = null; } }
+
+/* ================= pitch detection (YIN) ================= */
+var yinD = null;
+function detect(buf, sr){
+  var N = buf.length, half = N >> 1, i, tau, rms = 0;
+  for (i = 0; i < N; i++) rms += buf[i] * buf[i];
+  rms = Math.sqrt(rms / N);
+  if (rms < 0.008) return { hz:0, clarity:0, rms:rms };
+  var tMin = Math.max(2, Math.floor(sr / 1100)), tMax = Math.min(half - 1, Math.floor(sr / 65));
+  if (!yinD || yinD.length < tMax + 2) yinD = new Float32Array(tMax + 2);
+  var d = yinD, run = 0; d[0] = 1;
+  for (tau = 1; tau <= tMax; tau++){
+    var s = 0; for (i = 0; i < half; i++){ var x = buf[i] - buf[i + tau]; s += x * x; }
+    run += s; d[tau] = run ? s * tau / run : 1;
+  }
+  var best = -1;
+  for (tau = tMin; tau < tMax; tau++){ if (d[tau] < 0.15){ while (tau + 1 < tMax && d[tau + 1] < d[tau]) tau++; best = tau; break; } }
+  if (best < 0){ var m = 1; for (tau = tMin; tau < tMax; tau++) if (d[tau] < m){ m = d[tau]; best = tau; } if (m > 0.4) return { hz:0, clarity:0, rms:rms }; }
+  var a = d[best - 1], b = d[best], c2 = d[best + 1], den = a - 2 * b + c2, shift = den ? 0.5 * (a - c2) / den : 0;
+  if (!(shift > -1 && shift < 1)) shift = 0;
+  return { hz:sr / (best + shift), clarity:Math.max(0, 1 - b), rms:rms };
+}
+
+var mic = { on:false, stream:null, an:null, buf:null };
+function micStart(){
+  if (mic.on) return Promise.resolve();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return Promise.reject(new Error('This browser cannot use the microphone. Open the page in Chrome or Safari.'));
+  var c = ac();
+  return navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } }).then(function(s){
+    mic.stream = s; var src = c.createMediaStreamSource(s); mic.an = c.createAnalyser(); mic.an.fftSize = 2048; src.connect(mic.an); mic.buf = new Float32Array(2048); mic.on = true;
+  }, function(){ throw new Error('The microphone is blocked. Allow it for this site in your browser settings, then press Start again.'); });
+}
+function micStop(){ if (mic.stream) mic.stream.getTracks().forEach(function(t){ t.stop(); }); mic.on = false; mic.stream = null; mic.an = null; }
+
+/* ================= practice engine ================= */
+var cur = PIECES[0], mode = 'piece';              // 'piece' = built-in piece with targets, 'free' = own song or open singing
+var run = null, trail = [], recent = [], guide = true, raf = 0, listenNodes = null, listenT = 0;
+var cv = $('#roll'), cx = cv.getContext('2d'), COL = {};
+function readColors(){ var cs = getComputedStyle(document.documentElement); ['ink','muted','line','accent','ok','flat','sharp','teal','sunk'].forEach(function(k){ COL[k] = cs.getPropertyValue('--' + k).trim(); }); }
+function sizeCanvas(){ var r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1; cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); cx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+function range(){
+  if (mode === 'piece'){ var ns = cur.notes.filter(function(n){ return n.n != null; }).map(function(n){ return n.n; }); return [Math.min.apply(0, ns) - 3, Math.max.apply(0, ns) + 3]; }
+  return [-8, 20];
+}
+var PPS = 70;
+function draw(now){
+  var w = cv.clientWidth, h = cv.clientHeight, rg = range(), lo = rg[0], hi = rg[1], nowX = Math.round(w * 0.38);
+  function y(st){ return h - 14 - (st - lo) / (hi - lo) * (h - 28); }
+  cx.clearRect(0, 0, w, h);
+  cx.font = '12px Hind, sans-serif'; cx.textBaseline = 'middle';
+  for (var st = Math.ceil(lo); st <= hi; st++){
+    var pc = ((st % 12) + 12) % 12, nat = [0,2,4,5,7,9,11].indexOf(pc) >= 0;
+    cx.strokeStyle = COL.line; cx.globalAlpha = pc === 0 ? 1 : nat ? 0.7 : 0.25; cx.lineWidth = pc === 0 ? 1.5 : 1;
+    cx.beginPath(); cx.moveTo(30, y(st)); cx.lineTo(w, y(st)); cx.stroke();
+    if (nat){ cx.globalAlpha = 1; cx.fillStyle = pc === 0 ? COL.accent : COL.muted; cx.fillText(swLabel(st), 6, y(st)); }
+  }
+  cx.globalAlpha = 1;
+  var rowH = Math.max(8, Math.min(18, (h - 28) / (hi - lo) * 0.9));
+  if (run && run.kind === 'piece'){
+    run.notes.forEach(function(n, i){
+      if (n.n == null) return;
+      var x0 = nowX + (n.t0 - now) * PPS, x1 = nowX + (n.t1 - now) * PPS; if (x1 < 30 || x0 > w) return;
+      var done = n.t1 <= now, c = COL.muted;
+      if (done && n.res) c = n.res === 'good' ? COL.ok : n.res === 'low' ? COL.flat : n.res === 'high' ? COL.sharp : COL.muted;
+      cx.fillStyle = c; cx.globalAlpha = (now >= n.t0 && now < n.t1) ? 0.95 : done ? 0.75 : 0.4;
+      var xa = Math.max(30, x0 + 1), wd = Math.max(2, x1 - 1 - xa); cx.beginPath();
+      if (cx.roundRect) cx.roundRect(xa, y(n.n) - rowH / 2, wd, rowH, 4); else cx.rect(xa, y(n.n) - rowH / 2, wd, rowH); cx.fill();
+    });
+    cx.globalAlpha = 1;
+  }
+  cx.strokeStyle = COL.ink; cx.globalAlpha = 0.5; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(nowX, 4); cx.lineTo(nowX, h - 4); cx.stroke(); cx.globalAlpha = 1;
+  cx.lineWidth = 3; cx.lineCap = 'round'; cx.lineJoin = 'round';
+  for (var i = 1; i < trail.length; i++){
+    var a = trail[i - 1], b = trail[i]; if (b.t - a.t > 0.12 || Math.abs(b.st - a.st) > 3) continue;
+    var xb = nowX + (b.t - now) * PPS; if (xb < 30) continue;
+    cx.strokeStyle = b.col; cx.beginPath(); cx.moveTo(Math.max(30, nowX + (a.t - now) * PPS), y(a.st)); cx.lineTo(xb, y(b.st)); cx.stroke();
+  }
+  if (trail.length){ var l = trail[trail.length - 1]; if (now - l.t < 0.15){ cx.fillStyle = l.col; cx.beginPath(); cx.arc(nowX, y(l.st), 6, 0, 6.3); cx.fill(); } }
+}
+function median(a){ if (!a.length) return 0; var s = a.slice().sort(function(x, y){ return x - y; }); return s[s.length >> 1]; }
+function sd(a){ if (a.length < 2) return 0; var m = a.reduce(function(x, y){ return x + y; }, 0) / a.length; return Math.sqrt(a.reduce(function(x, y){ return x + (y - m) * (y - m); }, 0) / a.length); }
+var lastHz = [];
+function frame(){
+  raf = requestAnimationFrame(frame);
+  var c = AC, now = run ? c.currentTime - run.start : c.currentTime;
+  if (mic.on){
+    mic.an.getFloatTimeDomainData(mic.buf);
+    var p = detect(mic.buf, c.sampleRate), hz = p.hz;
+    if (hz){ lastHz.push(hz); if (lastHz.length > 3) lastHz.shift(); hz = median(lastHz); } else lastHz.length = 0;
+    var vol = Math.min(1, Math.max(0, (20 * Math.log10(p.rms + 1e-6) + 55) / 45));
+    $('#gVol').style.width = Math.round(vol * 100) + '%'; $('#tVol').textContent = vol < 0.2 ? 'too soft' : vol > 0.92 ? 'very loud' : 'good';
+    if (hz && p.clarity > 0.5){
+      var st = 12 * Math.log2(hz / saHz()), target = null, note = null;
+      if (run && run.kind === 'piece'){ note = run.notes[run.idx(now)]; if (note && note.n != null) target = note.n; }
+      var shown = st, err;
+      if (target != null){ err = st - target; err -= 12 * Math.round(err / 12); shown = target + err; }   // an octave above or below still counts
+      else err = st - Math.round(st);
+      var cents = err * 100, near = target != null ? target : Math.round(st);
+      var tol = target != null ? 35 : 25, col = Math.abs(cents) <= tol ? COL.ok : cents < 0 ? COL.flat : COL.sharp;
+      trail.push({ t:now, st:shown, col:col }); if (trail.length > 900) trail.splice(0, 300);
+      recent.push({ n:near, c:cents }); if (recent.length > 18) recent.shift();
+      var same = recent.filter(function(r){ return r.n === near; }).map(function(r){ return r.c; }), wob = same.length > 5 ? sd(same) : null;
+      var s = SEMI[((near % 12) + 12) % 12];
+      $('#nowSw').textContent = s.dev; $('#nowHz').textContent = swLabel(near) + ' · ' + Math.round(hz) + ' Hz';
+      $('#needle').style.left = Math.max(2, Math.min(98, 50 + cents)) + '%';
+      $('#cents').textContent = (cents > 0 ? '+' : '') + Math.round(cents) + ' cents';
+      var v = $('#verdict');
+      if (Math.abs(cents) <= tol){ v.textContent = 'On pitch: ' + s.name; v.style.color = COL.ok; }
+      else if (Math.abs(cents) > 120){ v.textContent = 'Far from the note (' + (cents < 0 ? 'too low' : 'too high') + '). Listen to the guide tone, then come in again.'; v.style.color = cents < 0 ? COL.flat : COL.sharp; }
+      else if (cents < 0){ v.textContent = 'A little flat. Lift the note up.'; v.style.color = COL.flat; }
+      else { v.textContent = 'A little sharp. Ease the note down.'; v.style.color = COL.sharp; }
+      if (wob != null){ var stS = Math.max(0, 1 - wob / 40); $('#gSteady').style.width = Math.round(stS * 100) + '%'; $('#tSteady').textContent = wob < 10 ? 'steady' : wob < 22 ? 'slight waver' : 'wavering'; }
+      $('#gClear').style.width = Math.round(Math.max(0, (p.clarity - 0.5) * 2) * 100) + '%'; $('#tClear').textContent = p.clarity > 0.9 ? 'clear' : p.clarity > 0.78 ? 'a bit breathy' : 'breathy';
+      if (run){
+        run.voiced++;
+        if (run.kind === 'piece'){ if (note && target != null && now - note.t0 > Math.min(0.14, (note.t1 - note.t0) * 0.25)) note.errs.push(cents); }
+        else { run.all.push(cents); if (wob != null) run.wob.push(wob); }
+      }
+    } else if (recent.length || $('#nowHz').textContent !== 'listening'){ $('#nowSw').textContent = '–'; $('#nowHz').textContent = 'listening'; recent.length = 0; $('#needle').style.left = '50%'; $('#cents').textContent = 'no note heard'; $('#verdict').textContent = 'Listening…'; $('#verdict').style.color = ''; }
+  }
+  if (run && run.kind === 'piece'){
+    var i = run.idx(now);
+    if (i !== run.shown){ run.shown = i; var sp = $('#notation').children; for (var k = 0; k < sp.length; k++){ sp[k].classList.toggle('cur', k === i); if (k < i && run.notes[k].n != null && !run.notes[k].res){ scoreNote(run.notes[k]); sp[k].classList.add(run.notes[k].res); } } }
+    if (now > run.total + 0.3) finish();
+  } else if (run && run.kind === 'free' && run.audio && run.audio.ended) finish();
+  draw(now);
+}
+function scoreNote(n){
+  if (n.errs.length < 3){ n.res = 'miss'; return; }
+  var m = median(n.errs); n.med = m; n.sd = sd(n.errs);
+  n.res = Math.abs(m) <= 35 ? 'good' : m < 0 ? 'low' : 'high';
+}
+function renderNotation(){
+  var box = $('#notation'); box.textContent = '';
+  cur.notes.forEach(function(n){ box.append(el('span', { text:n.n == null ? '·' : swLabel(n.n) + (n.d >= 2 ? ' ' + new Array(Math.round(n.d)).join('– ').trim() : '') }), ' '); });
+}
+function setButtons(){
+  $('#startBtn').textContent = run ? 'Stop' : (mode === 'free' ? 'Start listening' : 'Start');
+  $('#listenBtn').disabled = !!run || mode === 'free'; $('#listenBtn').textContent = listenNodes ? 'Stop playback' : 'Listen first';
+}
+function start(){
+  stopListen();
+  micStart().then(function(){
+    var c = ac(); readColors(); sizeCanvas(); trail = []; recent = []; $('#result').hidden = true;
+    if (mode === 'piece'){
+      var bpm = +$('#tempo').value, beat = 60 / bpm, t = 0;
+      var notes = cur.notes.map(function(n){ var o = { n:n.n, d:n.d, t0:t, t1:t + n.d * beat, errs:[] }; t = o.t1; return o; });
+      var lead = 4 * beat, t0 = c.currentTime + 0.15 + lead, nodes = [];
+      for (var b = 0; b < 4; b++) nodes = nodes.concat(click(c, master, c.currentTime + 0.15 + b * beat, b === 0));
+      if (guide) nodes = nodes.concat(schedule(c, master, cur.notes, bpm, t0, 0.12, stHz).nodes);
+      run = { kind:'piece', start:t0, notes:notes, total:t, nodes:nodes, voiced:0, shown:-2, began:Date.now(),
+        idx:function(now){ if (now < 0) return -1; for (var i = 0; i < notes.length; i++) if (now < notes[i].t1) return i; return notes.length; } };
+      renderNotation(); $('#verdict').textContent = 'Four clicks, then sing.'; $('#verdict').style.color = '';
+    } else {
+      var au = $('#player'); run = { kind:'free', start:c.currentTime, all:[], wob:[], voiced:0, began:Date.now(), audio:au.hidden ? null : au };
+      if (run.audio){ try { au.currentTime = 0; au.play(); } catch(e){} }
+      $('#verdict').textContent = 'Listening. Sing along.'; $('#verdict').style.color = '';
+    }
+    setButtons(); cancelAnimationFrame(raf); frame();
+  }).catch(function(e){ $('#verdict').textContent = e.message; $('#verdict').style.color = COL.sharp || ''; });
+}
+function finish(){
+  if (!run) return;
+  var r = run; run = null; stopNodes(r.nodes); if (r.audio){ try { r.audio.pause(); } catch(e){} }
+  cancelAnimationFrame(raf); micStop(); setButtons();
+  $('#nowSw').textContent = '–'; $('#nowHz').textContent = 'mic off'; $('#needle').style.left = '50%'; $('#cents').textContent = '0 cents';
+  var secs = Math.round((Date.now() - r.began) / 1000), acc, bias, steady, name;
+  if (r.kind === 'piece'){
+    var sung = r.notes.filter(function(n){ return n.n != null && n.t0 < (AC.currentTime - r.start); });
+    sung.forEach(function(n){ if (!n.res) scoreNote(n); });
+    var heard = sung.filter(function(n){ return n.res !== 'miss'; });
+    if (heard.length < 3){ $('#verdict').textContent = 'Not enough singing was heard to score that take. Sing a little louder or move closer to the phone.'; $('#verdict').style.color = ''; return; }
+    acc = Math.round(100 * sung.filter(function(n){ return n.res === 'good'; }).length / sung.length);
+    bias = Math.round(heard.reduce(function(a, n){ return a + n.med; }, 0) / heard.length); steady = Math.round(heard.reduce(function(a, n){ return a + n.sd; }, 0) / heard.length); name = cur.name;
+  } else {
+    if (r.all.length < 40){ $('#verdict').textContent = 'Not enough singing was heard to score that take.'; $('#verdict').style.color = ''; return; }
+    acc = Math.round(100 * r.all.filter(function(c){ return Math.abs(c) <= 25; }).length / r.all.length);
+    bias = Math.round(r.all.reduce(function(a, b){ return a + b; }, 0) / r.all.length); steady = Math.round(r.wob.length ? r.wob.reduce(function(a, b){ return a + b; }, 0) / r.wob.length : 0); name = freeName || 'Open singing';
+  }
+  var entry = { id:Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t:Date.now(), piece:name, kind:r.kind, acc:acc, bias:bias, steady:steady, secs:secs };
+  state.hist.push(entry); if (state.hist.length > 500) state.hist = state.hist.slice(-500); saveState();
+  $('#rAcc').textContent = acc + '%';
+  $('#rLine').textContent = (r.kind === 'piece' ? 'of notes on pitch' : 'of the time on a note') + ' · ' + (Math.abs(bias) < 8 ? 'centred' : bias < 0 ? Math.abs(bias) + ' cents flat on average' : bias + ' cents sharp on average') + ' · ' + (steady < 10 ? 'steady' : steady < 22 ? 'slight waver' : 'wavering');
+  $('#rTip').textContent = tipFor(entry); $('#result').hidden = false; try { $('#result').scrollIntoView({ block:'nearest', behavior:'smooth' }); } catch(e){}
+  $('#verdict').textContent = acc >= 80 ? 'Good take.' : 'Take saved. Try it once more, a little slower.'; $('#verdict').style.color = '';
+  renderMe(); renderPattern();
+}
+function tipFor(e){
+  if (e.bias <= -15) return 'You are landing under the note. Before each phrase, hear the note in your head, then sing it with a little more breath support.';
+  if (e.bias >= 15) return 'You are pushing above the note. Sing softer and relax the throat and jaw.';
+  if (e.steady >= 22) return 'The pitch wavers within a note. Practise Long notes with the tanpura on.';
+  if (e.acc < 60) return 'Slow the tempo down and use Listen first, then sing one line at a time.';
+  return 'Clean. Raise the tempo a little or move to the next piece.';
+}
+function stopListen(){ if (listenNodes){ stopNodes(listenNodes); listenNodes = null; clearTimeout(listenT); setButtons(); } }
+function listen(){
+  if (listenNodes){ stopListen(); return; }
+  var c = ac(), s = schedule(c, master, cur.notes, +$('#tempo').value, c.currentTime + 0.1, 0.2, stHz); listenNodes = s.nodes; setButtons();
+  listenT = setTimeout(function(){ listenNodes = null; setButtons(); }, (s.end - c.currentTime) * 1000 + 100);
+}
+function pickPiece(p){
+  if (run) finish(); stopListen(); mode = 'piece'; cur = p; freeName = ''; $('#tempo').value = p.bpm; $('#tempoVal').textContent = p.bpm;
+  $('#prTitle').textContent = p.name; $('#prSub').textContent = p.sub + '.'; $('#notationCard').hidden = false; $('#tempoRow').hidden = false; $('#player').hidden = true;
+  renderPieces(); renderNotation(); renderSongs(); setButtons(); readColors(); sizeCanvas(); draw(0);
+}
+function renderPieces(){
+  var box = $('#pieces'); box.textContent = '';
+  PIECES.forEach(function(p, i){
+    var best = state.hist.filter(function(h){ return h.piece === p.name; }).reduce(function(a, h){ return Math.max(a, h.acc); }, -1);
+    var b = el('button', { 'class':'piece' + (mode === 'piece' && cur === p ? ' on' : ''), type:'button' }, [
+      el('span', { 'class':'t' }, [el('b', { text:(i + 1) + '. ' + p.name }), el('span', { text:p.sub })]),
+      el('span', { 'class':'lv', text:best >= 0 ? 'best ' + best + '%' : p.lv })]);
+    b.addEventListener('click', function(){ pickPiece(p); window.scrollTo({ top:0, behavior:'smooth' }); }); box.append(b);
+  });
+}
+/* WAV download of the current piece */
+function downloadPiece(){
+  var bpm = +$('#tempo').value, dur = totalBeats(cur.notes) * 60 / bpm + 0.6, sr = 22050, O = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!O){ toast('This browser cannot make the file.'); return; }
+  var oc = new O(1, Math.ceil(dur * sr), sr); schedule(oc, oc.destination, cur.notes, bpm, 0.1, 0.3, stHz);
+  $('#dlBtn').disabled = true;
+  oc.startRendering().then(function(buf){
+    var d = buf.getChannelData(0), n = d.length, v = new DataView(new ArrayBuffer(44 + n * 2));
+    function str(o, s){ for (var i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); }
+    str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
+    for (var i = 0; i < n; i++){ var x = Math.max(-1, Math.min(1, d[i])); v.setInt16(44 + i * 2, x * 32767, true); }
+    var url = URL.createObjectURL(new Blob([v], { type:'audio/wav' })), a = el('a', { href:url, download:'riyaz-' + cur.id + '-' + midiName(state.saMidi).replace('♯', 'sharp') + '.wav' });
+    document.body.append(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 4000); toast('Saved to your downloads.');
+  }).catch(function(){ toast('Could not make the file.'); }).then(function(){ $('#dlBtn').disabled = false; });
+}
+
+/* own songs, kept on this device (IndexedDB) */
+var freeName = '', idb = null, songUrl = null;
+function db(){
+  if (idb) return idb;
+  idb = new Promise(function(res, rej){ try { var r = indexedDB.open('riyaz-songs', 1); r.onupgradeneeded = function(){ r.result.createObjectStore('songs', { keyPath:'name' }); }; r.onsuccess = function(){ res(r.result); }; r.onerror = function(){ rej(r.error); }; } catch(e){ rej(e); } });
+  return idb;
+}
+function dbDo(modeS, fn){ return db().then(function(d){ return new Promise(function(res, rej){ var tx = d.transaction('songs', modeS), rq = fn(tx.objectStore('songs')); tx.oncomplete = function(){ res(rq && rq.result); }; tx.onerror = function(){ rej(tx.error); }; }); }); }
+function useSong(name, blob){
+  if (run) finish(); stopListen(); mode = 'free'; freeName = name; if (songUrl) URL.revokeObjectURL(songUrl); songUrl = URL.createObjectURL(blob);
+  var au = $('#player'); au.src = songUrl; au.hidden = false;
+  $('#prTitle').textContent = name; $('#prSub').textContent = 'Your song. Wear headphones, press Start listening and sing along.'; $('#notationCard').hidden = true; $('#tempoRow').hidden = true;
+  renderPieces(); renderSongs(); setButtons(); readColors(); sizeCanvas(); draw(0); window.scrollTo({ top:0, behavior:'smooth' });
+}
+function renderSongs(){
+  dbDo('readonly', function(s){ return s.getAllKeys(); }).then(function(keys){
+    var box = $('#mySongs'); box.textContent = '';
+    (keys || []).forEach(function(k){
+      var b = el('button', { 'class':'piece' + (mode === 'free' && freeName === k ? ' on' : ''), type:'button' }, [el('span', { 'class':'t' }, [el('b', { text:k })]), el('span', { 'class':'lv', text:'open' })]);
+      b.addEventListener('click', function(){ dbDo('readonly', function(s){ return s.get(k); }).then(function(r){ if (r) useSong(r.name, r.blob); }); });
+      var x = el('button', { 'class':'chip', type:'button', 'aria-label':'Remove ' + k, text:'Remove' });
+      x.addEventListener('click', function(){ dbDo('readwrite', function(s){ return s.delete(k); }).then(renderSongs); });
+      box.append(el('div', { 'class':'row', style:'flex-wrap:nowrap' }, [b, x]));
+    });
+  }).catch(function(){});
+}
+
+/* ================= learn page ================= */
+function flash(b){ b.classList.add('hit'); setTimeout(function(){ b.classList.remove('hit'); }, 350); }
+function buildLearn(){
+  var pad = $('#swaraPad');
+  SEMI.concat([{ k:"S'", dev:'सां', name:'high Sa' }]).forEach(function(s, i){
+    var vik = [1,3,6,8,10].indexOf(i) >= 0, b = el('button', { 'class':'swara' + (vik ? ' vik' : ''), type:'button', 'aria-label':s.name }, [el('b', { text:s.dev }), el('span', { text:s.k + (vik ? (i === 6 ? ' tivra' : ' komal') : '') })]);
+    b.addEventListener('click', function(){ playSt(i); flash(b); }); pad.append(b);
+  });
+  var tb = $('#thaatTable');
+  THAATS.forEach(function(t){
+    var b = el('button', { 'class':'chip', type:'button', text:'Play' });
+    b.addEventListener('click', function(){ var c = ac(); schedule(c, master, parse(t[1] + " S'"), 150, c.currentTime + 0.05, 0.2, stHz); });
+    tb.append(el('tr', null, [el('td', { text:t[0] }), el('td', { text:t[1].replace(/M#/g, 'M♯') }), el('td', null, [b])]));
+  });
+  var th = $('#theka'); THEKA.forEach(function(b, i){ th.append(el('div', null, [b, el('small', { text:i === 0 ? 'sam ✕' : i === 4 ? 'tali 2' : i === 8 ? 'khali 0' : i === 12 ? 'tali 3' : String(i + 1) })])); });
+  var tT = null;
+  $('#taalBtn').addEventListener('click', function(){
+    var btn = this; if (tT){ clearInterval(tT); tT = null; btn.textContent = 'Play Teentaal'; Array.prototype.forEach.call(th.children, function(d){ d.classList.remove('on'); }); return; }
+    var c = ac(), i = 0, next = c.currentTime + 0.1; btn.textContent = 'Stop';
+    tT = setInterval(function(){
+      var beat = 60 / +$('#taalBpm').value;
+      while (next < c.currentTime + 0.15){
+        var k = i % 16, khali = k >= 8 && k < 12; click(c, master, next, k === 0); if (!khali) pluck(c, master, saHz() / 2, next, 0.35, k % 4 === 0 ? 0.3 : 0.16);
+        (function(k, at){ setTimeout(function(){ if (!tT) return; Array.prototype.forEach.call(th.children, function(d, j){ d.classList.toggle('on', j === k); }); }, Math.max(0, (at - c.currentTime) * 1000)); })(k, next);
+        next += beat; i++;
+      }
+    }, 40);
+  });
+}
+
+/* ================= fix page ================= */
+var FIXES = [
+  ['Singing flat (under the note)', 'The most common slip. It usually comes from too little breath behind the note or from not hearing the note before singing it.', ['Play the note, hum it with lips closed, then open to "aa" without letting it drop.', 'Stand or sit tall and breathe low into the belly before each phrase.', 'Think of landing on the note from just above it.', 'Check the key: if the whole song feels heavy, raise your Sa by one step.']],
+  ['Singing sharp (over the note)', 'Usually tension or pushing too hard, often on loud or high notes.', ['Sing the same phrase at half the volume.', 'Loosen the jaw and shoulders. Let the mouth open downward on high notes.', 'Slide slowly down from the higher note until the wobble with the tanpura disappears.']],
+  ['The note wavers', 'The pitch drifts up and down inside one note.', ['Use Long notes daily with the tanpura on. Aim for a flat line on the graph.', 'Start the note softly and keep the air flow even, like a slow steady exhale.', 'Stop a note before you run out of breath. The end of the breath is where it sags.']],
+  ['Missing the first note of a line', 'You find the pitch only after starting, so every line begins with a slide.', ['Hum the first note silently before you sing it.', 'Use Listen first, pause, then sing the opening note alone five times.']],
+  ['High notes crack or strain', 'The song sits above your comfortable range, or you are carrying chest voice too high.', ['Lower your Sa by one or two steps. The right key is the one where you sound relaxed.', 'Practise the high phrase softly on "oo" before singing it on the words.', 'Warm up from the middle of your range outward. Never start cold on the top note.']],
+  ['Low notes are weak or breathy', 'The song sits below your range, or too much air is escaping.', ['Raise your Sa by a step if the low notes vanish.', 'Do kharaj practice: hold low Sa and the notes just below it softly for a few minutes each morning.']],
+  ['Cannot tell whether I am on pitch', 'The ear learns this with a reference, and it does improve.', ['Sing Sa against the tanpura. Off pitch you hear a slow beating wobble. On pitch it melts into one sound.', 'Cover one ear lightly to hear your own voice more clearly.', 'Record a take and listen back without the music.']],
+  ['Rushing or dragging the beat', 'Notes are right but they arrive early or late.', ['Clap the taal while speaking the sargam before singing it.', 'Lower the tempo until every note lands on the beat, then raise it five at a time.']],
+  ['Nasal or thin tone', 'Sound is going through the nose or the mouth is nearly closed.', ['Sing "aa" with the mouth open two fingers wide.', 'Pinch your nose while singing "aa". If the sound changes, redirect it through the mouth.']]
+];
+var NUANCES = [
+  ['Meend (glide)', 'A smooth slide from one note to another that passes through every pitch between them. Practise S to P and back as one unbroken curve, slowly, and watch the line on the graph. It should be a ramp, not steps.'],
+  ['Kan swara (grace note)', 'A light touch of a neighbouring note just before the main one. In Yaman, Ga is often touched from Re. Keep it very short and soft. The main note carries the weight.'],
+  ['Andolan (slow swing)', 'A gentle, slow oscillation around a note, used on particular notes of particular ragas, such as komal Re in Bhairav. It is deliberate and slow, unlike an unsteady waver.'],
+  ['Gamak (heavy shake)', 'A forceful, fast oscillation between notes, sung from the chest. Learn it only after your plain notes are steady.'],
+  ['Murki and khatka', 'Quick clusters of three or four notes used as ornaments in lighter forms. Sing the cluster very slowly in sargam first, then speed it up.'],
+  ['Aakar', 'Singing on the open vowel "aa" instead of note names. It exposes pitch errors that syllables hide, so do each alankar once in sargam and once in aakar.']
+];
+function buildFix(){
+  FIXES.forEach(function(f){ $('#fixes').append(el('details', null, [el('summary', { text:f[0] }), el('div', { 'class':'in' }, [el('p', { 'class':'muted', text:f[1] }), el('ul', null, f[2].map(function(x){ return el('li', { text:x }); }))])])); });
+  NUANCES.forEach(function(f){ $('#nuances').append(el('details', null, [el('summary', { text:f[0] }), el('div', { 'class':'in' }, [el('p', { text:f[1] })])])); });
+}
+function renderPattern(){
+  var h = state.hist.slice(-8); if (!h.length) return;
+  var bias = Math.round(h.reduce(function(a, e){ return a + e.bias; }, 0) / h.length), st = Math.round(h.reduce(function(a, e){ return a + e.steady; }, 0) / h.length), open = -1, txt;
+  if (bias <= -12){ txt = 'Across your last ' + h.length + ' takes you sing about ' + Math.abs(bias) + ' cents flat. Open "Singing flat" below.'; open = 0; }
+  else if (bias >= 12){ txt = 'Across your last ' + h.length + ' takes you sing about ' + bias + ' cents sharp. Open "Singing sharp" below.'; open = 1; }
+  else if (st >= 20){ txt = 'Your pitch is centred but it wavers inside notes. Open "The note wavers" below.'; open = 2; }
+  else txt = 'Your last ' + h.length + ' takes are centred and steady. Work on tempo and the nuances further down.';
+  $('#patternText').textContent = txt;
+  if (open >= 0){ var d = $('#fixes').children[open]; if (d) d.open = true; }
+}
+
+/* ================= instruments ================= */
+var INST = [
+  { id:'keys', name:'Piano and harmonium', intro:'The best first instrument for a singer: every key is a fixed, correct pitch. In Hindustani music the harmonium does the same job, and its keys have the same layout.',
+    steps:['Find C: the white key just left of each pair of black keys. Singers call it Safed 1.', 'With Sa on C, the white keys in order are Sa Re Ga Ma Pa Dha Ni. The black keys are the komal notes and tivra Ma.', 'Right hand: thumb on Sa, then index and middle on Re and Ga. Pass the thumb under to Ma and carry on up.', 'Play one note, sing it, and hold both together. Then play Alankar 1 and sing along.', 'On a harmonium, pump the bellows slowly and evenly with the left hand. Uneven air makes the note swell.'] },
+  { id:'guitar', name:'Guitar', intro:'Six strings, with frets one semitone apart. Good for accompanying yourself with chords.',
+    steps:['Tune the open strings, thick to thin: E A D G B E.', 'Press just behind a fret, not on top of it, with the fingertip.', 'Play sargam on one string: frets 0 2 4 5 7 9 11 12 give Sa Re Ga Ma Pa Dha Ni Sa.', 'Learn three chords first: E minor, A minor and D. Change between them slowly with four strums each.', 'Ten minutes every day beats an hour once a week. Sore fingertips pass in about two weeks.'],
+    strings:[['6th string', 'E2', 82.41], ['5th string', 'A2', 110], ['4th string', 'D3', 146.83], ['3rd string', 'G3', 196], ['2nd string', 'B3', 246.94], ['1st string', 'E4', 329.63]] },
+  { id:'sitar', name:'Sitar', intro:'A long-necked lute with movable curved frets, a main playing string, drone strings and sympathetic strings that ring on their own.',
+    steps:['Sit on the floor with the gourd resting on the left foot and the neck at about 45 degrees.', 'Wear the mizrab (wire plectrum) on the right index finger. The two basic strokes are Da (inward) and Ra (outward).', 'Almost all melody is played on the first string, the baj tar, which is tuned to Ma. The next string, the jod, is tuned to Sa.', 'Press the string with the left index finger just behind a fret and play Sa Re Ga Ma up the neck with Da strokes only.', 'Then practise Da Ra Da Ra on each note. Meend comes later, by pulling the string sideways across the fret.', 'A sitar needs a teacher for posture and tuning. Use this page to train your ear alongside the lessons.'],
+    rel:[['Baj tar (main)', 'Ma, low', 2/3], ['Jod tar', 'Sa, low', 0.5], ['Chikari', 'Sa', 1], ['Chikari', 'high Sa', 2]] },
+  { id:'violin', name:'Violin', intro:'Four strings and no frets, so the fingers and the ear find every note. That makes it very good ear training and well suited to meend.',
+    steps:['Western tuning, low to high: G D A E. Hindustani players usually retune to Sa and Pa pairs, such as Pa Sa Pa Sa.', 'Hold the bow loosely, thumb bent. Draw it straight, halfway between the bridge and the fingerboard.', 'Start with long slow bows on open strings, four counts down and four counts up, until the sound is even.', 'Add fingers one at a time on one string and check each note against the pitch graph in Practice.', 'Play Aroha and avroha on one string before crossing strings.'],
+    strings:[['4th string', 'G3', 196], ['3rd string', 'D4', 293.66], ['2nd string', 'A4', 440], ['1st string', 'E5', 659.25]] },
+  { id:'tabla', name:'Tabla', intro:'The pair of drums that keeps the taal. Knowing its strokes helps a singer feel where sam falls.',
+    steps:['The smaller wooden drum on the right is the dayan and is tuned to Sa. The larger metal one is the bayan.', 'Dayan strokes: Na or Ta (index finger on the rim, ringing) and Tin (index finger further in, softer).', 'Bayan stroke: Ge or Ghe, a deep resonant stroke with the fingertips while the wrist rests on the skin.', 'Combined: Dha is Ge and Na together. Dhin is Ge and Tin together.', 'Say the Teentaal theka aloud while clapping, then play it slowly: Dha Dhin Dhin Dha, Dha Dhin Dhin Dha, Dha Tin Tin Ta, Ta Dhin Dhin Dha.'] }
+];
+var instCur = 'keys';
+function renderInst(){
+  var tabs = $('#instTabs'); tabs.textContent = '';
+  INST.forEach(function(i){ var b = el('button', { 'class':'chip', type:'button', role:'tab', 'aria-pressed':String(i.id === instCur), text:i.name }); b.addEventListener('click', function(){ instCur = i.id; renderInst(); }); tabs.append(b); });
+  var I = INST.filter(function(i){ return i.id === instCur; })[0], body = $('#instBody'); body.textContent = '';
+  body.append(el('h3', { text:I.name }), el('p', { text:I.intro }));
+  if (I.id === 'keys'){
+    var k = el('div', { 'class':'keys', 'aria-label':'One octave keyboard from C' }), whites = [0,2,4,5,7,9,11,12], names = ['Sa','Re','Ga','Ma','Pa','Dha','Ni','Sa'];
+    whites.forEach(function(s, i){ var b = el('button', { 'class':'w', type:'button' }, [names[i], el('small', { text:WEST[s % 12] })]); b.addEventListener('pointerdown', function(){ var c = ac(); tone(c, master, midiHz(60 + s), c.currentTime + 0.01, 0.8); flash(b); }); k.append(b); });
+    [[1,1],[3,2],[6,4],[8,5],[10,6]].forEach(function(p){ var b = el('button', { 'class':'b', type:'button', style:'left:' + (p[1] * 12.5 - 4.25) + '%', 'aria-label':WEST[p[0]], text:SEMI[p[0]].k }); b.addEventListener('pointerdown', function(){ var c = ac(); tone(c, master, midiHz(60 + p[0]), c.currentTime + 0.01, 0.8); flash(b); }); k.append(b); });
+    body.append(el('span', { 'class':'label', text:'Try it: Sa on C' }), k);
+  }
+  if (I.strings || I.rel){
+    var box = el('div', { 'class':'strings' });
+    (I.strings || I.rel).forEach(function(s){ var b = el('button', { type:'button' }, [s[0], el('span', { text:s[1] })]); b.addEventListener('click', function(){ var c = ac(); pluck(c, master, I.rel ? saHz() * s[2] : s[2], c.currentTime + 0.01, 3, 0.35); flash(b); }); box.append(b); });
+    body.append(el('span', { 'class':'label', text:I.rel ? 'Hear the strings at your Sa' : 'Hear the open strings' }), box);
+  }
+  body.append(el('span', { 'class':'label', text:'First steps' }), el('ol', { style:'margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px' }, I.steps.map(function(s){ return el('li', { text:s }); })));
+}
+
+/* ================= profile ================= */
+function dayKey(t){ var d = new Date(t); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+function renderMe(){
+  var days = {}; state.hist.forEach(function(h){ var k = dayKey(h.t); days[k] = (days[k] || 0) + h.secs; });
+  var DAY = 86400000, noon = new Date(); noon.setHours(12, 0, 0, 0); var t0 = noon.getTime(), streak = 0, t = t0;
+  if (!days[dayKey(t)]) t -= DAY;                                   // today not done yet does not break the streak
+  while (days[dayKey(t)]){ streak++; t -= DAY; }
+  var keys = Object.keys(days).map(function(k){ var p = k.split('-'); return new Date(+p[0], p[1] - 1, +p[2], 12).getTime(); }).sort(function(a, b){ return a - b; }), best = 0, runL = 0, prev = 0;
+  keys.forEach(function(k){ runL = prev && Math.round((k - prev) / DAY) === 1 ? runL + 1 : 1; best = Math.max(best, runL); prev = k; });
+  $('#sStreak').textContent = streak; $('#sBest').textContent = Math.max(best, streak);
+  var last = state.hist.slice(-12); $('#sAcc').textContent = last.length ? Math.round(last.reduce(function(a, h){ return a + h.acc; }, 0) / last.length) + '%' : '–';
+  var today = Math.round((days[dayKey(t0)] || 0) / 60); $('#goalText').textContent = today + ' of 10 min'; $('#goalBar').style.width = Math.min(100, today * 10) + '%';
+  var total = state.hist.reduce(function(a, h){ return a + h.secs; }, 0); $('#sTotal').textContent = state.hist.length + ' takes, ' + Math.round(total / 60) + ' minutes in all.';
+  var cal = $('#cal'); cal.textContent = ''; ['M','T','W','T','F','S','S'].forEach(function(d){ cal.append(el('div', { 'class':'dow', text:d })); });
+  var dow = (new Date(t0).getDay() + 6) % 7, startT = t0 - (28 + dow) * DAY;
+  for (var i = 0; i < 35; i++){ var dt = startT + i * DAY, s = days[dayKey(dt)] || 0, c = dt > t0 ? '' : s >= 600 ? 'l3' : s >= 240 ? 'l2' : s > 0 ? 'l1' : ''; cal.append(el('div', { 'class':c + (dt === t0 ? ' today' : ''), text:String(new Date(dt).getDate()), style:dt > t0 ? 'opacity:.35' : '' })); }
+  var sv = $('#trend'); sv.textContent = ''; var NS = 'http://www.w3.org/2000/svg';
+  function S(tag, a){ var e = document.createElementNS(NS, tag); Object.keys(a).forEach(function(k){ e.setAttribute(k, a[k]); }); sv.append(e); return e; }
+  [0, 50, 100].forEach(function(v){ var yy = 95 - v * 0.8; S('line', { x1:28, x2:316, y1:yy, y2:yy, stroke:'var(--line)' }); var tx = S('text', { x:22, y:yy + 4, 'text-anchor':'end', 'font-size':10, fill:'var(--muted)' }); tx.textContent = v; });
+  if (last.length < 2){ var m = S('text', { x:172, y:58, 'text-anchor':'middle', 'font-size':12, fill:'var(--muted)' }); m.textContent = last.length ? 'One take so far. Sing another to see a trend.' : 'Your takes will show here.'; }
+  if (last.length){ var pts = last.map(function(h, i){ return [last.length === 1 ? 172 : 32 + i * (280 / (last.length - 1)), 95 - h.acc * 0.8]; });
+    if (pts.length > 1) S('polyline', { points:pts.map(function(p){ return p.join(','); }).join(' '), fill:'none', stroke:'var(--teal)', 'stroke-width':2.5, 'stroke-linejoin':'round' });
+    pts.forEach(function(p, i){ S('circle', { cx:p[0], cy:p[1], r:i === pts.length - 1 ? 5 : 3, fill:i === pts.length - 1 ? 'var(--accent)' : 'var(--teal)' }); }); }
+  renderAccount();
+}
+function renderSa(){
+  $('#saName').textContent = midiName(state.saMidi); var sel = $('#saSel');
+  if (!sel.options.length) for (var m = 43; m <= 62; m++) sel.append(el('option', { value:m, text:midiName(m) + ' · ' + PATTI[m % 12] + ' · ' + Math.round(midiHz(m)) + ' Hz' }));
+  sel.value = state.saMidi;
+}
+function setSa(m){ state.saMidi = Math.max(43, Math.min(62, m)); state.saAt = Date.now(); saveState(); renderSa(); if (droneT){ droneOff(); droneOn(); } if (!run){ readColors(); draw(0); } }
+function findSa(){
+  var msg = $('#findMsg'), btn = $('#findSa'); if (run) finish(); btn.disabled = true;
+  micStart().then(function(){
+    msg.textContent = 'Hum "mmm" on your most comfortable low note, the one you could hold all day. Listening for 4 seconds…';
+    var got = [], t0 = Date.now(), iv = setInterval(function(){
+      mic.an.getFloatTimeDomainData(mic.buf); var p = detect(mic.buf, AC.sampleRate); if (p.hz && p.clarity > 0.8) got.push(p.hz);
+      if (Date.now() - t0 > 4000){ clearInterval(iv); micStop(); btn.disabled = false;
+        if (got.length < 15){ msg.textContent = 'I could not hear a steady note. Try again a little louder.'; return; }
+        var hz = median(got), m = Math.round(69 + 12 * Math.log2(hz / 440)); while (m > 62) m -= 12; while (m < 43) m += 12;
+        setSa(m); msg.textContent = 'You hummed ' + Math.round(hz) + ' Hz, so your Sa is set to ' + midiName(m) + ' (' + PATTI[m % 12] + '). Sing Aroha and avroha: if the top Sa strains, pick a lower Sa.'; playSt(0, 1.2); }
+    }, 50);
+  }).catch(function(e){ msg.textContent = e.message; btn.disabled = false; });
+}
+
+/* ================= account (Firebase over REST, the way Fovea does it) ================= */
+var FB = window.RIYAZ_FIREBASE, ID_URL = 'https://identitytoolkit.googleapis.com/v1', TOK_URL = 'https://securetoken.googleapis.com/v1', FS_URL = 'https://firestore.googleapis.com/v1';
+var tok = null, tokExp = 0, verified = null;
+function acct(){ return LS.get('acct', null); }
+function validEmail(x){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(x); }
+function jsonOrThrow(r){ return r.text().then(function(t){ if (!r.ok) throw new Error(r.status + ' ' + t.slice(0, 200)); return t ? JSON.parse(t) : {}; }); }
+function idCall(op, body){ return fetch(ID_URL + '/accounts:' + op + '?key=' + encodeURIComponent(FB.apiKey), { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) }).then(jsonOrThrow); }
+function setCred(r, email){ LS.set('acct', { email:email, uid:r.localId, refresh:r.refreshToken }); tok = r.idToken; tokExp = Date.now() + (+r.expiresIn || 3600) * 1000; }
+function idToken(){
+  var a = acct(); if (!a || !a.refresh) return Promise.reject(new Error('signed out'));
+  if (tok && Date.now() < tokExp - 60000) return Promise.resolve(tok);
+  return fetch(TOK_URL + '/token?key=' + encodeURIComponent(FB.apiKey), { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:'grant_type=refresh_token&refresh_token=' + encodeURIComponent(a.refresh) })
+    .then(jsonOrThrow).then(function(r){ tok = r.id_token; tokExp = Date.now() + (+r.expires_in || 3600) * 1000; LS.set('acct', Object.assign({}, a, { refresh:r.refresh_token })); return tok; });
+}
+function acErr(e){
+  var m = String((e && e.message) || e || '');
+  if (/EMAIL_EXISTS/.test(m)) return 'There is already an account with this email. Use Sign in instead.';
+  if (/INVALID_LOGIN_CREDENTIALS|INVALID_PASSWORD|EMAIL_NOT_FOUND|INVALID_EMAIL/.test(m)) return 'The email or password is not right.';
+  if (/WEAK_PASSWORD/.test(m)) return 'Use a password of at least 6 characters.';
+  if (/TOO_MANY_ATTEMPTS/.test(m)) return 'Too many tries. Wait a few minutes and try again.';
+  if (/OPERATION_NOT_ALLOWED|PASSWORD_LOGIN_DISABLED/.test(m)) return 'Email sign-in is switched off in Firebase.';
+  if (/Failed to fetch|NetworkError|Load failed/.test(m)) return 'No connection. Check the internet and try again.';
+  return 'Could not reach the account service (' + m.slice(0, 60) + ').';
+}
+function statePath(){ return FS_URL + '/projects/' + FB.projectId + '/databases/(default)/documents/sync/' + acct().uid + '/riyaz/state'; }
+function pull(){
+  return idToken().then(function(t){ return fetch(statePath(), { headers:{ Authorization:'Bearer ' + t } }); }).then(function(r){ if (r.status === 404) return null; return jsonOrThrow(r); }).then(function(doc){
+    if (!doc || !doc.fields || !doc.fields.json) return;
+    var cloud = JSON.parse(doc.fields.json.stringValue), have = {}; state.hist.forEach(function(h){ have[h.id] = 1; });
+    (cloud.hist || []).forEach(function(h){ if (!have[h.id]) state.hist.push(h); });
+    state.hist.sort(function(a, b){ return a.t - b.t; }); if ((cloud.saAt || 0) > (state.saAt || 0)){ state.saMidi = cloud.saMidi; state.saAt = cloud.saAt; }
+    LS.set('state', state);
+  });
+}
+function push(){ return idToken().then(function(t){ return fetch(statePath(), { method:'PATCH', headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + t }, body:JSON.stringify({ fields:{ json:{ stringValue:JSON.stringify(state) }, at:{ integerValue:String(Date.now()) } } }) }); }).then(jsonOrThrow); }
+var syncT = null, syncNote = '';
+function queueSync(){ if (!acct()) return; clearTimeout(syncT); syncT = setTimeout(function(){ push().then(function(){ syncNote = 'Progress saved to your account.'; }, function(e){ syncNote = 'Not saved to your account yet: ' + acErr(e); }).then(renderAccount); }, 1500); }
+function afterSignIn(){ return pull().catch(function(){}).then(function(){ return push().catch(function(){}); }); }
+function checkVerified(){ return idToken().then(function(t){ return idCall('lookup', { idToken:t }); }).then(function(r){ verified = !!(r.users && r.users[0] && r.users[0].emailVerified); }).catch(function(){}); }
+function sendVerify(){ return idToken().then(function(t){ return idCall('sendOobCode', { requestType:'VERIFY_EMAIL', idToken:t }); }); }
+function renderAccount(){
+  var a = acct(); $('#meEmail').textContent = a ? a.email : 'Not signed in. Progress is kept on this device only.';
+  $('#acLine').textContent = a ? (verified === true ? 'Email confirmed. ' : verified === false ? 'Email not confirmed yet. Open the link we sent you. ' : '') + syncNote : 'Sign in to keep your streak safe and use it on another phone.';
+  $('#acVerify').hidden = !(a && verified === false); $('#acSync').hidden = !a; $('#acOut').textContent = a ? 'Sign out' : 'Sign in';
+}
+function bindLogin(){
+  var msg = $('#lgMsg');
+  function vals(){ var e = $('#lgEmail').value.trim(), p = $('#lgPass').value; if (!validEmail(e)){ msg.textContent = e ? 'That email does not look right.' : 'Type your email first.'; $('#lgEmail').focus(); return null; } if (p.length < 6){ msg.textContent = 'Use a password of at least 6 characters.'; $('#lgPass').focus(); return null; } return [e, p]; }
+  function busy(on){ $('#lgIn').disabled = on; $('#lgNew').disabled = on; }
+  function go(make){
+    var v = vals(); if (!v) return; busy(true); msg.textContent = make ? 'Creating your account…' : 'Signing in…';
+    idCall(make ? 'signUp' : 'signInWithPassword', { email:v[0], password:v[1], returnSecureToken:true }).then(function(r){
+      setCred(r, v[0]); if (make){ verified = false; sendVerify().catch(function(){}); }
+      return afterSignIn();
+    }).then(function(){ msg.textContent = ''; enter(); if (make) toast('Account created. Check your inbox for a confirmation link.'); }, function(e){ msg.textContent = acErr(e); }).then(function(){ busy(false); });
+  }
+  $('#loginForm').addEventListener('submit', function(e){ e.preventDefault(); go(false); });
+  $('#lgNew').addEventListener('click', function(){ go(true); });
+  $('#lgForgot').addEventListener('click', function(){ var e = $('#lgEmail').value.trim(); if (!validEmail(e)){ msg.textContent = 'Type your email first, then press Forgot password.'; return; } idCall('sendOobCode', { requestType:'PASSWORD_RESET', email:e }).then(function(){ msg.textContent = 'If there is an account for ' + e + ', an email to reset the password is on its way.'; }, function(er){ msg.textContent = acErr(er); }); });
+  $('#lgSkip').addEventListener('click', function(){ LS.set('guest', 1); enter(); });
+  $('#acOut').addEventListener('click', function(){ if (run) finish(); LS.del('acct'); LS.del('guest'); tok = null; verified = null; syncNote = ''; $('#app').hidden = true; $('#login').hidden = false; window.scrollTo(0, 0); });
+  $('#acVerify').addEventListener('click', function(){ sendVerify().then(function(){ toast('Sent. Check your inbox and spam folder.'); }, function(e){ toast(acErr(e)); }); });
+  $('#acSync').addEventListener('click', function(){ pull().then(push).then(function(){ syncNote = 'Progress saved to your account.'; renderMe(); renderPieces(); toast('Saved.'); }, function(e){ toast(acErr(e)); }); });
+}
+
+/* ================= navigation and start-up ================= */
+var TABS = ['learn','practice','fix','inst','me'];
+function go(tab){
+  if (TABS.indexOf(tab) < 0) tab = 'practice';
+  if (tab !== 'practice'){ if (run) finish(); stopListen(); }
+  TABS.forEach(function(t){ $('#p-' + t).hidden = t !== tab; });
+  Array.prototype.forEach.call(document.querySelectorAll('nav.tabs button'), function(b){ if (b.dataset.tab === tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+  if (location.hash !== '#' + tab){ try { history.replaceState(null, '', '#' + tab); } catch(e){} }
+  window.scrollTo(0, 0);
+  if (tab === 'practice'){ readColors(); sizeCanvas(); draw(0); }
+  if (tab === 'me') renderMe(); if (tab === 'fix') renderPattern();
+}
+var entered = false;
+function enter(){
+  $('#login').hidden = true; $('#app').hidden = false; state = LS.get('state', state) || state;
+  if (!entered){ entered = true; buildLearn(); buildFix(); renderInst(); }
+  renderSa(); renderPieces(); renderNotation(); renderSongs(); setButtons(); renderMe();
+  $('#tempo').value = cur.bpm; $('#tempoVal').textContent = cur.bpm;
+  go((location.hash || '').slice(1) || (state.hist.length ? 'practice' : 'learn'));
+  if (acct()){ checkVerified().then(renderAccount); pull().then(function(){ renderSa(); renderPieces(); renderMe(); }, function(){}); }
+}
+document.addEventListener('click', function(e){
+  var t = e.target.closest('[data-tab],[data-go],[data-play]'); if (!t) return;
+  if (t.dataset.play != null){ playSt(+t.dataset.play, 1.2); return; }
+  go(t.dataset.tab || t.dataset.go);
+});
+$('#startBtn').addEventListener('click', function(){ if (run) finish(); else start(); });
+$('#listenBtn').addEventListener('click', listen);
+$('#droneBtn').addEventListener('click', function(){ var on = !droneT; if (on) droneOn(); else droneOff(); this.setAttribute('aria-pressed', String(on)); if (on) toast('Tanpura on. Use headphones so the mic hears only you.'); });
+$('#guideBtn').addEventListener('click', function(){ guide = !guide; this.setAttribute('aria-pressed', String(guide)); });
+$('#tempo').addEventListener('input', function(){ $('#tempoVal').textContent = this.value; });
+$('#dlBtn').addEventListener('click', function(){ if (mode !== 'piece'){ toast('Pick one of the practice pieces first.'); return; } downloadPiece(); });
+$('#songFile').addEventListener('change', function(){
+  var f = this.files && this.files[0]; if (!f) return; var name = f.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 60);
+  dbDo('readwrite', function(s){ return s.put({ name:name, blob:f }); }).then(function(){ $('#songMsg').textContent = 'Saved on this device.'; }, function(){ $('#songMsg').textContent = 'Loaded for now. This browser could not keep it for next time.'; }).then(function(){ useSong(name, f); });
+  this.value = '';
+});
+$('#saChip').addEventListener('click', function(){ go('me'); setTimeout(function(){ $('#saSel').focus(); }, 50); });
+$('#saSel').addEventListener('change', function(){ setSa(+this.value); playSt(0, 1); });
+$('#findSa').addEventListener('click', findSa);
+window.addEventListener('resize', function(){ if (!$('#p-practice').hidden){ sizeCanvas(); if (!run) draw(0); } });
+window.addEventListener('hashchange', function(){ if (!$('#app').hidden) go((location.hash || '').slice(1)); });
+document.addEventListener('visibilitychange', function(){ if (document.hidden && run) finish(); });
+try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){ readColors(); if (!run && !$('#app').hidden) draw(0); }); } catch(e){}
+bindLogin();
+if (acct() || LS.get('guest', 0)) enter(); else $('#login').hidden = false;
+})();
+</script>
+</body>
+</html>
