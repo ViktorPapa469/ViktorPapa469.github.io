@@ -21,14 +21,14 @@
 :root{
   --bg:#F3F1F7; --surface:#FFFFFF; --sunk:#E9E5F0; --ink:#2A1F3D; --muted:#6B6080; --line:#D9D3E4;
   --accent:#B86A00; --accent-ink:#FFFFFF; --teal:#0F7C78;
-  --ok:#1F8A4C; --flat:#2F6FD6; --sharp:#C73B62;
+  --ok:#1F8A4C; --flat:#2F6FD6; --sharp:#C73B62; --song:#D9A300;
   --display:'Yatra One','Hind',system-ui,sans-serif; --body:'Hind',system-ui,-apple-system,'Segoe UI',sans-serif;
   --r:14px;
 }
 @media (prefers-color-scheme:dark){ :root{
   --bg:#17121F; --surface:#221A2E; --sunk:#1C1526; --ink:#EDE7F4; --muted:#A99DBD; --line:#372C48;
   --accent:#F2A93B; --accent-ink:#221604; --teal:#4FC4BE;
-  --ok:#57C785; --flat:#7FAAF5; --sharp:#F07C9C; color-scheme:dark;
+  --ok:#57C785; --flat:#7FAAF5; --sharp:#F07C9C; --song:#FFD54A; color-scheme:dark;
 } }
 *{box-sizing:border-box}
 html,body{margin:0}
@@ -116,6 +116,8 @@ canvas#roll{display:block;width:100%;height:250px}
 .piece .t{flex:1;min-width:0} .piece .t b{display:block;font-weight:600} .piece .t span{font-size:13px;color:var(--muted)}
 .piece .lv{font-size:12px;color:var(--muted);white-space:nowrap}
 .result{border-left:4px solid var(--ok)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:4px;border-radius:2px;vertical-align:middle;margin-right:5px}
 .big{font:400 40px/1 var(--display)}
 audio{width:100%}
 
@@ -261,6 +263,7 @@ details ul,details ol{margin:0;padding-left:20px;display:flex;flex-direction:col
       </div>
     </div>
   </div>
+  <p class="legend" id="legend" hidden><span><i style="background:var(--song)"></i>The song</span><span><i style="background:var(--ok)"></i>You, matching</span><span><i style="background:var(--flat)"></i>You, below</span><span><i style="background:var(--sharp)"></i>You, above</span></p>
   <p class="verdict" id="verdict" aria-live="polite">Press Start to switch the microphone on.</p>
 
   <div class="gauges">
@@ -295,7 +298,7 @@ details ul,details ol{margin:0;padding-left:20px;display:flex;flex-direction:col
 
   <div class="card">
     <h3>Your own songs</h3>
-    <p class="small muted">Load any audio file from your phone. Play it in headphones and sing along: the graph shows which swara your voice is on and whether it sits on the note. Set your Sa to the song's key first, using the tanpura to match by ear.</p>
+    <p class="small muted">Load any audio file from your phone. The app reads the song's melody and draws it as a yellow line. Sing along and your voice is drawn over it: green where you match the song, blue where you are below it, pink where you are above. Wear headphones, or the microphone hears the song instead of you. The melody reads best where the voice is clear over the music.</p>
     <div class="row"><input id="songFile" type="file" accept="audio/*" style="flex:1;min-width:0"></div>
     <div class="pieces" id="mySongs"></div>
     <audio id="player" controls hidden></audio>
@@ -535,14 +538,97 @@ function micStart(){
 }
 function micStop(){ if (mic.stream) mic.stream.getTracks().forEach(function(t){ t.stop(); }); mic.on = false; mic.stream = null; mic.an = null; }
 
+/* ================= the melody of a loaded song =================
+   The file is decoded, mixed to one channel at about 11 kHz with the bass taken out, and its pitch is read every
+   40 ms (YIN). Frames that are quiet or unclear are dropped, octave slips are folded back, and the line is smoothed. */
+var SONG = null;   // { hop: seconds per frame, midi: Float32Array (NaN where no melody was found), lo, hi }
+function songSamples(buf){
+  var sr = buf.sampleRate, D = Math.max(1, Math.round(sr / 11025)), ch = buf.numberOfChannels;
+  var n = Math.floor(Math.min(buf.length, sr * 720) / D), x = new Float32Array(n), c, i, j;     // at most 12 minutes
+  for (c = 0; c < ch; c++){ var src = buf.getChannelData(c); for (i = 0; i < n; i++){ var a = 0, o = i * D; for (j = 0; j < D; j++) a += src[o + j]; x[i] += a; } }
+  // high-pass at 180 Hz: bass and drums go, a voice keeps the overtones its pitch is read from
+  var fs = sr / D, w0 = 2 * Math.PI * 180 / fs, cs = Math.cos(w0), al = Math.sin(w0) / 1.414, a0 = 1 + al;
+  var b0 = (1 + cs) / 2 / a0, b1 = -(1 + cs) / a0, a1 = -2 * cs / a0, a2 = (1 - al) / a0, g = 1 / (D * ch), x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (i = 0; i < n; i++){ var v = x[i] * g, y = b0 * v + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2; x2 = x1; x1 = v; y2 = y1; y1 = y; x[i] = y; }
+  return { x:x, sr:fs };
+}
+function melodyInit(x, sr){
+  var W = Math.round(sr * 0.046), tMax = Math.floor(sr / 80), hopN = Math.round(sr * 0.04), n = Math.max(0, Math.floor((x.length - W - tMax - 2) / hopN));
+  return { W:W, tMin:Math.floor(sr / 900), tMax:tMax, hopN:hopN, n:n, sr:sr, d:new Float32Array(tMax + 2), f:new Float32Array(n), cl:new Float32Array(n), rm:new Float32Array(n) };
+}
+function melodyRaw(x, M, from, to){
+  var W = M.W, tMin = M.tMin, tMax = M.tMax, d = M.d, k, i, tau;
+  for (k = from; k < to; k++){
+    var off = k * M.hopN, rms = 0, run = 0, best = -1;
+    for (i = 0; i < W; i++) rms += x[off + i] * x[off + i];
+    M.rm[k] = rms = Math.sqrt(rms / W);
+    if (rms < 1e-4) continue;
+    d[0] = 1;
+    for (tau = 1; tau <= tMax; tau++){ var s = 0; for (i = 0; i < W; i++){ var v = x[off + i] - x[off + i + tau]; s += v * v; } run += s; d[tau] = run ? s * tau / run : 1; }
+    // the shortest period whose dip is nearly as deep as the deepest one: with other instruments playing, the dip at
+    // twice the true period is often a shade deeper, and taking it would put the note an octave too low
+    var m = 1; for (tau = tMin; tau < tMax; tau++) if (d[tau] < m) m = d[tau];
+    if (m > 0.5) continue;
+    var thr = Math.max(0.2, m + 0.1);
+    for (tau = tMin; tau < tMax; tau++){ if (d[tau] < thr){ while (tau + 1 < tMax && d[tau + 1] < d[tau]) tau++; best = tau; break; } }
+    if (best < 0) continue;
+    var a = d[best - 1], b = d[best], c = d[best + 1], den = a - 2 * b + c, sh = den ? 0.5 * (a - c) / den : 0; if (!(sh > -1 && sh < 1)) sh = 0;
+    M.f[k] = 69 + 12 * Math.log2(M.sr / (best + sh) / 440); M.cl[k] = 1 - b;
+  }
+}
+function melodyClean(M){
+  var n = M.n, f = M.f, i, j, out = new Float32Array(n), tmp = [];
+  var sorted = Array.prototype.slice.call(M.rm).sort(function(a, b){ return a - b; }), loud = (sorted[Math.floor(n * 0.9)] || 0) * 0.12;
+  var m = new Float32Array(n);
+  for (i = 0; i < n; i++) m[i] = f[i] > 0 && M.cl[i] >= 0.55 && M.rm[i] >= loud ? f[i] : NaN;
+  function med(lo, hi, skip){ tmp.length = 0; for (var q = Math.max(0, lo); q <= Math.min(n - 1, hi); q++) if (q !== skip && m[q] === m[q]) tmp.push(m[q]); if (tmp.length < 3) return NaN; tmp.sort(function(a, b){ return a - b; }); return tmp[tmp.length >> 1]; }
+  // octave slips: first whole stretches against the second around them, then single frames against their neighbours
+  var wide = new Float32Array(n);
+  for (i = 0; i < n; i++) wide[i] = m[i] === m[i] ? med(i - 25, i + 25, -1) : NaN;
+  for (i = 0; i < n; i++){ if (m[i] === m[i] && wide[i] === wide[i] && Math.abs(m[i] - wide[i]) > 8){ var fw = m[i] + 12 * Math.round((wide[i] - m[i]) / 12); if (Math.abs(fw - wide[i]) < 5) m[i] = fw; } }
+  for (i = 0; i < n; i++){                      // a stray jump that is not an octave is dropped
+    if (m[i] !== m[i]) continue; var md = med(i - 6, i + 6, i); if (md !== md || Math.abs(m[i] - md) <= 6) continue;
+    var fold = m[i] + 12 * Math.round((md - m[i]) / 12); m[i] = Math.abs(fold - md) < 3 ? fold : NaN;
+  }
+  for (i = 0; i < n; i++) out[i] = m[i] === m[i] ? med(i - 2, i + 2, -1) : NaN;
+  for (i = 0; i < n; ){                         // runs shorter than 120 ms are noise
+    if (out[i] !== out[i]){ i++; continue; } j = i; while (j < n && out[j] === out[j] && (j === i || Math.abs(out[j] - out[j - 1]) < 5)) j++;
+    if (j - i < 3) for (var q = i; q < j; q++) out[q] = NaN; i = j;
+  }
+  return out;
+}
+function melodyStats(mel){
+  var v = [], pcs = new Array(12).fill(0), i; for (i = 0; i < mel.midi.length; i++){ var x = mel.midi[i]; if (x === x){ v.push(x); pcs[((Math.round(x) % 12) + 12) % 12]++; } }
+  v.sort(function(a, b){ return a - b; });
+  mel.cover = mel.midi.length ? v.length / mel.midi.length : 0; mel.lo = v.length ? v[Math.floor(v.length * 0.03)] : 55; mel.hi = v.length ? v[Math.floor(v.length * 0.97)] : 67;
+  mel.pc = pcs.indexOf(Math.max.apply(0, pcs)); return mel;
+}
+function readMelody(blob, onProg){
+  return blob.arrayBuffer().then(function(ab){
+    return new Promise(function(res, rej){ var p = ac().decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); });
+  }).then(function(buf){
+    var S_ = songSamples(buf); buf = null;
+    return new Promise(function(res){
+      var M = melodyInit(S_.x, S_.sr), i = 0;
+      (function step(){ var to = Math.min(M.n, i + 200); melodyRaw(S_.x, M, i, to); i = to; onProg(M.n ? i / M.n : 1); if (i < M.n) setTimeout(step, 0); else res({ hop:M.hopN / S_.sr, midi:melodyClean(M) }); })();
+    });
+  });
+}
+function songAt(t){
+  if (!SONG) return null; var i = Math.round(t / SONG.hop), m = SONG.midi;
+  for (var k = 0; k <= 1; k++){ if (m[i + k] === m[i + k]) return m[i + k]; if (m[i - k] === m[i - k]) return m[i - k]; }
+  return null;
+}
+
 /* ================= practice engine ================= */
 var cur = PIECES[0], mode = 'piece';              // 'piece' = built-in piece with targets, 'free' = own song or open singing
 var run = null, trail = [], recent = [], guide = true, raf = 0, listenNodes = null, listenT = 0;
 var cv = $('#roll'), cx = cv.getContext('2d'), COL = {};
-function readColors(){ var cs = getComputedStyle(document.documentElement); ['ink','muted','line','accent','ok','flat','sharp','teal','sunk'].forEach(function(k){ COL[k] = cs.getPropertyValue('--' + k).trim(); }); }
+function readColors(){ var cs = getComputedStyle(document.documentElement); ['ink','muted','line','accent','ok','flat','sharp','teal','sunk','song'].forEach(function(k){ COL[k] = cs.getPropertyValue('--' + k).trim(); }); }
 function sizeCanvas(){ var r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1; cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); cx.setTransform(dpr, 0, 0, dpr, 0, 0); }
 function range(){
   if (mode === 'piece'){ var ns = cur.notes.filter(function(n){ return n.n != null; }).map(function(n){ return n.n; }); return [Math.min.apply(0, ns) - 3, Math.max.apply(0, ns) + 3]; }
+  if (SONG) return [Math.floor(SONG.lo - state.saMidi) - 3, Math.ceil(SONG.hi - state.saMidi) + 3];
   return [-8, 20];
 }
 var PPS = 70;
@@ -571,6 +657,15 @@ function draw(now){
     });
     cx.globalAlpha = 1;
   }
+  if (SONG && mode === 'free'){               // the song's melody: a yellow line, past to the left of the marker and what is coming to the right
+    var hop = SONG.hop, k0 = Math.max(0, Math.floor((now - (nowX - 30) / PPS) / hop)), k1 = Math.min(SONG.midi.length - 1, Math.ceil((now + (w - nowX) / PPS) / hop)), pen = false, pm = 0;
+    cx.strokeStyle = COL.song; cx.lineWidth = 5; cx.lineCap = 'round'; cx.lineJoin = 'round'; cx.beginPath();
+    for (var k = k0; k <= k1; k++){
+      var sm = SONG.midi[k], X = nowX + (k * hop - now) * PPS; if (sm !== sm || X < 30){ pen = false; continue; }
+      if (pen && Math.abs(sm - pm) < 5) cx.lineTo(X, y(sm - state.saMidi)); else cx.moveTo(X, y(sm - state.saMidi)); pen = true; pm = sm;
+    }
+    cx.stroke();
+  }
   cx.strokeStyle = COL.ink; cx.globalAlpha = 0.5; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(nowX, 4); cx.lineTo(nowX, h - 4); cx.stroke(); cx.globalAlpha = 1;
   cx.lineWidth = 3; cx.lineCap = 'round'; cx.lineJoin = 'round';
   for (var i = 1; i < trail.length; i++){
@@ -585,7 +680,8 @@ function sd(a){ if (a.length < 2) return 0; var m = a.reduce(function(x, y){ ret
 var lastHz = [];
 function frame(){
   raf = requestAnimationFrame(frame);
-  var c = AC, now = run ? c.currentTime - run.start : c.currentTime;
+  var c = AC, now = run ? (run.audio ? run.audio.currentTime : c.currentTime - run.start) : c.currentTime;
+  if (trail.length && now < trail[trail.length - 1].t - 0.5) trail = [];      // the song was moved back
   if (mic.on){
     mic.an.getFloatTimeDomainData(mic.buf);
     var p = detect(mic.buf, c.sampleRate), hz = p.hz;
@@ -594,12 +690,17 @@ function frame(){
     $('#gVol').style.width = Math.round(vol * 100) + '%'; $('#tVol').textContent = vol < 0.2 ? 'too soft' : vol > 0.92 ? 'very loud' : 'good';
     if (hz && p.clarity > 0.5){
       var st = 12 * Math.log2(hz / saHz()), target = null, note = null;
+      var song = !!(run && run.song), onSong = false;
       if (run && run.kind === 'piece'){ note = run.notes[run.idx(now)]; if (note && note.n != null) target = note.n; }
+      else if (song){ var sm = songAt(now); if (sm != null){ target = sm - state.saMidi; onSong = true; } }
       var shown = st, err;
       if (target != null){ err = st - target; err -= 12 * Math.round(err / 12); shown = target + err; }   // an octave above or below still counts
-      else err = st - Math.round(st);
-      var cents = err * 100, near = target != null ? target : Math.round(st);
-      var tol = target != null ? 35 : 25, col = Math.abs(cents) <= tol ? COL.ok : cents < 0 ? COL.flat : COL.sharp;
+      else {
+        err = st - Math.round(st);
+        if (song){ var rg = range(); while (shown > rg[1]) shown -= 12; while (shown < rg[0]) shown += 12; }   // keep the voice on the graph between the song's phrases
+      }
+      var cents = err * 100, near = target != null && !onSong ? target : Math.round(shown);
+      var tol = onSong ? 50 : target != null ? 35 : 25, col = song && !onSong ? COL.teal : Math.abs(cents) <= tol ? COL.ok : cents < 0 ? COL.flat : COL.sharp;
       trail.push({ t:now, st:shown, col:col }); if (trail.length > 900) trail.splice(0, 300);
       recent.push({ n:near, c:cents }); if (recent.length > 18) recent.shift();
       var same = recent.filter(function(r){ return r.n === near; }).map(function(r){ return r.c; }), wob = same.length > 5 ? sd(same) : null;
@@ -608,7 +709,10 @@ function frame(){
       $('#needle').style.left = Math.max(2, Math.min(98, 50 + cents)) + '%';
       $('#cents').textContent = (cents > 0 ? '+' : '') + Math.round(cents) + ' cents';
       var v = $('#verdict');
-      if (Math.abs(cents) <= tol){ v.textContent = 'On pitch: ' + s.name; v.style.color = COL.ok; }
+      if (song && !onSong){ v.textContent = 'No clear melody in the song here. Keep singing.'; v.style.color = ''; }
+      else if (onSong && Math.abs(cents) <= tol){ v.textContent = 'Matching the song: ' + s.name; v.style.color = COL.ok; }
+      else if (onSong){ v.textContent = (cents < 0 ? 'Below the song' : 'Above the song') + ' by ' + (Math.abs(cents) >= 150 ? (Math.abs(cents) / 100).toFixed(1) + ' notes' : Math.round(Math.abs(cents)) + ' cents') + '. ' + (cents < 0 ? 'Lift up.' : 'Come down.'); v.style.color = cents < 0 ? COL.flat : COL.sharp; }
+      else if (Math.abs(cents) <= tol){ v.textContent = 'On pitch: ' + s.name; v.style.color = COL.ok; }
       else if (Math.abs(cents) > 120){ v.textContent = 'Far from the note (' + (cents < 0 ? 'too low' : 'too high') + '). Listen to the guide tone, then come in again.'; v.style.color = cents < 0 ? COL.flat : COL.sharp; }
       else if (cents < 0){ v.textContent = 'A little flat. Lift the note up.'; v.style.color = COL.flat; }
       else { v.textContent = 'A little sharp. Ease the note down.'; v.style.color = COL.sharp; }
@@ -617,7 +721,7 @@ function frame(){
       if (run){
         run.voiced++;
         if (run.kind === 'piece'){ if (note && target != null && now - note.t0 > Math.min(0.14, (note.t1 - note.t0) * 0.25)) note.errs.push(cents); }
-        else { run.all.push(cents); if (wob != null) run.wob.push(wob); }
+        else { (onSong ? run.songErrs : run.all).push(cents); if (wob != null) run.wob.push(wob); }
       }
     } else if (recent.length || $('#nowHz').textContent !== 'listening'){ $('#nowSw').textContent = '–'; $('#nowHz').textContent = 'listening'; recent.length = 0; $('#needle').style.left = '50%'; $('#cents').textContent = 'no note heard'; $('#verdict').textContent = 'Listening…'; $('#verdict').style.color = ''; }
   }
@@ -656,7 +760,7 @@ function start(){
         idx:function(now){ if (now < 0) return -1; for (var i = 0; i < notes.length; i++) if (now < notes[i].t1) return i; return notes.length; } };
       renderNotation(); $('#verdict').textContent = 'Four clicks, then sing.'; $('#verdict').style.color = '';
     } else {
-      var au = $('#player'); run = { kind:'free', start:c.currentTime, all:[], wob:[], voiced:0, began:Date.now(), audio:au.hidden ? null : au };
+      var au = $('#player'); run = { kind:'free', start:c.currentTime, all:[], songErrs:[], song:!!SONG, wob:[], voiced:0, began:Date.now(), audio:au.hidden ? null : au };
       if (run.audio){ try { au.currentTime = 0; au.play(); } catch(e){} }
       $('#verdict').textContent = 'Listening. Sing along.'; $('#verdict').style.color = '';
     }
@@ -668,6 +772,7 @@ function finish(){
   var r = run; run = null; stopNodes(r.nodes); if (r.audio){ try { r.audio.pause(); } catch(e){} }
   cancelAnimationFrame(raf); micStop(); setButtons();
   $('#nowSw').textContent = '–'; $('#nowHz').textContent = 'mic off'; $('#needle').style.left = '50%'; $('#cents').textContent = '0 cents';
+  var vsSong = false;
   var secs = Math.round((Date.now() - r.began) / 1000), acc, bias, steady, name;
   if (r.kind === 'piece'){
     var sung = r.notes.filter(function(n){ return n.n != null && n.t0 < (AC.currentTime - r.start); });
@@ -677,14 +782,16 @@ function finish(){
     acc = Math.round(100 * sung.filter(function(n){ return n.res === 'good'; }).length / sung.length);
     bias = Math.round(heard.reduce(function(a, n){ return a + n.med; }, 0) / heard.length); steady = Math.round(heard.reduce(function(a, n){ return a + n.sd; }, 0) / heard.length); name = cur.name;
   } else {
-    if (r.all.length < 40){ $('#verdict').textContent = 'Not enough singing was heard to score that take.'; $('#verdict').style.color = ''; return; }
-    acc = Math.round(100 * r.all.filter(function(c){ return Math.abs(c) <= 25; }).length / r.all.length);
-    bias = Math.round(r.all.reduce(function(a, b){ return a + b; }, 0) / r.all.length); steady = Math.round(r.wob.length ? r.wob.reduce(function(a, b){ return a + b; }, 0) / r.wob.length : 0); name = freeName || 'Open singing';
+    vsSong = r.songErrs.length >= 40; var E = vsSong ? r.songErrs : r.all, tolE = vsSong ? 50 : 25;
+    if (E.length < 40){ $('#verdict').textContent = 'Not enough singing was heard to score that take.'; $('#verdict').style.color = ''; return; }
+    acc = Math.round(100 * E.filter(function(c){ return Math.abs(c) <= tolE; }).length / E.length);
+    var mid = E.filter(function(c){ return Math.abs(c) <= 200; });     // the average lean, leaving out wrong notes
+    bias = Math.round(mid.length ? mid.reduce(function(a, b){ return a + b; }, 0) / mid.length : 0); steady = Math.round(r.wob.length ? r.wob.reduce(function(a, b){ return a + b; }, 0) / r.wob.length : 0); name = freeName || 'Open singing';
   }
   var entry = { id:Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t:Date.now(), piece:name, kind:r.kind, acc:acc, bias:bias, steady:steady, secs:secs };
   state.hist.push(entry); if (state.hist.length > 500) state.hist = state.hist.slice(-500); saveState();
   $('#rAcc').textContent = acc + '%';
-  $('#rLine').textContent = (r.kind === 'piece' ? 'of notes on pitch' : 'of the time on a note') + ' · ' + (Math.abs(bias) < 8 ? 'centred' : bias < 0 ? Math.abs(bias) + ' cents flat on average' : bias + ' cents sharp on average') + ' · ' + (steady < 10 ? 'steady' : steady < 22 ? 'slight waver' : 'wavering');
+  $('#rLine').textContent = (r.kind === 'piece' ? 'of notes on pitch' : vsSong ? 'of your singing matched the song' : 'of the time on a note') + ' · ' + (Math.abs(bias) < 8 ? 'centred' : bias < 0 ? Math.abs(bias) + ' cents flat on average' : bias + ' cents sharp on average') + ' · ' + (steady < 10 ? 'steady' : steady < 22 ? 'slight waver' : 'wavering');
   $('#rTip').textContent = tipFor(entry); $('#result').hidden = false; try { $('#result').scrollIntoView({ block:'nearest', behavior:'smooth' }); } catch(e){}
   $('#verdict').textContent = acc >= 80 ? 'Good take.' : 'Take saved. Try it once more, a little slower.'; $('#verdict').style.color = '';
   renderMe(); renderPattern();
@@ -703,7 +810,7 @@ function listen(){
   listenT = setTimeout(function(){ listenNodes = null; setButtons(); }, (s.end - c.currentTime) * 1000 + 100);
 }
 function pickPiece(p){
-  if (run) finish(); stopListen(); mode = 'piece'; cur = p; freeName = ''; $('#tempo').value = p.bpm; $('#tempoVal').textContent = p.bpm;
+  if (run) finish(); stopListen(); mode = 'piece'; cur = p; freeName = ''; SONG = null; $('#legend').hidden = true; try { $('#player').pause(); } catch(e){} $('#tempo').value = p.bpm; $('#tempoVal').textContent = p.bpm;
   $('#prTitle').textContent = p.name; $('#prSub').textContent = p.sub + '.'; $('#notationCard').hidden = false; $('#tempoRow').hidden = false; $('#player').hidden = true;
   renderPieces(); renderNotation(); renderSongs(); setButtons(); readColors(); sizeCanvas(); draw(0);
 }
@@ -742,20 +849,46 @@ function db(){
   return idb;
 }
 function dbDo(modeS, fn){ return db().then(function(d){ return new Promise(function(res, rej){ var tx = d.transaction('songs', modeS), rq = fn(tx.objectStore('songs')); tx.oncomplete = function(){ res(rq && rq.result); }; tx.onerror = function(){ rej(tx.error); }; }); }); }
-function useSong(name, blob){
+function useSong(name, blob, mel){
   if (run) finish(); stopListen(); mode = 'free'; freeName = name; if (songUrl) URL.revokeObjectURL(songUrl); songUrl = URL.createObjectURL(blob);
-  var au = $('#player'); au.src = songUrl; au.hidden = false;
-  $('#prTitle').textContent = name; $('#prSub').textContent = 'Your song. Wear headphones, press Start listening and sing along.'; $('#notationCard').hidden = true; $('#tempoRow').hidden = true;
-  renderPieces(); renderSongs(); setButtons(); readColors(); sizeCanvas(); draw(0); window.scrollTo({ top:0, behavior:'smooth' });
+  var au = $('#player'); au.src = songUrl; au.hidden = false; SONG = mel && mel.midi ? melodyStats(mel) : null;
+  $('#prTitle').textContent = name; $('#notationCard').hidden = true; $('#tempoRow').hidden = true;
+  function ready(){
+    $('#legend').hidden = !SONG;
+    $('#prSub').textContent = SONG ? 'The yellow line is the song. Wear headphones, press Start listening and sing along.' : 'Your song. Wear headphones, press Start listening and sing along.';
+    renderPieces(); renderSongs(); setButtons(); readColors(); sizeCanvas(); draw(0);
+  }
+  ready(); window.scrollTo({ top:0, behavior:'smooth' });
+  if (SONG){ songNote(); return; }
+  var msg = $('#songMsg'); msg.textContent = 'Reading the melody… 0%'; $('#startBtn').disabled = true;
+  readMelody(blob, function(f){ if (freeName === name) msg.textContent = 'Reading the melody… ' + Math.round(f * 100) + '%'; }).then(function(m){
+    dbDo('readwrite', function(st_){ return st_.put({ name:name, blob:blob, mel:{ hop:m.hop, midi:m.midi } }); }).catch(function(){});
+    if (freeName !== name || mode !== 'free') return;
+    SONG = melodyStats(m); if (SONG.cover < 0.03) SONG = null;
+    ready(); songNote();
+  }).catch(function(){
+    if (freeName === name) msg.textContent = 'The melody could not be read from this file (too long, or a format this browser cannot open). You can still sing along and see your own line.';
+  }).then(function(){ $('#startBtn').disabled = false; });
+}
+function songNote(){
+  var msg = $('#songMsg'); msg.textContent = '';
+  if (!SONG){ msg.textContent = 'No clear melody was found in this song, so only your own line is shown.'; return; }
+  var sa = SONG.pc + 48; while (sa > 62) sa -= 12; while (sa < 43) sa += 12; if (sa + 12 <= 62 && Math.abs(sa + 12 - state.saMidi) < Math.abs(sa - state.saMidi)) sa += 12;
+  msg.append('Melody found for ' + Math.round(SONG.cover * 100) + '% of the song. ');
+  if (sa % 12 !== state.saMidi % 12){
+    var b = el('button', { 'class':'chip', type:'button', text:'Use ' + midiName(sa) + ' as Sa' });
+    b.addEventListener('click', function(){ setSa(sa); songNote(); readColors(); sizeCanvas(); draw($('#player').currentTime || 0); });
+    msg.append('Its most-held note is ' + WEST[SONG.pc] + ', which is often the song\'s Sa. The swara names on the graph follow your Sa. ', b);
+  } else msg.append('Its most-held note is your Sa, ' + WEST[SONG.pc] + '.');
 }
 function renderSongs(){
   dbDo('readonly', function(s){ return s.getAllKeys(); }).then(function(keys){
     var box = $('#mySongs'); box.textContent = '';
     (keys || []).forEach(function(k){
       var b = el('button', { 'class':'piece' + (mode === 'free' && freeName === k ? ' on' : ''), type:'button' }, [el('span', { 'class':'t' }, [el('b', { text:k })]), el('span', { 'class':'lv', text:'open' })]);
-      b.addEventListener('click', function(){ dbDo('readonly', function(s){ return s.get(k); }).then(function(r){ if (r) useSong(r.name, r.blob); }); });
+      b.addEventListener('click', function(){ dbDo('readonly', function(s){ return s.get(k); }).then(function(r){ if (r) useSong(r.name, r.blob, r.mel); }); });
       var x = el('button', { 'class':'chip', type:'button', 'aria-label':'Remove ' + k, text:'Remove' });
-      x.addEventListener('click', function(){ dbDo('readwrite', function(s){ return s.delete(k); }).then(renderSongs); });
+      x.addEventListener('click', function(){ dbDo('readwrite', function(s){ return s.delete(k); }).then(function(){ if (mode === 'free' && freeName === k) pickPiece(cur); else renderSongs(); }); });
       box.append(el('div', { 'class':'row', style:'flex-wrap:nowrap' }, [b, x]));
     });
   }).catch(function(){});
@@ -895,7 +1028,7 @@ function renderSa(){
   if (!sel.options.length) for (var m = 43; m <= 62; m++) sel.append(el('option', { value:m, text:midiName(m) + ' · ' + PATTI[m % 12] + ' · ' + Math.round(midiHz(m)) + ' Hz' }));
   sel.value = state.saMidi;
 }
-function setSa(m){ state.saMidi = Math.max(43, Math.min(62, m)); state.saAt = Date.now(); saveState(); renderSa(); if (droneT){ droneOff(); droneOn(); } if (!run){ readColors(); draw(0); } }
+function setSa(m){ state.saMidi = Math.max(43, Math.min(62, m)); state.saAt = Date.now(); saveState(); renderSa(); if (droneT){ droneOff(); droneOn(); } if (!run){ readColors(); draw(mode === 'free' ? ($('#player').currentTime || 0) : 0); } }
 function findSa(){
   var msg = $('#findMsg'), btn = $('#findSa'); if (run) finish(); btn.disabled = true;
   micStart().then(function(){
@@ -1014,6 +1147,7 @@ $('#songFile').addEventListener('change', function(){
   dbDo('readwrite', function(s){ return s.put({ name:name, blob:f }); }).then(function(){ $('#songMsg').textContent = 'Saved on this device.'; }, function(){ $('#songMsg').textContent = 'Loaded for now. This browser could not keep it for next time.'; }).then(function(){ useSong(name, f); });
   this.value = '';
 });
+$('#player').addEventListener('timeupdate', function(){ if (!run && mode === 'free' && SONG && !$('#p-practice').hidden) draw(this.currentTime); });
 $('#saChip').addEventListener('click', function(){ go('me'); setTimeout(function(){ $('#saSel').focus(); }, 50); });
 $('#saSel').addEventListener('change', function(){ setSa(+this.value); playSt(0); });
 $('#noteDur').addEventListener('input', function(){ state.noteDur = +this.value; $('#noteDurVal').textContent = durText(); });
