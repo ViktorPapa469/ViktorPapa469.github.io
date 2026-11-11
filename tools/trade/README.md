@@ -64,10 +64,38 @@ Every card shows levels and a **position size** from your risk settings.
 ## 4. The live opening-range scan
 
 For each watchlist stock it computes the 15-minute opening range and VWAP, then
-marks it **TRIGGERED** (broke the range, holding beyond VWAP, stronger/weaker than
-Nifty), **WAITING**, or **FAILED**. Triggered names get entry, stop (tighter of
-range edge and VWAP), 1.5R/3R targets and quantity. It warns you when price is
-already more than 1R past entry so you don't chase.
+marks it **TRIGGERED**, **WAITING**, **SKIPPED** or **FAILED**. A break of the
+range is only taken (TRIGGERED, which is what sends the alert) when, at the scan
+that sees it, all of this holds:
+
+- price is holding beyond the range and VWAP, and the stock is stronger/weaker than Nifty;
+- the opening range's volume is at least `ORB_MIN_RVOL` (1.5) times the stock's own
+  average for those minutes over its last 10 sessions;
+- price is no more than `ORB_MAX_CHASE_R` (0.5R) past the level: further than that
+  and the trade is too late;
+- fewer than `MAX_OPEN_POSITIONS` (3) setups taken today are still running, and
+  none of them is in the same sector;
+- today's closed setups have not lost `DAILY_LOSS_LIMIT_R` (3R) or more.
+
+A break that misses one is SKIPPED with the reason on its card, and is taken later
+only if a scan before 11:00 finds everything met. Taken setups get entry, stop
+(tighter of range edge and VWAP), 1.5R/3R targets and quantity, and their levels
+and alert time stay fixed for the day.
+
+These thresholds are starting values, not tested ones. The track record follows
+the skipped breakouts too, so you can see whether the filters help.
+
+## 4a. The track record
+
+`track.py` scores every breakout and swing setup by the same plan and writes
+`track.json` for the app. Intraday setups count as bought at the open of the
+first 5-minute bar after the alert, not at the level, and every result is after
+costs (`COST_INTRADAY_PCT`, `COST_SWING_PCT` in `config.py`). Each trade keeps
+three figures: `ideal` (in at the level, free), `gross` (real fill) and `r` (real
+fill, after costs). Every finished setup is kept for good in
+`tracklog/<year>.json` on the `trade-data` branch.
+
+Tests: `python tools/trade/tests/test_rules.py` (no internet needed).
 
 ## 5. Run it automatically
 

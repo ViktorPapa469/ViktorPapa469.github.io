@@ -1387,7 +1387,7 @@ function trackRate(kind){
   if (!T_) return null;
   if (kind === "longs" || kind === "shorts") rows = ((T_.intraday || {}).trades || []).filter(function(t){ return t.side === (kind === "longs" ? "long" : "short"); });
   else rows = ((T_.swing || {}).trades || []).filter(function(t){ return t.setup === {pullbacks:"Pullback", bases:"Tight base", canslim:"CANSLIM", minervini:"Minervini"}[kind]; });
-  var fin = rows.filter(function(t){ return t.trig && t.done; });
+  var fin = rows.filter(function(t){ return t.trig && t.done && !t.void; });
   return fin.length >= 20 ? {rate:fin.filter(function(t){ return t.r > 0; }).length / fin.length * 100, n:fin.length} : null;
 }
 function winScore(sym, kind, rank){
@@ -1434,7 +1434,7 @@ function viewRanked(){
 /* ---- Intraday: three stocks a page */
 function orbFor(sym){ return st.orb && st.orb.rows ? st.orb.rows.filter(function(r){ return r.symbol === sym; })[0] : null; }
 var STATUS = {"TRIGGERED":["go","Triggered"], "TRIGGERED (weak RS)":["weak","Triggered, weak"], "FAILED":["fail","Failed"],
-              "WAITING":["","Waiting"], "RANGE FORMING":["","Range forming"], "NO DATA":["","No data"]};
+              "WAITING":["","Waiting"], "RANGE FORMING":["","Range forming"], "NO DATA":["","No data"], "SKIPPED":["","Skipped"]};
 /* a triggered setup's outcome from the track record: whichever of stop or target was reached first decides it,
    so a stop hit stays a loss even if price recovers to the target later */
 function outcomeOf(sym, side, day){
@@ -1443,7 +1443,7 @@ function outcomeOf(sym, side, day){
 }
 function outcomePill(sym, side, status, day){
   var t = outcomeOf(sym, side, day), h = t && t.hits || {}, o = t && t.outcome || "", at = function(k){ return h[k] ? " " + h[k] : ""; };
-  if (!t || !t.trig) return statusPill(status);
+  if (!t || !t.trig || t.void) return statusPill(status);
   function pill(c, txt){ return '<span class="status ' + c + '">' + esc(txt).replace(/ /g, "&nbsp;") + "</span>"; }   // one unit: wraps whole, never mid-label
   if (o === "Stop") return pill("fail", "Stopped" + at("stop"));
   if (o === "Both targets") return pill("go", "Both targets" + at("t2"));
@@ -1453,8 +1453,9 @@ function outcomePill(sym, side, status, day){
 }
 function outcomeNote(sym, side, day){
   var t = outcomeOf(sym, side, day); if (!t || !t.trig) return "";
+  if (t.void) return '<p class="why outcome">' + esc(t.outcome) + ".</p>";
   var h = t.hits || {}, o = t.outcome || "", at = function(k){ return h[k] ? " at " + h[k] : ""; };
-  var txt = o === "Stop" ? "The stop was reached first" + at("stop") + ": a loss of 1R, even if price comes back to the target later." :
+  var txt = o === "Stop" ? "The stop was reached first" + at("stop") + ": " + fmtR(t.r) + " after costs, even if price comes back to the target later." :
     o === "Both targets" ? "Target 1" + at("t1") + ", then target 2" + at("t2") + ": " + fmtR(t.r) + "." :
     /first target/i.test(o) ? "Target 1 was reached first" + at("t1") + ": half booked, stop on the rest moved to entry" + (/at entry/.test(o) ? " and hit" + at("entry") : "") + ". " + (t.done ? "Result " : "So far ") + fmtR(t.r) + "." :
     t.done ? "Neither stop nor target by 3:15: closed at " + rs(t.exit) + ", " + fmtR(t.r) + "." :
@@ -1509,7 +1510,7 @@ function viewLive(){
   }
   var mult = o.size_mult, rows = o.rows || [];
   var trig = rows.filter(function(r){ return /^TRIGGERED/.test(r.status); }), wait = rows.filter(function(r){ return r.status === "WAITING" || r.status === "RANGE FORMING"; });
-  var rest = rows.filter(function(r){ return r.status === "FAILED" || r.status === "NO DATA"; });
+  var rest = rows.filter(function(r){ return r.status === "FAILED" || r.status === "NO DATA" || r.status === "SKIPPED"; });
   var tkd = st.track && st.track.intraday && st.track.intraday.by_day && st.track.intraday.by_day[o.date];   // first-hit outcomes so far
   var head = '<div class="glass tile"><div class="facts"><div class="fact"><b class="' + tone(o.nifty_chg) + '">' + pc(o.nifty_chg) + "</b><span>Nifty since open</span></div>" +
     (o.nifty_above_vwap == null ? "" : '<div class="fact"><b>' + (o.nifty_above_vwap ? "Above" : "Below") + "</b><span>Nifty vs VWAP</span></div>") +
@@ -1519,10 +1520,14 @@ function viewLive(){
     (tkd ? '<div class="fact"><b class="down">' + tkd.loss + '</b><span>Stopped first</span></div><div class="fact"><b class="up">' + tkd.profit + "</b><span>Target first</span></div>" : "") + "</div></div>" +
     (o.notes || []).map(function(x){ return '<p class="note">' + esc(x) + "</p>"; }).join("") +
     '<p class="note">Prices from Yahoo Finance can lag a few minutes. Always check your broker\'s chart; you decide whether to act. Swipe for each setup.</p>';
+  var L = o.limits;
+  if (L) head += '<p class="note">Taken setups open now: ' + n(L.open) + " of " + n(L.max_open) + " allowed, one a sector. Closed today: " + rBare(L.closed_r) + " (no new setups once that reaches " + rBare(-L.loss_limit) + "). " +
+    (L.volume_filter ? "A breakout is taken only with opening volume " + L.min_rvol + "x its usual or more, and within " + L.max_chase + "R of the level." : "The volume filter is off: usual opening volumes weren't available.") + "</p>" +
+    (L.halted ? '<div class="warn">Daily loss limit reached. The scan takes no more breakouts today.</div>' : "");
   var tk = st.track && st.track.intraday && st.track.intraday.by_day && st.track.intraday.by_day[o.date];
-  if (tk) head += '<p class="note">So far today: ' + tk.triggered + " triggered, " + tk.profit + " in profit, " + tk.loss + " stopped, " + tk.open + " still open (" + fmtR(tk.r) + "). Full record under Track record above.</p>";
+  if (tk) head += '<p class="note">So far today: ' + tk.triggered + " entered, " + tk.profit + " in profit, " + tk.loss + " stopped, " + tk.open + " still open (" + fmtR(tk.r) + "). Full record under Track record above.</p>";
   var pages = [page("Opening-range scan", head)];
-  [["Triggered", trig], ["Waiting", wait], ["Failed or no data", rest]].forEach(function(g){
+  [["Triggered", trig], ["Waiting", wait], ["Skipped, failed or no data", rest]].forEach(function(g){
     chunk(g[1], 2).forEach(function(c, k, all){ pages.push(page(g[0] + (all.length > 1 ? " " + (k + 1) + "/" + all.length : ""), c.map(function(r){ return ticket(r, mult); }).join(""), g[1].length)); });
   });
   return pages;
@@ -1532,7 +1537,7 @@ function ticket(r, mult){
   var top = '<div class="head"><span><span class="sym">' + esc(r.symbol) + '</span><span class="side ' + (long ? "long" : "short") + '">' + (long ? "Long" : "Short") + "</span> " + outcomePill(r.symbol, r.side, r.status, st.orb && st.orb.date) +
     '<span class="ind">' + esc(indOf(r.industry)) + "</span></span>" +
     (lv(r.symbol) ? pxTag(r.symbol) : ok(r.last) ? '<span class="px">' + rs(r.last) + '<small class="' + tone(r.chg) + '">' + pc(r.chg) + "</small></span>" : "") + "</div>";
-  var info = ok(r.orh) ? '<p class="why">Range ' + rs(r.orl) + " to " + rs(r.orh) + ", VWAP " + rs(r.vwap) + (ok(r.rs) ? ", " + pc(r.rs) + " vs Nifty" : "") + "</p>" : "";
+  var info = ok(r.orh) ? '<p class="why">Range ' + rs(r.orl) + " to " + rs(r.orh) + ", VWAP " + rs(r.vwap) + (ok(r.rs) ? ", " + pc(r.rs) + " vs Nifty" : "") + (ok(r.rvol_open) ? ", opening volume " + r.rvol_open.toFixed(1) + "x usual" : "") + "</p>" : "";
   if (!ok(r.entry)) return '<div class="stock glass">' + top + info + ohlc(r.symbol) + '<div class="row-actions">' + anBtn(r.symbol) + "</div></div>";
   var q = qty(r.entry, Math.abs(r.entry - r.stop), mult);
   return '<div class="stock glass' + (hot ? " hot" : "") + '">' + top + info +
@@ -1541,7 +1546,9 @@ function ticket(r, mult){
     "<div><span>Target 3R</span><b>" + rs(r.t2) + "</b></div><div><span>Since</span><b>" + esc(r.trigger_time || "–") + "</b></div></div>" +
     '<p class="why">Suggested position ' + n(q) + " shares" + (ok(r.lot) && r.lot > 0 && q >= r.lot ? ", " + (q / r.lot).toFixed(1) + " lots" : "") + ".</p>" +
     outcomeNote(r.symbol, r.side, st.orb && st.orb.date) +
-    (r.extended && entryWindowOpen() && !(outcomeOf(r.symbol, r.side, st.orb && st.orb.date) || {}).done ? '<div class="warn">Already more than 1R past entry. Don\'t chase; wait for a pullback toward VWAP or skip.</div>' : "") +
+    (r.status === "SKIPPED" && r.skip ? '<div class="warn">Skipped: ' + esc(r.skip) + "</div>" : "") +
+    (r.taken && r.alert_time ? '<p class="why">Alert at ' + esc(r.alert_time) + ". The track record counts it as bought at the next 5-minute bar's open, not at the level.</p>" : "") +
+    (r.extended && r.status !== "SKIPPED" && entryWindowOpen() && !(outcomeOf(r.symbol, r.side, st.orb && st.orb.date) || {}).done ? '<div class="warn">Already more than 1R past entry. Don\'t chase; wait for a pullback toward VWAP or skip.</div>' : "") +
     (r.status === "TRIGGERED (weak RS)" && entryWindowOpen() && !(outcomeOf(r.symbol, r.side, st.orb && st.orb.date) || {}).done ? '<div class="warn">Broke out but isn\'t beating Nifty. Half size or skip.</div>' : "") +
     ohlc(r.symbol) +
     '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="live:' + esc(r.symbol) + '">Paper trade</button>' + anBtn(r.symbol) + "</div>" +
@@ -1556,11 +1563,26 @@ function trackPages(kind){
   if (!T_) return [page(name + " track record", '<div class="empty"><p>The track record builds up from the first trading day with the live scan. It updates every 15 minutes in market hours and after the close.</p></div>')];
   var R = T_.recent || {}, A = T_.archive || {}, days = intra ? 7 : 30;
   var fin = (R.profit || 0) + (R.loss || 0);
-  var facts = [["Signals", n(R.signals)], ["Triggered", n(R.triggered)], ["Profitable", '<span class="up">' + n(R.profit) + "</span>"],
+  var facts = [["Signals", n(R.signals)], [intra ? "Entered" : "Triggered", n(R.triggered)], ["Profitable", '<span class="up">' + n(R.profit) + "</span>"],
                ["Loss", '<span class="down">' + n(R.loss) + "</span>"], ["Open", n(R.open)],
                ["Win rate", fin ? Math.round(R.profit / fin * 100) + "%" : "–"], ["Total", '<span class="' + tone(R.r) + '">' + fmtRH(R.r) + "</span>"],
                ["Average", '<span class="' + tone(R.r) + '">' + (fin ? fmtRH(R.r / (fin + (R.flat || 0))) : "–") + "</span>"]];
   if (!intra) facts.splice(5, 0, ["Not triggered", n(R.not_triggered)]);
+  var LO = T_.left_out || {}, AT = T_.all_time || {}, ATL = T_.all_time_left_out || {}, cp = (st.track.costs_pct || {})[kind];
+  var atFin = (AT.profit || 0) + (AT.loss || 0) + (AT.flat || 0);
+  var honest = ok(R.ideal) ? '<div class="glass tile"><b>What a real account would have seen</b><div class="facts" style="margin-top:6px">' +
+      '<div class="fact"><b class="' + tone(R.ideal) + '">' + fmtRH(R.ideal) + "</b><span>" + (intra ? "In at the level, no costs" : "Before costs") + "</span></div>" +
+      (intra ? '<div class="fact"><b class="' + tone(R.gross) + '">' + fmtRH(R.gross) + "</b><span>Real fill, no costs</span></div>" : "") +
+      '<div class="fact"><b class="' + tone(R.r) + '">' + fmtRH(R.r) + "</b><span>" + (intra ? "Real fill, after costs" : "After costs") + "</span></div></div>" +
+      '<p class="muted small" style="margin:8px 0 0">' + (intra ? "The first figure is the old way of counting: bought exactly at the breakout level, free. The last is what counts: bought at the next 5-minute bar's open after the alert, less " : "The second figure takes off ") +
+      (ok(cp) ? cp + "% of the trade's value" : "costs") + " for brokerage, taxes and slippage. Every total on this page is the after-costs figure." +
+      (R.not_entered ? " " + n(R.not_entered) + " not entered: price was already through the stop or at the target by then." : "") + "</p></div>" : "";
+  var allTime = atFin >= 1 ? '<div class="glass tile"><b>Since the start</b><div class="facts" style="margin-top:6px"><div class="fact"><b>' + n(atFin) + '</b><span>Finished</span></div><div class="fact"><b>' +
+      Math.round((AT.profit || 0) / atFin * 100) + '%</b><span>Win rate</span></div><div class="fact"><b class="' + tone(AT.r) + '">' + fmtRH(AT.r) + '</b><span>Total after costs</span></div><div class="fact"><b class="' + tone(AT.r) + '">' + fmtRH(AT.r / atFin) + "</b><span>Average</span></div></div>" +
+      '<p class="muted small" style="margin:8px 0 0">' + (atFin < 200 ? "Too few to judge: with fewer than about 200 finished setups, across both rising and falling markets, a total like this can be luck. " : "") + "Every finished setup is kept for good.</p></div>" : "";
+  var leftOut = intra && (LO.triggered || ATL.triggered) ? '<div class="glass tile"><b>Left out by the filters</b><div class="facts" style="margin-top:6px"><div class="fact"><b>' + n(LO.triggered) + '</b><span>Last ' + days + ' days</span></div><div class="fact"><b class="' + tone(LO.r) + '">' + fmtRH(LO.r) +
+      '</b><span>Would have made</span></div><div class="fact"><b>' + n(ATL.triggered) + '</b><span>Since the start</span></div><div class="fact"><b class="' + tone(ATL.r) + '">' + fmtRH(ATL.r) + "</b><span>Would have made</span></div></div>" +
+      '<p class="muted small" style="margin:8px 0 0">Breakouts the scan did not take: low opening volume, too far past the level, position or loss limit reached, fell back, or weaker than Nifty. Followed by the same plan, after costs. If these keep doing better than the setups that were taken, the filters are costing money.</p></div>' : "";
   var byDay = Object.keys(T_.by_day || {}).sort().reverse().map(function(d){
     var x = T_.by_day[d];
     return "<tr><td>" + esc(niceDate(d)) + "</td><td>" + n(x.signals) + "</td><td>" + n(x.triggered) + '</td><td class="up">' + n(x.profit) + '</td><td class="down">' + n(x.loss) + '</td><td class="' + tone(x.r) + '">' + fmtRH(x.r) + "</td></tr>";
@@ -1568,23 +1590,26 @@ function trackPages(kind){
   var older = A.triggered || A.signals ? '<div class="glass tile"><b>Before ' + esc(niceDate(A.to)) + " (counts only)</b>" +
       '<div class="facts" style="margin-top:6px"><div class="fact"><b>' + n(A.triggered) + "</b><span>Triggered of " + n(A.signals) + '</span></div><div class="fact"><b class="up">' + n(A.profit) +
       '</b><span>Profitable</span></div><div class="fact"><b class="down">' + n(A.loss) + '</b><span>Loss</span></div><div class="fact"><b class="' + tone(A.r) + '">' + fmtRH(A.r) + "</b><span>Total</span></div></div></div>" :
-    '<p class="note">Setups are kept in detail for ' + days + " days; after that only the counts are kept, here.</p>";
+    '<p class="note">Setups are kept in detail for ' + days + " days here; after that this page shows the counts, and every setup stays saved with its detail in the yearly log.</p>";
   var head = '<div class="glass tile"><div class="facts">' + facts.map(function(f){ return '<div class="fact"><b>' + f[1] + "</b><span>" + esc(f[0]) + "</span></div>"; }).join("") + "</div>" +
       '<p class="muted small" style="margin:8px 0 0">Last ' + days + " days. " + esc((st.track.rules || {})[kind] || "") + " R is the stop distance; the cautious reading is used when a stop and a target fall in the same bar." + (oneR() ? " Rupees in brackets: R × your risk per trade of ₹" + n(Math.round(oneR())) + " (capital × risk %, Settings)." : "") + "</p></div>" +
+    honest + allTime + leftOut +
     (byDay ? '<div class="glass tile"><table class="trk"><thead><tr><th>Day</th><th>Signals</th><th>Trig.</th><th>Profit</th><th>Loss</th><th>Total</th></tr></thead><tbody>' + byDay + "</tbody></table></div>" : "") +
     older + '<p class="note">Rule outcomes on past prices for market study: not trades anyone made, and not a promise of future results. Updated ' + esc(niceDate(st.track.updated)) + " " + esc(hmOf(st.track.updated)) + ".</p>";
   var trades = (T_.trades || []).filter(function(t){ return intra || t.trig || t.outcome === "Not triggered" || t.outcome === "Waiting"; });
   var cards = trades.map(function(t){
-    var entry = t.fill || t.entry, risk = Math.abs(entry - t.stop), pct = risk && entry ? t.r * risk / entry * 100 : null;
-    var cls = !t.trig ? "" : !t.done ? "gold" : t.r > 0 ? "up" : t.r < 0 ? "down" : "";
-    var lbl = !t.trig ? t.outcome : t.done ? (t.r > 0 ? "Profit " : t.r < 0 ? "Loss " : "Flat ") + fmtR(t.r) : "Open " + fmtR(t.r);
+    var entry = t.fill || t.entry, risk = Math.abs(t.entry - t.stop), pct = risk && entry ? t.r * risk / entry * 100 : null;
+    var cls = !t.trig || t.void ? "" : !t.done ? "gold" : t.r > 0 ? "up" : t.r < 0 ? "down" : "";
+    var lbl = !t.trig ? t.outcome : t.void ? "Not entered" : t.done ? (t.r > 0 ? "Profit " : t.r < 0 ? "Loss " : "Flat ") + fmtR(t.r) : "Open " + fmtR(t.r);
     return '<div class="stock glass"><div class="head"><span><span class="sym">' + esc(t.sym) + '</span><span class="side ' + (t.side === "short" ? "short" : "long") + '">' + (intra ? (t.side === "short" ? "Short" : "Long") : esc(t.setup)) + "</span>" +
         '<span class="ind">' + esc(niceDate(t.d)) + (t.trig ? (intra ? ", triggered " + esc(t.trig) : ", triggered " + esc(niceDate(t.trig))) : "") + "</span></span>" +
         '<span class="pill ' + cls + '">' + esc(lbl) + "</span></div>" +
-      (t.trig ? '<div class="levels"><div><span>' + (t.fill && t.fill !== t.entry ? "Filled (gap)" : "Entry") + "</span><b>" + rs(entry) + "</b></div><div><span>Stop</span><b>" + rs(t.stop) + "</b></div>" +
+      (t.trig ? '<div class="levels"><div><span>' + (t.fill && t.fill !== t.entry ? (intra ? "Bought at" : "Filled (gap)") : "Entry") + "</span><b>" + rs(entry) + "</b></div><div><span>Stop</span><b>" + rs(t.stop) + "</b></div>" +
         "<div><span>Exit" + (t.done ? "" : " (now)") + "</span><b>" + (ok(t.exit) ? rs(t.exit) : "–") + "</b></div><div><span>" + (intra ? "Target 1.5R" : "Target 2R") + "</span><b>" + rs(t.t1) + "</b></div>" +
         "<div><span>Target 3R</span><b>" + rs(t.t2) + '</b></div><div><span>Result</span><b class="' + tone(t.r) + '">' + rBare(t.r) + '<small class="inr">' + [inr(t.r).replace(/[()]/g, ""), ok(pct) ? pc(pct) : ""].filter(Boolean).join(", ").replace(/^(.+)$/, "($1)") + "</small></b></div></div>" +
-        '<p class="why">' + esc(t.outcome) + (!intra && t.held ? ", " + t.held + (t.held === 1 ? " session" : " sessions") : "") + ".</p>"
+        '<p class="why">' + esc(t.outcome) + (!intra && t.held ? ", " + t.held + (t.held === 1 ? " session" : " sessions") : "") + "." +
+          (intra && t.fill && !t.void ? " Level " + rs(t.entry) + (t.alert ? ", alert " + esc(t.alert) : "") + "." : "") +
+          (ok(t.gross) && ok(t.cost) && !t.void ? " Before costs " + rBare(t.gross) + ", costs " + rBare(-t.cost) + "." : "") + "</p>"
       : '<p class="why">Setup above ' + rs(t.entry) + ", stop " + rs(t.stop) + "." + (t.outcome === "Waiting" ? " Watching for 3 sessions." : " Price never reached the level within 3 sessions.") + "</p>") + "</div>";
   });
   var pages = [page(name + " track record", head)];
@@ -1686,16 +1711,17 @@ var GLOSSARY = [
   ["Short covering", "Price up and open interest down: sellers buying back. Supports a long."],
   ["Signals", "Setups the screener listed, whether or not they triggered."],
   ["SME", "NSE's platform for small and medium companies. Included in Analyse."],
+  ["Skipped", "A breakout the live scan did not take: opening volume under 1.5x the stock's usual, price already more than 0.5R past the level, three setups already open, one already open in the same sector, or the day's closed setups down 3R. The reason is shown on the card."],
   ["Square-off", "Closing all intraday trades by 3:15 PM. The app sends a reminder at 3:15."],
   ["Stop (stop loss)", "The price at which a setup is wrong and should be closed to cap the loss at 1R."],
   ["Stop distance", "Entry minus stop, in rupees or as a % of price: the risk per share (1R)."],
-  ["Stopped first", "The stop was reached before target 1: a loss of 1R, even if price later recovers to the target."],
+  ["Stopped first", "The stop was reached before target 1: a loss of 1R or a little more (a late fill and costs add to it), even if price later recovers to the target."],
   ["Swing", "Trades held for days, usually 2 to 10 sessions."],
   ["Target 1, target 2", "Profit levels at multiples of R: 1.5R and 3R for intraday, 2R and 3R for swing."],
   ["Tight base", "A swing setup: a stock near its 52-week high trading in a narrow 10-day range on drying volume. Taken on a break above the 10-day high."],
   ["Time exit", "Closing a setup that reached neither stop nor target: 3:15 PM for intraday, the 10th session's close for swing."],
   ["Total R", "The sum of the results of all finished setups, in R."],
-  ["Track record", "How every setup the screener listed worked out, scored by the same plan: whichever of stop or target was reached first. Details kept 7 days (intraday) and 30 days (swing), then counts only."],
+  ["Track record", "How every setup the screener listed worked out, scored by the same plan: whichever of stop or target was reached first. Intraday setups count as bought at the next 5-minute bar's open after the alert, and every result is after costs. Details show for 7 days (intraday) and 30 days (swing); every setup is also kept for good in a yearly log."],
   ["Triggered", "Price crossed the setup's entry level. \"Triggered, weak\": it broke out but isn't beating Nifty, so half size or skip."],
   ["Turnover", "The value of shares traded per day (price × volume), averaged over 20 sessions."],
   ["Volume vs average", "Today's volume divided by the 20-day average volume (for example 1.5x)."],
@@ -2159,6 +2185,7 @@ function riskIntraday(sym, x, s){
       "Price is " + (long ? "below" : "above") + " VWAP (" + rs(O.vwap) + "): a break now wouldn't qualify.");
   add(no, today && orb && ok(O.rs) && s * O.rs < 0, (long ? "It lags Nifty since the open" : "It holds up better than Nifty since the open") + ": a break while " + (long ? "weaker" : "stronger") + " than the index counts only as \"weak RS\", half size or skip.",
       "It is " + (long ? "weaker" : "stronger") + " than Nifty since the open (" + pc(O.rs) + "): a break would be \"weak RS\", half size or skip.");
+  add(no, today && orb && ok(O.rvol_open) && O.rvol_open < 1.5, "", "Opening volume was " + (orb && ok(O.rvol_open) ? O.rvol_open.toFixed(1) : "–") + "x its usual: the scan only takes breakouts with 1.5x or more, so a break today would be skipped.", true);
   add(no, ok(k.gap) && s * k.gap >= 2, "", "A pre-open gap of " + pc(k.gap) + " in the trade's direction: much of the move may be done before the range forms.", true);
   if (x.event && /Results today|Results in 1d/.test(x.event)) add(no, true, "", esc(x.event) + ": results can swing the stock either way; the screen skips it unless studying the reaction after 10:00.");
 

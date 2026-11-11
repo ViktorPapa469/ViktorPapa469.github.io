@@ -241,6 +241,8 @@ def orb(ctx):
                       ("T2 3R", money(r["t2"])), ("Qty", f"{r['qty']:,}"), ("Since", r["trigger_time"])])
             if r.get("extended"):
                 lv += "<div class='warn'>⚠ Already more than 1R past entry - don't chase; wait for a pullback toward VWAP</div>"
+            if r.get("skip"):
+                lv += f"<div class='warn'>Skipped: {e(r['skip'])}</div>"
         cards.append(f"<div class='card'>{top}{info}{lv}</div>")
     body = head + f"<div class='card'><div class='grid'>{k}</div></div>" + "".join(cards)
     return page(f"ORB {ctx['today']}", body)

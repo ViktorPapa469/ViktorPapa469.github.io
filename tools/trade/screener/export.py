@@ -44,7 +44,8 @@ INTRADAY_KEYS = ("symbol", "industry", "side", "price", "chg1", "score", "reason
 SWING_KEYS = ("symbol", "industry", "setup", "price", "chg1", "score", "reasons", "warnings",
               "entry", "stop", "t1", "t2", "risk_pct", "lot", "counter")
 ORB_KEYS = ("symbol", "side", "industry", "lot", "status", "last", "chg", "rs", "orh", "orl", "vwap",
-            "trigger_time", "breakout_vol", "entry", "stop", "t1", "t2", "extended")
+            "trigger_time", "breakout_vol", "entry", "stop", "t1", "t2", "extended",
+            "rvol_open", "taken", "alert_time", "skip", "plan_open", "plan_r")
 
 
 def premarket_payload(ctx, notes, generated):
@@ -78,6 +79,7 @@ def orb_payload(date, res, size_mult, notes, generated, demo):
         "bars_to": res["as_of"].strftime("%H:%M") if res.get("as_of") is not None else None,
         "nifty_chg": res.get("nifty_chg"), "nifty_above_vwap": res.get("nifty_above_vwap"),
         "size_mult": size_mult, "rows": [_pick(r, ORB_KEYS) for r in res["rows"]], "notes": notes,
+        "limits": res.get("limits"),
     })
 
 

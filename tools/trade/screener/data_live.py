@@ -217,6 +217,26 @@ class LiveData:
                 out["NIFTY 50" if t == "^NSEI" else t[:-3]] = df
         return out
 
+    def opening_volume(self, symbols, minutes=15, days=10):
+        """Each stock's average volume in the first `minutes` of the session over its last `days` sessions before
+        today (Yahoo 5-minute bars): what the live scan compares today's opening-range volume with."""
+        raw = self._download([s + ".NS" for s in symbols], period="1mo", interval="5m", prepost=False)
+        out, today = {}, now_ist().date()
+        for t, df in raw.items():
+            if "volume" not in df:
+                continue
+            idx = df.index
+            if idx.tz is None:
+                idx = idx.tz_localize("UTC")
+            df = df.set_axis(idx.tz_convert("Asia/Kolkata"))
+            mins = df.index.hour * 60 + df.index.minute
+            first = df[(df.index.date < today) & (mins >= 555) & (mins < 555 + minutes)]
+            v = first["volume"].groupby(first.index.date).sum()
+            v = v[v > 0].iloc[-days:]
+            if len(v) >= 3:
+                out[t[:-3]] = float(v.mean())
+        return out
+
     # ---------------- NSE flows, events, pre-open ----------------
     def fii_dii(self):
         try:

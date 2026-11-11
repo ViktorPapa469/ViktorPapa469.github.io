@@ -33,7 +33,8 @@ except AttributeError:
 NOTES = []  # short names of data sources that failed, shown in the app
 NOTE_LABELS = [("F&O bhavcopy", "F&O open interest"), ("lot-size file", "NSE's F&O list (built-in list used)"),
                ("industry list", "sector groups"), ("FII/DII", "FII/DII flows"), ("event calendar", "results calendar"),
-               ("pre-open", "pre-open gaps"), ("Yahoo download", "some prices")]
+               ("pre-open", "pre-open gaps"), ("Yahoo download", "some prices"),
+               ("opening volumes", "Usual opening volumes weren't available, so the volume filter is off for now.")]
 
 
 def log(msg):
@@ -187,6 +188,29 @@ def premarket(demo, open_browser=True, json_dir=None):
 
 
 # ------------------------------------------------------------------ live ORB
+def _state_path(name, day, demo, json_dir):
+    """Today's scan memory. With the app's data folder it lives there (state/), so a later run on another machine
+    picks it up; otherwise beside the reports."""
+    if json_dir:
+        os.makedirs(os.path.join(json_dir, "state"), exist_ok=True)
+        return os.path.join(json_dir, "state", f"{name}{'_demo' if demo else ''}.json")
+    return os.path.join(outdir(), f"{name}_{tag(day, demo)}.json")
+
+
+def _load_today(path, day):
+    try:
+        with open(path, encoding="utf-8") as fh:
+            d = json.load(fh)
+        return d.get("data", {}) if d.get("date") == day.isoformat() else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_today(path, day, data):
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"date": day.isoformat(), "data": data}, fh)
+
+
 def run_orb(demo, watch_mode, open_browser=True, json_dir=None):
     today = now_ist().date()
     wp = watch_path(today, demo)
@@ -205,10 +229,23 @@ def run_orb(demo, watch_mode, open_browser=True, json_dir=None):
             alerted = set(json.load(fh))
     except (OSError, ValueError):
         alerted = set()
+    symbols = [w["symbol"] for w in wl["watch"]]
+    orv_path, taken_path = _state_path("orvol", today, demo, json_dir), _state_path("taken", today, demo, json_dir)
+    orv = _load_today(orv_path, today)
     first = True
     while True:
         NOTES.clear()
-        bars = src.intraday([w["symbol"] for w in wl["watch"]])
+        if not orv:   # each stock's usual opening volume, fetched once a day (tried again next scan if it fails)
+            why = ""
+            try:
+                orv = src.opening_volume(symbols, C.ORB_MINUTES, C.ORB_RVOL_DAYS)
+            except Exception as e:  # noqa: BLE001
+                orv, why = {}, f" ({str(e)[:100]})"
+            if orv:
+                _save_today(orv_path, today, orv)
+            else:
+                log("WARN: opening volumes unavailable" + why)
+        bars = src.intraday(symbols)
         if not bars:
             msg = "No intraday data yet (market not open, holiday, or Yahoo delay)."
             log(msg)
@@ -216,7 +253,9 @@ def run_orb(demo, watch_mode, open_browser=True, json_dir=None):
                 export.write(json_dir, "orb", export.empty_orb(today.isoformat(), wl.get("size_mult", 1.0),
                                                                 msg, stamp(), demo))
         else:
-            res = orbmod.evaluate(wl["watch"], bars, wl.get("size_mult", 1.0))
+            res = orbmod.evaluate(wl["watch"], bars, wl.get("size_mult", 1.0), orv=orv,
+                                  taken=_load_today(taken_path, today), now=None if demo else now_ist())
+            _save_today(taken_path, today, res["taken"])
             ctx = {"today": f"{today:%a %d %b %Y}", "generated": f"{now_ist():%H:%M}", "demo": demo, "orb": res}
             path = os.path.join(outdir(), f"orb_{tag(today, demo)}.html")
             with open(path, "w", encoding="utf-8") as fh:

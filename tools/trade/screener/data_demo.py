@@ -111,6 +111,11 @@ class DemoData:
         return pd.DataFrame({"gap_pct": self.rng.normal(0.2, 0.8, len(syms))},
                             index=pd.Index(syms, name="symbol"))
 
+    def opening_volume(self, symbols, minutes=15, days=10):
+        """Made-up usual opening volumes, so that some demo breakouts pass the volume filter and some don't."""
+        rng = np.random.default_rng(11)
+        return {s: float(rng.uniform(0.8e5, 1.7e5)) for s in symbols}
+
     def intraday(self, symbols):
         """5-minute bars from 9:15 to 10:30 today, some of them breaking out."""
         start = pd.Timestamp.combine(now_ist().date(), dt.time(9, 15)).tz_localize("Asia/Kolkata")
