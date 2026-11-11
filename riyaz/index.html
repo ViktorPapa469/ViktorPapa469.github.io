@@ -6,7 +6,13 @@
 <title>Riyaz</title>
 <meta name="description" content="Sing in tune: live pitch check, Hindustani basics, practice pieces and a daily riyaz streak.">
 <meta name="theme-color" content="#17121F">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317121F'/%3E%3Cpath d='M8 38c8-14 14 12 22-4s14 10 26-8' fill='none' stroke='%23F2A93B' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Riyaz">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind:wght@400;500;600&family=Yatra+One&display=swap">
@@ -167,7 +173,7 @@ details ul,details ol{margin:0;padding-left:20px;display:flex;flex-direction:col
         <button class="btn" type="button" id="lgNew">Create account</button>
       </div>
       <button class="btn ghost small" type="button" id="lgForgot" style="align-self:flex-start;padding-left:0;border:0">Forgot password</button>
-      <p class="small muted">The same account works in Fovea. New accounts get an email with a link to confirm the address.</p>
+      <p class="small muted">New accounts get an email with a link to confirm the address.</p>
     </form>
     <button class="btn ghost small" type="button" id="lgSkip" style="align-self:center;border:0">Try without an account (progress stays on this device)</button>
   </div>
@@ -361,7 +367,7 @@ details ul,details ol{margin:0;padding-left:20px;display:flex;flex-direction:col
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script>
-/* Sign-in uses the same Firebase project as Fovea, so one account works in both apps. */
+/* Account service. Riyaz keeps its own data under sync/<uid>/riyaz and its own storage on the device. */
 window.RIYAZ_FIREBASE = { apiKey:"AIzaSyAjuDlySp9coYIyI4KVFd0o7t2sqV3n5Ew", projectId:"fovea-25d37" };
 </script>
 <script>
@@ -881,7 +887,7 @@ function findSa(){
   }).catch(function(e){ msg.textContent = e.message; btn.disabled = false; });
 }
 
-/* ================= account (Firebase over REST, the way Fovea does it) ================= */
+/* ================= account (Firebase over its REST interface) ================= */
 var FB = window.RIYAZ_FIREBASE, ID_URL = 'https://identitytoolkit.googleapis.com/v1', TOK_URL = 'https://securetoken.googleapis.com/v1', FS_URL = 'https://firestore.googleapis.com/v1';
 var tok = null, tokExp = 0, verified = null;
 function acct(){ return LS.get('acct', null); }
@@ -990,6 +996,7 @@ window.addEventListener('resize', function(){ if (!$('#p-practice').hidden){ siz
 window.addEventListener('hashchange', function(){ if (!$('#app').hidden) go((location.hash || '').slice(1)); });
 document.addEventListener('visibilitychange', function(){ if (document.hidden && run) finish(); });
 try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){ readColors(); if (!run && !$('#app').hidden) draw(0); }); } catch(e){}
+if ('serviceWorker' in navigator && location.protocol === 'https:'){ navigator.serviceWorker.register('sw.js', { scope:'./' }).catch(function(){}); }
 bindLogin();
 if (acct() || LS.get('guest', 0)) enter(); else $('#login').hidden = false;
 })();
