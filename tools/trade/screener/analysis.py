@@ -44,6 +44,33 @@ def atr(df, n=14):
     return tr.ewm(alpha=1 / n, adjust=False).mean()
 
 
+def rsi(c, n=14):
+    """Wilder's RSI."""
+    d = c.diff()
+    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
+    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
+    return 100 - 100 / (1 + up / dn.replace(0, np.nan))
+
+
+def macd_hist(c, fast=12, slow=26, sig=9):
+    line = ema(c, fast) - ema(c, slow)
+    return line - ema(line, sig)
+
+
+def dmi(df, n=14):
+    """Wilder's +DI, -DI and ADX."""
+    h, l, c = df["high"], df["low"], df["close"]
+    up, dn = h.diff(), -l.diff()
+    plus = pd.Series(np.where((up > dn) & (up > 0), up, 0.0), index=df.index)
+    minus = pd.Series(np.where((dn > up) & (dn > 0), dn, 0.0), index=df.index)
+    tr = pd.concat([h - l, (h - c.shift()).abs(), (l - c.shift()).abs()], axis=1).max(axis=1)
+    w = lambda x: x.ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
+    atr_ = w(tr).replace(0, np.nan)
+    pdi, mdi = 100 * w(plus) / atr_, 100 * w(minus) / atr_
+    adx = w(100 * (pdi - mdi).abs() / (pdi + mdi).replace(0, np.nan))
+    return pdi, mdi, adx
+
+
 def pct(a, b):
     return (a / b - 1) * 100 if b else np.nan
 
@@ -136,8 +163,21 @@ def stock_features(df, nifty):
         "tightening": r10 / r30 if r30 else np.nan,
         "low10": l.iloc[-10:].min(),
         "sr": sr_levels(df, a.iloc[-1]),
+        **_momentum(df, c, h, n),
         "rs_raw": (0.4 * q[0] + 0.2 * q[1] + 0.2 * q[2] + 0.2 * q[3]) if n > 252 * 0.9 and not any(np.isnan(x) for x in q) else np.nan,
     }
+
+
+def _momentum(df, c, h, n):
+    """The last few days' direction: what the trend rules (20/50/200-day averages) cannot see."""
+    nan = np.nan
+    if n < 40:
+        return {k: nan for k in ("ema5", "ema5_prev", "down5", "rsi", "rsi_prev", "macd_h", "macd_h_prev", "pdi", "mdi", "adx", "prev_high")}
+    e5, r, mh = ema(c, 5), rsi(c), macd_hist(c)
+    pdi, mdi, adx = dmi(df)
+    return {"ema5": e5.iloc[-1], "ema5_prev": e5.iloc[-2], "down5": int((c.diff().iloc[-5:] < 0).sum()),
+            "rsi": r.iloc[-1], "rsi_prev": r.iloc[-4], "macd_h": mh.iloc[-1], "macd_h_prev": mh.iloc[-2],
+            "pdi": pdi.iloc[-1], "mdi": mdi.iloc[-1], "adx": adx.iloc[-1], "prev_high": h.iloc[-2]}
 
 
 def buildup(chg1, oi_chg_pct, threshold=3.0):
@@ -306,6 +346,7 @@ def _by_rules(feat, top, bottom, mult):
 # ------------------------------------------------------------------ "Analyse" checklist for the app
 CS_NAME = "Swing: CANSLIM (O'Neil)"
 MV_NAME = "Swing: Minervini trend template"
+MO_NAME = "Momentum: direction now"   # not a setup: the last few days' direction, weighed into the win score
 
 
 def rule_checks(r, top, bottom, fno=True):
@@ -409,7 +450,21 @@ def rule_checks(r, top, bottom, fno=True):
     for items in (pb, base, mv):
         items += [["Market (Nifty) in an uptrend", mup, "Nifty in an uptrend" if mup else "Nifty not in an uptrend" if mup is False else "Not available", "uptrend", 1],
                   ["More volume on up days than down days", ok(udv > 1, udv), num(udv, ".2f") + "x (50 days)", "above 1x", 1]]
-    for it in mv + cs + pb + base:
+    # Momentum: is the stock going up right now? The first two are required for "direction confirmed".
+    e5, e5p, d5, rsi_, rsip = g_("ema5"), g_("ema5_prev"), g_("down5"), g_("rsi"), g_("rsi_prev")
+    mh, mhp, pdi, mdi, adx, ph, rs5 = g_("macd_h"), g_("macd_h_prev"), g_("pdi"), g_("mdi"), g_("adx"), g_("prev_high"), g_("rs5")
+    mo = [
+        ["Closed above its 5-day average", ok(r.price > e5, e5), rs_(r.price) + " vs " + rs_(e5), "price above", 0],
+        ["Not falling: at most 2 down closes in the last 5", ok(d5 <= 2, d5), (num(d5, ".0f") + " of 5 days closed lower"), "2 or fewer", 0],
+        ["5-day average rising", ok(e5 > e5p, e5, e5p), rs_(e5) + " vs " + rs_(e5p) + " a day ago", "rising", 1],
+        ["Closed above the previous day's high", ok(r.price > ph, ph), rs_(r.price) + " vs " + rs_(ph), "close above", 1],
+        ["Kept pace with Nifty over 5 days", ok(rs5 >= -2, rs5), num(rs5, "+.1f") + "% vs Nifty", "-2% or better", 1],
+        ["RSI (14) above 50", ok(rsi_ > 50, rsi_), num(rsi_, ".0f"), "above 50", 1],
+        ["RSI rising", ok(rsi_ > rsip, rsi_, rsip), num(rsi_, ".0f") + " vs " + num(rsip, ".0f") + " three days ago", "rising", 1],
+        ["MACD momentum improving", ok(mh > mhp, mh, mhp), "histogram " + num(mh, "+.2f") + " vs " + num(mhp, "+.2f") + " a day ago", "rising", 1],
+        ["Buyers in control (+DI above -DI)", ok(pdi > mdi, pdi, mdi), num(pdi, ".0f") + " vs " + num(mdi, ".0f") + ", ADX " + num(adx, ".0f"), "+DI above", 1],
+    ]
+    for it in mv + cs + pb + base + mo:
         if it[1] is None and not str(it[2]).startswith("Not available") and "isn't available" not in str(it[2]):
             it[2] = "Not available: not enough price data"
     liq_ok = all(x[1] for x in liq)
@@ -426,6 +481,7 @@ def rule_checks(r, top, bottom, fno=True):
         group("Swing: tight base near highs", base, swing_liq),
         group(CS_NAME, cs, swing_liq),
         group(MV_NAME, mv, swing_liq),
+        group(MO_NAME, mo, None),
     ]
 
 

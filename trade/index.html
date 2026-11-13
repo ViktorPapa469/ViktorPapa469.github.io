@@ -218,8 +218,8 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .why.outcome{color:var(--ink);margin-top:6px}
 .seg-scroll{overflow-x:auto;scrollbar-width:none}.seg-scroll::-webkit-scrollbar{display:none}
 .seg-scroll button{flex:0 0 auto;padding:6px 12px;white-space:nowrap}
-.allst td,.allst th{font-size:12px;padding:5px 3px}.allst tbody tr{cursor:pointer}.allst td.pass{color:var(--up);font-weight:600}
-.allst td.avg{font-weight:600}.allst td:first-child{font-weight:600;max-width:96px;overflow:hidden;text-overflow:ellipsis}
+.allst td,.allst th{font-size:11.5px;padding:5px 2px}.allst{table-layout:auto;width:100%}.allst tbody tr{cursor:pointer}.allst td.pass{color:var(--up);font-weight:600}
+.allst td.avg{font-weight:600}.allst td:first-child{font-weight:600;max-width:84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .assess p{margin:0 0 10px;line-height:1.55;font-size:14.5px}.assess p:last-child{margin:0}
 .risk{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
 .risk-h{margin:8px 0 4px;font-weight:600;font-size:13.5px}.risk-h:first-child{margin-top:0}
@@ -1390,20 +1390,33 @@ function trackRate(kind){
   var fin = rows.filter(function(t){ return t.trig && t.done && !t.void; });
   return fin.length >= 20 ? {rate:fin.filter(function(t){ return t.r > 0; }).length / fin.length * 100, n:fin.length} : null;
 }
+/* the last few days' direction (rule group "Momentum: direction now"): % of its checks met, and whether the two
+   required ones hold (closed above the 5-day average, at most 2 down closes in 5) */
+var MO_NAME = "Momentum: direction now";
+function momentumOf(x){
+  var g = (x.groups || []).filter(function(g){ return g.name === MO_NAME; })[0]; if (!g) return null;
+  var p = scoreOf(g).pct; return p === null ? null : {pct:p, pass:!!g.pass};
+}
 function winScore(sym, kind, rank){
   if (!AN.data || !AN.data.stocks[sym]) return null;
   var x = AN.data.stocks[sym], g = x.groups.filter(function(g){ return g.name === WIN_GROUP[kind]; })[0]; if (!g) return null;
   var pct = scoreOf(g).pct; if (pct === null) return null;
   var r = kind === "longs" || kind === "shorts" ? riskIntraday(sym, x, kind === "longs" ? 1 : -1) : riskBlock(sym, x, g.name);
   // the screener's own ranking strength (0-100) separates setups that tie on checks and risks
-  var now = r ? r.now : 0, sc = Math.max(5, Math.min(95, 25 + 0.45 * pct - 7 * now + 0.1 * (ok(rank) ? Math.max(0, Math.min(100, rank)) : 50))), tr = trackRate(kind);
+  var now = r ? r.now : 0, rk = ok(rank) ? Math.max(0, Math.min(100, rank)) : 50, tr = trackRate(kind), sc;
+  // swing setups: the setup's rules (the longer trend) and the last few days' direction count equally
+  var mo = kind === "longs" || kind === "shorts" ? null : momentumOf(x);
+  if (mo) sc = 10 + 0.35 * pct + 0.35 * mo.pct + 0.1 * rk - 7 * now;
+  else sc = 25 + 0.45 * pct - 7 * now + 0.1 * rk;
+  sc = Math.max(5, Math.min(95, sc));
   if (tr) sc = 0.6 * sc + 0.4 * tr.rate;
+  if (mo && !mo.pass) sc = Math.min(44, 0.6 * sc);   // still falling: Low until the direction turns, whatever the trend rules say
   sc = Math.round(sc);
-  return {score:sc, pct:pct, now:now, label:sc >= 65 ? "High" : sc >= 45 ? "Medium" : "Low", track:tr};
+  return {score:sc, pct:pct, now:now, label:sc >= 65 ? "High" : sc >= 45 ? "Medium" : "Low", track:tr, mo:mo};
 }
 function winPill(w){
   if (!w) return "";
-  return '<p class="winrow"><span class="win ' + w.label.toLowerCase() + '">Win score ' + w.score + " · " + w.label + '</span><span class="muted small">' + w.pct + "% met" +
+  return '<p class="winrow"><span class="win ' + w.label.toLowerCase() + '">Win score ' + w.score + " · " + w.label + '</span><span class="muted small">' + w.pct + "% met" + (w.mo ? ", momentum " + w.mo.pct + "%" + (w.mo.pass ? "" : " (still falling: wait for a close above the 5-day average)") : "") +
     (w.now ? ", " + w.now + (w.now === 1 ? " risk" : " risks") + " now" : ", no risks now") + (w.track ? ", track record " + Math.round(w.track.rate) + "% of " + w.track.n : "") + "</span></p>";
 }
 /* cards sorted by win score (highest first) once the rule check is loaded; until then the screener's order */
@@ -1619,6 +1632,10 @@ function trackPages(kind){
 
 /* ---- Glossary: every term the app uses, in plain words (Settings) */
 var GLOSSARY = [
+  ["Momentum (direction now)", "A check of the last few days, which the trend rules (20-, 50- and 200-day averages) cannot see. Nine checks: closed above the 5-day average, at most 2 down closes in the last 5 days (these two are required), 5-day average rising, closed above the previous day's high, kept pace with Nifty over 5 days, RSI above 50, RSI rising, MACD momentum improving, and buyers in control (+DI above -DI). A stock that fails either required check is \u201cstill falling\u201d and its win score stays Low until it turns."],
+  ["RSI (14)", "Relative Strength Index over 14 days, 0 to 100: how much of the recent movement was up. Above 50 means the gains outweigh the losses; rising means momentum is improving."],
+  ["MACD", "The gap between the 12-day and 26-day averages, compared with its own 9-day average (the histogram). A rising histogram means momentum is improving, falling means it is fading."],
+  ["+DI, -DI and ADX", "Wilder's directional indicators over 14 days. +DI above -DI means buyers have been moving the price more than sellers. ADX measures how strong the trend is, whichever way: above about 20 is a real trend."],
   ["10-day range", "The gap between the highest high and lowest low of the last 10 sessions, measured in ATRs. A small number means the stock has been moving in a tight band."],
   ["150-day and 200-day averages", "Simple averages of the last 150 and 200 closing prices: the long-term trend. Minervini wants price above both, the 150-day above the 200-day, and the 200-day rising for at least a month."],
   ["All strategies", "Swing tab: every F&O stock's % of checks met for each swing strategy (pullback, tight base, CANSLIM, Minervini) and the average. ✓ marks a strategy whose required rules are all met."],
@@ -1786,7 +1803,7 @@ function viewSwing(){
 
 /* ---- All strategies: every F&O stock's % of checks met for each swing strategy (from the rule check) */
 var STRATS = [["Swing: pullback to the 20-day average", "Pullback", "Swing pullbacks"], ["Swing: tight base near highs", "Base", "Swing tight bases"],
-              ["Swing: CANSLIM (O'Neil)", "CANSLIM", "CANSLIM"], ["Swing: Minervini trend template", "Minervini", "Minervini"]];
+              ["Swing: CANSLIM (O'Neil)", "CANSLIM", "CANSLIM", "CAN"], ["Swing: Minervini trend template", "Minervini", "Minervini", "Minv"]];
 function viewAllStrategies(){
   if (!AN.data){
     loadAnalysis().then(function(){ if (st.tab === "swing" && st.swing === "all") render(); }, function(){});
@@ -1800,17 +1817,20 @@ function viewAllStrategies(){
     // Pullback list is not repeated on Base, and each list keeps only its top picks)
     var sc = STRATS.map(function(t){ var g = by[t[0]]; return g ? {pct:scoreOf(g).pct, pass:g.pass && on.indexOf(t[2]) >= 0, meets:g.pass} : {pct:null, pass:false}; });
     var have = sc.filter(function(v){ return v.pct !== null; });
-    return {sym:sym, sc:sc, avg:have.length ? Math.round(have.reduce(function(a, v){ return a + v.pct; }, 0) / have.length) : null,
+    var avg = have.length ? have.reduce(function(a, v){ return a + v.pct; }, 0) / have.length : null, mo = momentumOf(x);
+    // Score: the strategies' average (60%) and the last few days' direction (40%)
+    return {sym:sym, sc:sc, mo:mo, avg:avg === null ? null : Math.round(mo ? 0.6 * avg + 0.4 * (mo.pass ? mo.pct : mo.pct / 2) : avg)   /* a falling stock's momentum counts half */,
             all:sc.filter(function(v){ return v.pass; }).length};
   }).sort(function(a, b){ return (b.avg || 0) - (a.avg || 0) || b.all - a.all; });
+  var moCell = function(m){ return !m ? "<td>–</td>" : '<td class="' + (m.pass && m.pct >= 60 ? "up" : !m.pass ? "down" : "") + '" title="Momentum ' + m.pct + '%">' + (m.pass && m.pct >= 60 ? "▲" : !m.pass ? "▼" : "▬") + "</td>"; };
   var cell = function(v){ return '<td class="' + (v.pass ? "pass" : v.pct >= 75 ? "up" : v.pct !== null && v.pct < 40 ? "down" : "") + '">' + (v.pct === null ? "–" : v.pct + "%") + (v.pass ? "✓" : v.meets ? "◦" : "") + "</td>"; };
-  var head = "<thead><tr><th>Stock</th>" + STRATS.map(function(t){ return "<th>" + esc(t[1]) + "</th>"; }).join("") + "<th>Avg</th></tr></thead>";
-  var lede = '<p class="lede">Every F&amp;O stock against each swing strategy: the % of its checks met (only checks with data count). The % includes the market trend and up-day vs down-day volume, so a stock only reaches 100% with nothing against it. ✓ means the stock is on that list; ◦ means it meets every required rule but isn\'t on it (a Pullback stock isn\'t repeated on Base, and each list keeps only its top picks). Sorted by the average; tap a stock for its full rule check.</p>' +
+  var head = "<thead><tr><th>Stock</th>" + STRATS.map(function(t){ return "<th>" + esc(t[3] || t[1]) + "</th>"; }).join("") + '<th title="Momentum">Mom</th><th>Score</th></tr></thead>';
+  var lede = '<p class="lede">Every F&amp;O stock against each swing strategy: the % of its checks met (only checks with data count). The % includes the market trend and up-day vs down-day volume, so a stock only reaches 100% with nothing against it. ✓ means the stock is on that list; ◦ means it meets every required rule but isn\'t on it (a Pullback stock isn\'t repeated on Base, and each list keeps only its top picks). <b>Mom</b> is the last few days\' direction: ▲ rising, ▬ mixed, ▼ still falling (closed below its 5-day average, or 3 or more down days in the last 5). <b>Score</b> is the strategies\' average (60%) plus momentum (40%, halved while the stock is still falling), and the table is sorted by it; tap a stock for its full rule check.</p>' +
     '<p class="note">Rule check from ' + esc(niceDate(AN.data.as_of)) + " prices. For any other NSE or BSE stock, use Analyse on the Plan page.</p>";
   return chunk(rows, 14).map(function(c, k, all){
     return page("All strategies " + (k + 1) + "/" + all.length, (k === 0 ? lede : "") +
       '<div class="glass tile"><table class="trk allst">' + head + "<tbody>" + c.map(function(r){
-        return '<tr data-analyse="' + esc(r.sym) + '"><td>' + esc(r.sym) + "</td>" + r.sc.map(cell).join("") + '<td class="avg">' + (r.avg === null ? "–" : r.avg + "%") + "</td></tr>";
+        return '<tr data-analyse="' + esc(r.sym) + '"><td>' + esc(r.sym) + "</td>" + r.sc.map(cell).join("") + moCell(r.mo) + '<td class="avg">' + (r.avg === null ? "–" : r.avg + "%") + "</td></tr>";
       }).join("") + "</tbody></table></div>", rows.length);
   });
 }
@@ -2057,7 +2077,7 @@ function analyse(sym){
 function shortName(name){
   return ({"Liquidity filters (intraday)":"Liquidity", "Intraday long setup":"Intraday long", "Intraday short setup":"Intraday short",
            "Swing: pullback to the 20-day average":"Swing pullback", "Swing: tight base near highs":"Swing tight base",
-           "Swing: CANSLIM (O'Neil)":"CANSLIM", "Swing: Minervini trend template":"Minervini"})[name] || name;
+           "Swing: CANSLIM (O'Neil)":"CANSLIM", "Swing: Minervini trend template":"Minervini", "Momentum: direction now":"Momentum"})[name] || name;
 }
 /* the rule check's setup pages: swipe, arrows, dots or the score tiles */
 function anPager(total){
