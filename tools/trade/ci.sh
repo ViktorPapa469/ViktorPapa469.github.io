@@ -82,6 +82,9 @@ session() {  # session END_HHMM
 AUTO=0
 if [ "$MODE" = auto ]; then
   AUTO=1
+  # GitHub sometimes starts last evening's backup hours late, after midnight. It would sit until 8:00 with old code,
+  # hold up every later run, and be cut off before the screen. Nothing is due before 6 AM: stop.
+  if [ "$(hhmm)" -lt 600 ]; then echo "Started at $(date '+%H:%M') IST, long after its time; nothing is due before 6 AM."; exit 0; fi
   if [ "$(hhmm)" -ge 1530 ]; then MODE=premarket; elif [ "$(hhmm)" -ge 1300 ]; then MODE=afternoon; else MODE=morning; fi
 fi
 # Scheduled runs have backup start times (see trade.yml). A backup that finds its job already done today stops here.
