@@ -278,7 +278,12 @@ details ul,details ol{margin:0;padding-left:20px;display:flex;flex-direction:col
     <button class="chip" id="droneBtn" type="button" aria-pressed="false">Tanpura</button>
     <button class="chip" id="guideBtn" type="button" aria-pressed="true">Guide tone</button>
   </div>
-  <div class="row" id="tempoRow"><label class="small muted" for="tempo">Tempo <span id="tempoVal">60</span></label><input id="tempo" type="range" min="40" max="160" value="60" style="flex:1;min-width:140px"></div>
+  <div id="tempoRow" style="display:flex;flex-direction:column;gap:8px">
+    <div class="row"><span class="small muted">Pace</span><button class="chip" id="paceHold" type="button" aria-pressed="true">Hold each note</button><button class="chip" id="paceTempo" type="button" aria-pressed="false">Follow the tempo</button></div>
+    <div class="row" id="holdSlide"><label class="small muted" for="holdLen">Each note <span id="holdVal">3 s</span></label><input id="holdLen" type="range" min="1" max="6" step="0.5" value="3" style="flex:1;min-width:140px"></div>
+    <p class="small muted" id="paceNote"></p>
+    <div class="row" id="tempoSlide" hidden><label class="small muted" for="tempo">Tempo <span id="tempoVal">60</span></label><input id="tempo" type="range" min="40" max="160" value="60" style="flex:1;min-width:140px"></div>
+  </div>
 
   <div class="card" id="notationCard"><span class="label">Notation</span><div class="notation" id="notation"></div></div>
 
@@ -352,7 +357,7 @@ details ul,details ol{margin:0;padding-left:20px;display:flex;flex-direction:col
   </div>
   <div class="card">
     <h3>Note length</h3>
-    <p class="small muted">How long a note sounds when you tap it: the swaras and octaves in Learn, Hear it, and the keys and strings in Instruments. A longer note gives you time to match it with your voice. Scales play each note for a quarter of this.</p>
+    <p class="small muted">How long a note sounds when you tap it: the swaras and octaves in Learn, Hear it, and the keys and strings in Instruments. A longer note gives you time to match it with your voice. Scales play each note for a quarter of this. Practice pieces have their own note length, set on the Practice page.</p>
     <div class="row"><label class="small" for="noteDur" style="min-width:96px;font-weight:600" id="noteDurVal">3.5 seconds</label><input id="noteDur" type="range" min="1" max="8" step="0.5" value="3.5" style="flex:1;min-width:140px"></div>
     <div class="row"><button class="chip" type="button" data-play="0">Hear it</button></div>
   </div>
@@ -438,7 +443,13 @@ var THEKA = ['Dha','Dhin','Dhin','Dha','Dha','Dhin','Dhin','Dha','Dha','Tin','Ti
 
 /* ================= state ================= */
 var state = LS.get('state', null) || { saMidi:48, saAt:0, hist:[] };
-function normState(){ if (!(state.noteDur >= 1 && state.noteDur <= 8)) state.noteDur = 3.5; if (!state.hist) state.hist = []; }   // noteDur: seconds a tapped note sounds
+function normState(){ if (!(state.noteDur >= 1 && state.noteDur <= 8)) state.noteDur = 3.5; if (state.pace !== 'tempo') state.pace = 'hold'; if (!(state.holdSecs >= 1 && state.holdSecs <= 6)) state.holdSecs = 3; if (!state.hist) state.hist = []; }
+/* Practice pace. "hold": every note of a piece and its guide tone lasts state.holdSecs (3 s unless changed on the
+   Practice page), a rest half of that. "tempo": beats follow the tempo slider. */
+function noteSecs(n){
+  if (state.pace === 'hold') return n.n == null ? state.holdSecs / 2 : state.holdSecs;
+  return n.d * 60 / +$('#tempo').value;
+}   // noteDur: seconds a tapped note sounds
 normState();
 function saveState(){ LS.set('state', state); queueSync(); }
 function saHz(){ return midiHz(state.saMidi); }
@@ -487,9 +498,9 @@ function playHz(hz, dur, plucked){
   if (plucked) pluck(c, voice, hz, c.currentTime + 0.02, dur || state.noteDur, 0.35); else tone(c, voice, hz, c.currentTime + 0.02, dur || state.noteDur);
 }
 function playSt(st, dur){ playHz(stHz(st), dur); }
-function schedule(ctx, dest, notes, bpm, t0, vol, hzOf){
-  var beat = 60 / bpm, t = t0, nodes = [];
-  notes.forEach(function(n){ var d = n.d * beat; if (n.n != null) nodes = nodes.concat(tone(ctx, dest, hzOf(n.n), t, d * 0.96, vol)); t += d; });
+function schedule(ctx, dest, notes, bpm, t0, vol, hzOf){   // bpm: beats a minute, or a function giving each note's seconds
+  var len = typeof bpm === 'function' ? bpm : function(n){ return n.d * 60 / bpm; }, t = t0, nodes = [];
+  notes.forEach(function(n){ var d = len(n); if (n.n != null) nodes = nodes.concat(tone(ctx, dest, hzOf(n.n), t, d * 0.96, vol)); t += d; });
   return { end:t, nodes:nodes };
 }
 function totalBeats(notes){ return notes.reduce(function(a, n){ return a + n.d; }, 0); }
@@ -751,11 +762,11 @@ function start(){
   micStart().then(function(){
     var c = ac(); readColors(); sizeCanvas(); trail = []; recent = []; $('#result').hidden = true;
     if (mode === 'piece'){
-      var bpm = +$('#tempo').value, beat = 60 / bpm, t = 0;
-      var notes = cur.notes.map(function(n){ var o = { n:n.n, d:n.d, t0:t, t1:t + n.d * beat, errs:[] }; t = o.t1; return o; });
+      var beat = state.pace === 'hold' ? 1 : 60 / +$('#tempo').value, t = 0;
+      var notes = cur.notes.map(function(n){ var o = { n:n.n, d:n.d, t0:t, t1:t + noteSecs(n), errs:[] }; t = o.t1; return o; });
       var lead = 4 * beat, t0 = c.currentTime + 0.15 + lead, nodes = [];
       for (var b = 0; b < 4; b++) nodes = nodes.concat(click(c, master, c.currentTime + 0.15 + b * beat, b === 0));
-      if (guide) nodes = nodes.concat(schedule(c, master, cur.notes, bpm, t0, 0.12, stHz).nodes);
+      if (guide) nodes = nodes.concat(schedule(c, master, cur.notes, noteSecs, t0, 0.12, stHz).nodes);
       run = { kind:'piece', start:t0, notes:notes, total:t, nodes:nodes, voiced:0, shown:-2, began:Date.now(),
         idx:function(now){ if (now < 0) return -1; for (var i = 0; i < notes.length; i++) if (now < notes[i].t1) return i; return notes.length; } };
       renderNotation(); $('#verdict').textContent = 'Four clicks, then sing.'; $('#verdict').style.color = '';
@@ -806,7 +817,7 @@ function tipFor(e){
 function stopListen(){ if (listenNodes){ stopNodes(listenNodes); listenNodes = null; clearTimeout(listenT); setButtons(); } }
 function listen(){
   if (listenNodes){ stopListen(); return; }
-  var c = ac(), s = schedule(c, master, cur.notes, +$('#tempo').value, c.currentTime + 0.1, 0.2, stHz); listenNodes = s.nodes; setButtons();
+  var c = ac(), s = schedule(c, master, cur.notes, noteSecs, c.currentTime + 0.1, 0.2, stHz); listenNodes = s.nodes; setButtons();
   listenT = setTimeout(function(){ listenNodes = null; setButtons(); }, (s.end - c.currentTime) * 1000 + 100);
 }
 function pickPiece(p){
@@ -826,9 +837,9 @@ function renderPieces(){
 }
 /* WAV download of the current piece */
 function downloadPiece(){
-  var bpm = +$('#tempo').value, dur = totalBeats(cur.notes) * 60 / bpm + 0.6, sr = 22050, O = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  var dur = cur.notes.reduce(function(a, n){ return a + noteSecs(n); }, 0) + 0.6, sr = 22050, O = window.OfflineAudioContext || window.webkitOfflineAudioContext;
   if (!O){ toast('This browser cannot make the file.'); return; }
-  var oc = new O(1, Math.ceil(dur * sr), sr); schedule(oc, oc.destination, cur.notes, bpm, 0.1, 0.3, stHz);
+  var oc = new O(1, Math.ceil(dur * sr), sr); schedule(oc, oc.destination, cur.notes, noteSecs, 0.1, 0.3, stHz);
   $('#dlBtn').disabled = true;
   oc.startRendering().then(function(buf){
     var d = buf.getChannelData(0), n = d.length, v = new DataView(new ArrayBuffer(44 + n * 2));
@@ -1126,7 +1137,7 @@ var entered = false;
 function enter(){
   $('#login').hidden = true; $('#app').hidden = false; state = LS.get('state', state) || state; normState();
   if (!entered){ entered = true; buildLearn(); buildFix(); renderInst(); }
-  renderSa(); renderPieces(); renderNotation(); renderSongs(); setButtons(); renderMe();
+  renderSa(); renderPieces(); renderNotation(); renderSongs(); setButtons(); renderMe(); renderPace();
   $('#tempo').value = cur.bpm; $('#tempoVal').textContent = cur.bpm;
   go((location.hash || '').slice(1) || (state.hist.length ? 'practice' : 'learn'));
   if (acct()){ checkVerified().then(renderAccount); pull().then(function(){ renderSa(); renderPieces(); renderMe(); }, function(){}); }
@@ -1141,6 +1152,18 @@ $('#listenBtn').addEventListener('click', listen);
 $('#droneBtn').addEventListener('click', function(){ var on = !droneT; if (on) droneOn(); else droneOff(); this.setAttribute('aria-pressed', String(on)); if (on) toast('Tanpura on. Use headphones so the mic hears only you.'); });
 $('#guideBtn').addEventListener('click', function(){ guide = !guide; this.setAttribute('aria-pressed', String(guide)); });
 $('#tempo').addEventListener('input', function(){ $('#tempoVal').textContent = this.value; });
+function renderPace(){
+  var hold = state.pace === 'hold';
+  $('#paceHold').setAttribute('aria-pressed', String(hold)); $('#paceTempo').setAttribute('aria-pressed', String(!hold)); $('#tempoSlide').hidden = hold; $('#holdSlide').hidden = !hold;
+  $('#holdLen').value = state.holdSecs; $('#holdVal').textContent = state.holdSecs + ' s';
+  $('#paceNote').textContent = hold ? 'Each note and its guide tone last ' + state.holdSecs + (state.holdSecs === 1 ? ' second' : ' seconds') + ', so you have time to find the note and hold it.'
+    : 'Each beat follows the tempo. Use this to build speed once the notes are steady.';
+}
+function setPace(p){ if (run) return; stopListen(); state.pace = p; saveState(); renderPace(); }
+$('#paceHold').addEventListener('click', function(){ setPace('hold'); });
+$('#paceTempo').addEventListener('click', function(){ setPace('tempo'); });
+$('#holdLen').addEventListener('input', function(){ $('#holdVal').textContent = this.value + ' s'; });
+$('#holdLen').addEventListener('change', function(){ if (run){ this.value = state.holdSecs; renderPace(); return; } stopListen(); state.holdSecs = +this.value; saveState(); renderPace(); });
 $('#dlBtn').addEventListener('click', function(){ if (mode !== 'piece'){ toast('Pick one of the practice pieces first.'); return; } downloadPiece(); });
 $('#songFile').addEventListener('change', function(){
   var f = this.files && this.files[0]; if (!f) return; var name = f.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 60);
