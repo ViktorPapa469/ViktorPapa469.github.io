@@ -1,0 +1,30 @@
+{
+ "week": 10,
+ "title": "Small Things",
+ "aspect": "Wonder",
+ "line": "The ordinary is full of quiet miracles.",
+ "invite": "Each day, find one small thing worth wondering at, and give it a full minute of attention.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 187.1
+  },
+  {
+   "name": "Breath",
+   "at": 268.5
+  },
+  {
+   "name": "Practice",
+   "at": 460.3
+  },
+  {
+   "name": "Closing",
+   "at": 1231.3
+  }
+ ]
+}

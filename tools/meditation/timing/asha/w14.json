@@ -1,0 +1,30 @@
+{
+ "week": 14,
+ "title": "Gratitude",
+ "aspect": "Thankfulness",
+ "line": "Gratitude turns what we have into enough.",
+ "invite": "Each morning this week, before you look at your phone, name one thing you are grateful for.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 185.2
+  },
+  {
+   "name": "Breath",
+   "at": 264.3
+  },
+  {
+   "name": "Practice",
+   "at": 476.4
+  },
+  {
+   "name": "Closing",
+   "at": 1231.3
+  }
+ ]
+}

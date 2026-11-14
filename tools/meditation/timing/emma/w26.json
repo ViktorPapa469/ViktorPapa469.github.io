@@ -1,0 +1,30 @@
+{
+ "week": 26,
+ "title": "Being Heard",
+ "aspect": "Self-expression",
+ "line": "Your voice matters. Let it be heard.",
+ "invite": "This week, share one honest feeling with someone you trust, out loud or in writing.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 190.3
+  },
+  {
+   "name": "Breath",
+   "at": 280.6
+  },
+  {
+   "name": "Practice",
+   "at": 494.0
+  },
+  {
+   "name": "Closing",
+   "at": 1229.4
+  }
+ ]
+}

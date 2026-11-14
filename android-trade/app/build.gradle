@@ -1,0 +1,45 @@
+plugins { id 'com.android.application' }
+
+def runNo = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int
+
+android {
+    namespace 'io.github.viktorpapa469.openingbell'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'io.github.viktorpapa469.openingbell'
+        minSdk 24
+        targetSdk 35
+        versionCode runNo
+        versionName "1.0.${runNo}"
+    }
+    signingConfigs {
+        release {
+            // Signed with the same upload key as Fovea (android/fovea-upload.jks.enc, unlocked in the workflow with the
+            // FOVEA_SIGNING_PASSWORD secret). Its fingerprint is published in /.well-known/assetlinks.json so Android
+            // trusts the app to show viktorpapa469.github.io/trade/ full screen, without a browser address bar.
+            storeFile file('../../android/fovea-upload.jks')
+            storePassword System.getenv('FOVEA_SIGNING_PASSWORD')
+            keyAlias 'fovea-upload'
+            keyPassword System.getenv('FOVEA_SIGNING_PASSWORD')
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    lint {
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    // Trusted Web Activity: the app opens the website in Chrome's engine, so the service worker, offline copy and
+    // push notifications work exactly as on the website (a plain WebView, as Fovea uses, cannot receive web push).
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}

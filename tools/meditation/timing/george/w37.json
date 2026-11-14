@@ -1,0 +1,30 @@
+{
+ "week": 37,
+ "title": "Equanimity",
+ "aspect": "Balance",
+ "line": "Like a mountain in changing weather, stay steady at the centre.",
+ "invite": "This week, when things go well or badly, pause and notice: this too will pass. Let your centre stay steady.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 181.7
+  },
+  {
+   "name": "Breath",
+   "at": 271.3
+  },
+  {
+   "name": "Practice",
+   "at": 466.1
+  },
+  {
+   "name": "Closing",
+   "at": 1208.7
+  }
+ ]
+}

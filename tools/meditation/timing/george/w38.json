@@ -1,0 +1,30 @@
+{
+ "week": 38,
+ "title": "Strength in Softness",
+ "aspect": "Vulnerability",
+ "line": "Water is soft, and yet it shapes the stone.",
+ "invite": "This week, let one person see a little more of the real you: a worry, a hope, a need.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 198.9
+  },
+  {
+   "name": "Breath",
+   "at": 287.2
+  },
+  {
+   "name": "Practice",
+   "at": 508.2
+  },
+  {
+   "name": "Closing",
+   "at": 1224.7
+  }
+ ]
+}

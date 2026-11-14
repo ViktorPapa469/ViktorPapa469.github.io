@@ -1,0 +1,19 @@
+{
+  "id": "/riyaz/",
+  "name": "Riyaz: Singing Practice",
+  "short_name": "Riyaz",
+  "description": "Sing in tune: live pitch check, Hindustani basics, practice pieces and a daily riyaz streak.",
+  "start_url": "/riyaz/",
+  "scope": "/riyaz/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#17121F",
+  "theme_color": "#17121F",
+  "categories": ["music", "education"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,0 +1,3 @@
+# signing keys: only the encrypted copy belongs in the repository
+*.jks
+*.keystore

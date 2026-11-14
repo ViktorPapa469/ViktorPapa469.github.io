@@ -1,0 +1,30 @@
+{
+ "week": 44,
+ "title": "Nature as Teacher",
+ "aspect": "Learning from the living world",
+ "line": "The trees have been patient far longer than we have.",
+ "invite": "Spend at least ten minutes outdoors each day this week, walking slowly, noticing one lesson nature offers.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 178.2
+  },
+  {
+   "name": "Breath",
+   "at": 255.3
+  },
+  {
+   "name": "Practice",
+   "at": 489.8
+  },
+  {
+   "name": "Closing",
+   "at": 1211.1
+  }
+ ]
+}
