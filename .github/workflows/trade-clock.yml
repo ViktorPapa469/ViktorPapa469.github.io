@@ -1,0 +1,79 @@
+name: Opening Bell clock
+
+# GitHub's own schedules (trade.yml) often start hours late or not at all. This clock keeps one job alive that sleeps
+# until the exact minute each run is due, starts it (workflow_dispatch, which GitHub allows from a job's own token),
+# then starts the next clock job and ends. A job may last at most 6 hours, so overnight it hands over every 5h40m.
+# The hourly schedule below only restarts the clock if the chain ever breaks; a newer clock cancels an older one.
+# Due times (IST, Monday to Friday):
+#   06:32 early      GIFT Nifty and world markets
+#   07:52 auto       morning run (live prices from 9:00, screen ~9:10, breakouts to 11:00), until 1:30 PM
+#   13:32 auto       afternoon run, just after the morning run ends at 1:30 PM, until the close
+#   19:05 auto       evening preview of the next session and the all-market analysis
+# 'auto' runs skip themselves when a backup schedule already did the job (ci.sh), so nothing is done twice.
+on:
+  schedule:
+    - cron: '41 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: trade-clock
+  cancel-in-progress: true
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      TZ: Asia/Kolkata
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Wait for the next run and start it
+        run: |
+          set -u
+          EVENTS="0632:early 0752:auto 1332:auto 1905:auto"
+          start=$(date +%s); limit=$((start + 340*60))
+          dispatch() {   # $1 workflow file, $2 mode (optional); retried, since a missed start is what this job prevents
+            for i in 1 2 3 4 5; do
+              if [ -n "${2:-}" ]; then gh api -X POST "repos/$REPO/actions/workflows/$1/dispatches" -f ref=main -f "inputs[mode]=$2" && return 0
+              else gh api -X POST "repos/$REPO/actions/workflows/$1/dispatches" -f ref=main && return 0; fi
+              sleep 20
+            done
+            echo "::error::could not start $1 ${2:-}"; return 1
+          }
+          # the next due time today or on a later weekday, as epoch seconds
+          next_due() {
+            for d in 0 1 2 3 4 5 6 7; do
+              day=$(date -d "today + $d day" +%F); dow=$(date -d "$day" +%u)
+              [ "$dow" -gt 5 ] && continue
+              for e in $EVENTS; do
+                t=$(date -d "$day ${e%%:*}" +%s)
+                [ "$t" -gt $(( $(date +%s) + 30 )) ] && { echo "$t ${e##*:}"; return; }
+              done
+            done
+          }
+          # a run due in the last 20 minutes that this clock's predecessor may have missed (e.g. while the chain broke)
+          for e in $EVENTS; do
+            t=$(date -d "today ${e%%:*}" +%s); now=$(date +%s)
+            if [ "$(date +%u)" -le 5 ] && [ "$now" -ge "$t" ] && [ $((now - t)) -le 1200 ] && [ "${e##*:}" = auto ]; then
+              echo "catching up: ${e%%:*} was due $(( (now - t) / 60 )) min ago"; dispatch trade.yml auto
+            fi
+          done
+          read due mode < <(next_due)
+          echo "next: $(date -d @$due '+%a %H:%M') $mode"
+          while :; do
+            now=$(date +%s)
+            if [ "$now" -ge "$due" ]; then
+              echo "$(date '+%H:%M:%S') starting $mode"; dispatch trade.yml "$mode"
+              read due mode < <(next_due); echo "next: $(date -d @$due '+%a %H:%M') $mode"
+              continue
+            fi
+            if [ $(( now + 120 )) -ge "$limit" ] && [ "$due" -gt "$limit" ]; then
+              echo "$(date '+%H:%M') handing over to a new clock job"; dispatch trade-clock.yml; exit 0
+            fi
+            wait=$(( due - now )); [ "$wait" -gt 300 ] && wait=300; sleep "$wait"
+          done
