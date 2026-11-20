@@ -42,7 +42,7 @@ def _pick(p, keys):
 INTRADAY_KEYS = ("symbol", "industry", "side", "price", "chg1", "score", "reasons", "warnings",
                  "pdh", "pdl", "atr", "lot", "gap_pct", "est_stop_dist")
 SWING_KEYS = ("symbol", "industry", "setup", "price", "chg1", "score", "reasons", "warnings",
-              "entry", "stop", "t1", "t2", "risk_pct", "lot", "counter")
+              "entry", "stop", "t1", "t2", "risk_pct", "lot", "counter", "state")
 ORB_KEYS = ("symbol", "side", "industry", "lot", "status", "last", "chg", "rs", "orh", "orl", "vwap",
             "trigger_time", "breakout_vol", "entry", "stop", "t1", "t2", "extended",
             "rvol_open", "taken", "alert_time", "skip", "plan_open", "plan_r")
@@ -67,6 +67,7 @@ def premarket_payload(ctx, notes, generated):
         "bases": [_pick(p, SWING_KEYS) for p in res["bases"]],
         "canslim": [_pick(p, SWING_KEYS) for p in res.get("canslim", [])],
         "minervini": [_pick(p, SWING_KEYS) for p in res.get("minervini", [])],
+        "explosive": [_pick(p, SWING_KEYS) for p in res.get("explosive", [])],
         "meta": {"universe": ctx["universe"], "priced": ctx["priced"], "liquid": res["liquid_count"],
                  "oi_date": ctx.get("oi_date_iso")},
         "notes": notes,
@@ -183,7 +184,9 @@ def key_levels(r):
             "rvol": f(g("rvol")), "dry": f(g("dryup")), "ud": f(g("updown_vol")), "tight": f(g("tightening")),
             "to": f(g("turnover_cr"), 0), "eq": f(g("eps_q"), 1),
             "pdl": f(g("pdl")), "rs5": f(g("rs5"), 1), "rs20": f(g("rs20"), 1), "gap": f(g("gap_pct"), 1),
-            "bu": g("buildup") or None, "cp": f(g("close_pos")), "sr": g("sr") if isinstance(g("sr"), dict) else None}
+            "bu": g("buildup") or None, "cp": f(g("close_pos")), "sr": g("sr") if isinstance(g("sr"), dict) else None,
+            "bh": f(g("base_high")), "bl": f(g("base_low")), "adr": f(g("adr20"), 1), "m3": f(g("move3m"), 0),
+            "bo": bool(g("broke_out")) if isinstance(g("broke_out"), (bool, np.bool_)) else None}
 
 
 def write_analysis(out_dir, ctx, res, generated):
@@ -191,7 +194,7 @@ def write_analysis(out_dir, ctx, res, generated):
     from .analysis import rule_checks
     lists = {}
     for key, label in (("longs", "Intraday longs"), ("shorts", "Intraday shorts"), ("pullbacks", "Swing pullbacks"), ("bases", "Swing tight bases"),
-                       ("canslim", "CANSLIM"), ("minervini", "Minervini")):
+                       ("canslim", "CANSLIM"), ("minervini", "Minervini"), ("explosive", "Explosive breakout")):
         for i, p in enumerate(res.get(key, [])):
             lists.setdefault(p["symbol"], []).append(f"{label} #{i + 1}")
     stocks = {}

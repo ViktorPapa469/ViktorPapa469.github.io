@@ -157,7 +157,7 @@ def premarket(demo, open_browser=True, json_dir=None):
 
     # CSV of every pick + JSON watchlist for the ORB step
     rows = []
-    for key in ("longs", "shorts", "pullbacks", "bases", "canslim", "minervini"):
+    for key in ("longs", "shorts", "pullbacks", "bases", "canslim", "minervini", "explosive"):
         for p in res[key]:
             rows.append({"list": key, **{k: v for k, v in p.items() if k not in ("reasons", "warnings")},
                          "reasons": "; ".join(p["reasons"]), "warnings": "; ".join(p["warnings"])})

@@ -44,8 +44,8 @@ from screener.plan import walk  # noqa: E402
 METHOD = 2                                # how results are worked out; a change rebuilds the record from the saved scans
 KEEP = {"intraday": 7, "swing": 30}       # days of detail in track.json
 SWING_TRIGGER_DAYS = 3                    # sessions
-SWING_HOLD = {"Pullback": 10, "Tight base": 10, "CANSLIM": 30, "Minervini": 30}   # sessions, then the time exit
-SETUPS = (("pullbacks", "Pullback"), ("bases", "Tight base"), ("canslim", "CANSLIM"), ("minervini", "Minervini"))
+SWING_HOLD = {"Pullback": 10, "Tight base": 10, "CANSLIM": 30, "Minervini": 30, "Explosive": 15}   # sessions, then the time exit
+SETUPS = (("pullbacks", "Pullback"), ("bases", "Tight base"), ("canslim", "CANSLIM"), ("minervini", "Minervini"), ("explosive", "Explosive"))
 SQUARE_OFF = dt.time(15, 15)
 GIVE_UP_DAYS = 45                         # an intraday setup still without prices after this long is closed as "no data"
 

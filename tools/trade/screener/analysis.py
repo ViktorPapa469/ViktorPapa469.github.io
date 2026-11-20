@@ -31,6 +31,14 @@ CS_NEAR_HIGH = -15          # N: % from the 52-week high, at least (near new hig
 CS_RS = 80                  # L: RS rating, at least
 CS_STOP = 8                 # sell rule: cut a loss at 7-8% below the buy point
 CS_TARGETS = (20, 25)       # sell rule: take most profits at 20-25%
+# Explosive breakout: Kristjan Kullamagi's breakout setup with Pradeep Bonde's 4% momentum burst as confirmation
+XB_MOVE = 30                # % rise in the last 3 months (low to high), at least: a leader that has already moved
+XB_RS = 80                  # RS rating, at least
+XB_TIGHT = 3.5              # the 10-day consolidation's range in ATRs, at most
+XB_NEAR = -3                # % below the consolidation high (the pivot), at most
+XB_ADR = 3.0                # average daily range %, 20 days: names that move enough to be explosive
+XB_BURST = 4.0              # % up on the breakout day (momentum burst)
+XB_BURST_VOL = 1.5          # breakout-day volume vs the 50-day average, at least
 
 
 # ------------------------------------------------------------------ indicators
@@ -164,6 +172,7 @@ def stock_features(df, nifty):
         "low10": l.iloc[-10:].min(),
         "sr": sr_levels(df, a.iloc[-1]),
         **_momentum(df, c, h, n),
+        **_explosive(df, c, h, l, v, a.iloc[-1], n),
         "rs_raw": (0.4 * q[0] + 0.2 * q[1] + 0.2 * q[2] + 0.2 * q[3]) if n > 252 * 0.9 and not any(np.isnan(x) for x in q) else np.nan,
     }
 
@@ -178,6 +187,31 @@ def _momentum(df, c, h, n):
     return {"ema5": e5.iloc[-1], "ema5_prev": e5.iloc[-2], "down5": int((c.diff().iloc[-5:] < 0).sum()),
             "rsi": r.iloc[-1], "rsi_prev": r.iloc[-4], "macd_h": mh.iloc[-1], "macd_h_prev": mh.iloc[-2],
             "pdi": pdi.iloc[-1], "mdi": mdi.iloc[-1], "adx": adx.iloc[-1], "prev_high": h.iloc[-2]}
+
+
+def _explosive(df, c, h, l, v, atr_v, n):
+    """For the explosive breakout: the prior move, the 10-day consolidation before the latest day, the breakout day."""
+    nan = np.nan
+    keys = ("move3m", "base_high", "base_low", "base_tight", "base_hl", "base_vol", "adr20", "pre_calm", "pre_up3",
+            "burst_vol", "burst_vprev", "broke_out")
+    if n < 70 or not atr_v or np.isnan(atr_v):
+        return {k: nan for k in keys}
+    hw, lw = h.iloc[-63:].values, l.iloc[-63:].values
+    imax = int(np.argmax(hw))
+    move = (hw[imax] / lw[:imax + 1].min() - 1) * 100 if lw[:imax + 1].min() > 0 else nan
+    bh, bl = float(h.iloc[-11:-1].max()), float(l.iloc[-11:-1].min())
+    broke = bool(c.iloc[-1] > bh)
+    k = -2 if broke else -1                          # the day before the breakout (or the latest day, if not yet out)
+    rng = (h.iloc[k] - l.iloc[k]) / l.iloc[k] * 100
+    v50 = v.iloc[-51:-1].mean()
+    return {"move3m": move, "base_high": bh, "base_low": bl, "base_tight": (bh - bl) / atr_v,
+            "base_hl": bool(l.iloc[-6:-1].min() > l.iloc[-11:-6].min()),
+            "base_vol": v.iloc[-11:-1].mean() / v50 if v50 else nan,
+            "adr20": float(((h / l - 1) * 100).iloc[-20:].mean()),
+            "pre_calm": bool(c.iloc[k] <= c.iloc[k - 1] or rng < 2),
+            "pre_up3": bool((c.diff().iloc[k - 2:k + 1 if k < -1 else None] > 0).all()),
+            "burst_vol": v.iloc[-1] / v50 if v50 else nan, "burst_vprev": bool(v.iloc[-1] > v.iloc[-2]),
+            "broke_out": broke}
 
 
 def buildup(chg1, oi_chg_pct, threshold=3.0):
@@ -298,35 +332,49 @@ def screen(daily, nifty_df, fo, industries, events, preopen, regime, today, fund
     shorts = _intraday_side(liquid, top, bottom, mult, side="short", regime=regime)
     pullbacks = _pullbacks(feat, top, mult)
     bases = _bases(feat.drop(index=[p["symbol"] for p in pullbacks]), top, mult)
-    canslim, minervini = _by_rules(feat, top, bottom, mult)
+    canslim, minervini, explosive = _by_rules(feat, top, bottom, mult)
     if regime.get("label") == "Downtrend":   # swing longs against the index: flagged and half size, like intraday counter-trend
-        for row in pullbacks + bases + canslim + minervini:
+        for row in pullbacks + bases + canslim + minervini + explosive:
             row["counter"] = True
             row["qty"] = row.get("qty", 0) // 2
             row["warnings"] = ["Counter-trend: Nifty is in a downtrend - half size or skip"] + row.get("warnings", [])
     return {"features": feat, "sectors": sectors, "longs": longs, "shorts": shorts,
-            "pullbacks": pullbacks, "bases": bases, "canslim": canslim, "minervini": minervini,
+            "pullbacks": pullbacks, "bases": bases, "canslim": canslim, "minervini": minervini, "explosive": explosive,
             "liquid_count": len(liquid), "top": top, "bottom": bottom,
             "rs_dist": sorted(float(x) for x in feat["rs_raw"].dropna())}
 
 
 def _by_rules(feat, top, bottom, mult):
     """CANSLIM and Minervini lists: every stock that meets all the required rules in the rule check, ranked."""
-    cs, mv = [], []
+    cs, mv, xb = [], [], []
     for sym, r in feat.iterrows():
         groups = {g["name"]: g for g in rule_checks(r, top, bottom)}
-        for name, out in ((CS_NAME, cs), (MV_NAME, mv)):
+        for name, out in ((CS_NAME, cs), (MV_NAME, mv), (XB_NAME, xb)):
             g = groups[name]
             if g["pass"]:
                 fac = [x for x in g["items"] if x[4] and x[1] is not None]
                 out.append((sym, r, sum(1 for x in fac if x[1]) / len(fac) if fac else 0))
-    picks = {"cs": [], "mv": []}
-    for key, rows in (("cs", cs), ("mv", mv)):
+    picks = {"cs": [], "mv": [], "xb": []}
+    for key, rows in (("cs", cs), ("mv", mv), ("xb", xb)):
         rows.sort(key=lambda x: (x[2], x[1].rs_rating), reverse=True)
         for sym, r, fac in rows[:C.MAX_SWING_PICKS]:
             r = r.copy()
             r["score"] = round(50 * fac + 0.5 * r.rs_rating)
             entry = r.high10 * 1.001                      # the buy point: a break above the recent high (pivot)
+            if key == "xb":
+                # not yet out: buy the break of the consolidation high; already out: buy the break of the breakout
+                # day's high. Stop at about one day's range below (Kullamagi: the breakout day's low), never below
+                # the consolidation (or the breakout day's) low. Half off at 2R, the rest aimed at 4R.
+                entry = (r.pdh if r.broke_out else r.base_high) * 1.001
+                stop = max(r.pdl if r.broke_out else r.base_low, entry - r.atr)
+                row = _swing_row(sym, r, entry, stop, mult, "Explosive breakout",
+                                 [f"Up {r.move3m:.0f}% in 3 months", f"RS rating {r.rs_rating:.0f}",
+                                  ("Broke out: " + f"{r.chg1:+.1f}% on {r.burst_vol:.1f}x volume") if r.broke_out
+                                  else f"Coiled: {r.base_tight:.1f}x ATR range, {pct(r.price, r.base_high):+.1f}% from the pivot",
+                                  f"Daily range {r.adr20:.1f}%"])
+                row.update(t2=entry + 4 * (entry - stop), state="out" if r.broke_out else "coiled")
+                picks[key].append(row)
+                continue
             if key == "cs":
                 stop = entry * (1 - CS_STOP / 100)
                 row = _swing_row(sym, r, entry, stop, mult, "CANSLIM",
@@ -340,12 +388,13 @@ def _by_rules(feat, top, bottom, mult):
                                  [f"RS rating {r.rs_rating:.0f}", f"{r.above_low52:.0f}% above 52-week low",
                                   f"{r.dist_52wh:.1f}% from high", f"Range {r.tightening:.2f}x of the prior 30 days"])
             picks[key].append(row)
-    return picks["cs"], picks["mv"]
+    return picks["cs"], picks["mv"], picks["xb"]
 
 
 # ------------------------------------------------------------------ "Analyse" checklist for the app
 CS_NAME = "Swing: CANSLIM (O'Neil)"
 MV_NAME = "Swing: Minervini trend template"
+XB_NAME = "Swing: explosive breakout"
 MO_NAME = "Momentum: direction now"   # not a setup: the last few days' direction, weighed into the win score
 
 
@@ -450,6 +499,27 @@ def rule_checks(r, top, bottom, fno=True):
     for items in (pb, base, mv):
         items += [["Market (Nifty) in an uptrend", mup, "Nifty in an uptrend" if mup else "Nifty not in an uptrend" if mup is False else "Not available", "uptrend", 1],
                   ["More volume on up days than down days", ok(udv > 1, udv), num(udv, ".2f") + "x (50 days)", "above 1x", 1]]
+    # Explosive breakout (Kullamagi breakout, Bonde momentum burst)
+    bh, bl, bt, mv3, adr = g_("base_high"), g_("base_low"), g_("base_tight"), g_("move3m"), g_("adr20")
+    broke = bool(r.get("broke_out")) if r.get("broke_out") is not None and not (isinstance(r.get("broke_out"), float)) else None
+    near = pct(r.price, bh) if bh is not None and not (isinstance(bh, float) and np.isnan(bh)) else np.nan
+    ext = (r.price - bh) / r.atr if bh is not None and r.atr else np.nan
+    xb = [
+        [f"Big move in the last 3 months: up {XB_MOVE}% or more", ok(mv3 >= XB_MOVE, mv3), num(mv3, ".0f") + "% low to high", f"{XB_MOVE}% or more", 0],
+        [f"A leader: RS rating {XB_RS} or more", ok(r.rs_rating >= XB_RS, r.rs_rating), num(r.rs_rating, ".0f"), f"{XB_RS} or more", 0],
+        ["Riding its averages: above the 20-day, 20-day above the 50-day", ok(r.price > r.ema20 and r.ema20 > r.ema50, r.ema20, r.ema50), rs_(r.price) + " / " + rs_(r.ema20) + " / " + rs_(r.ema50), "price > 20-day > 50-day", 0],
+        ["Tight 10-day consolidation", ok(bt <= XB_TIGHT, bt), num(bt, ".1f") + "x ATR (" + rs_(bl) + " to " + rs_(bh) + ")", f"{XB_TIGHT}x ATR or less", 0],
+        ["At the breakout point, not extended", ok(near >= XB_NEAR and ext <= 1, near, ext), (num(near, "+.1f") + "% vs the consolidation high " + rs_(bh)), f"within {-XB_NEAR}% below to 1 ATR above", 0],
+        [f"Moves enough: average daily range {XB_ADR}% or more", ok(adr >= XB_ADR, adr), num(adr, ".1f") + "% (20 days)", f"{XB_ADR}% or more", 1],
+        ["Higher lows in the consolidation", ok(g_("base_hl"), g_("base_hl")), "yes" if g_("base_hl") else "no", "rising lows", 1],
+        ["Volume quiet in the consolidation", ok(g_("base_vol") < 1, g_("base_vol")), num(g_("base_vol"), ".2f") + "x the 50-day average", "below 1x", 1],
+        ["Calm day before the breakout (down, or range under 2%)", ok(g_("pre_calm"), g_("pre_calm")), "yes" if g_("pre_calm") else "no", "calm", 1],
+        ["Not up 3 days in a row before it", ok(not g_("pre_up3"), g_("pre_up3")), "up 3 days running" if g_("pre_up3") else "not up 3 days running", "not 3 up days", 1],
+        [f"Momentum burst: up {XB_BURST:.0f}%+ on {XB_BURST_VOL}x volume, close near the high", ok(r.chg1 >= XB_BURST and g_("burst_vol") >= XB_BURST_VOL and bool(g_("burst_vprev")) and r.close_pos >= 0.8, r.chg1, g_("burst_vol")),
+         num(r.chg1, "+.1f") + "%, volume " + num(g_("burst_vol"), ".1f") + "x, closed at " + num(100 * r.close_pos, ".0f") + "% of the day's range", "the latest day", 1],
+        ["Market (Nifty) in an uptrend", mup, "Nifty in an uptrend" if mup else "Nifty not in an uptrend" if mup is False else "Not available", "uptrend", 1],
+    ]
+
     # Momentum: is the stock going up right now? The first two are required for "direction confirmed".
     e5, e5p, d5, rsi_, rsip = g_("ema5"), g_("ema5_prev"), g_("down5"), g_("rsi"), g_("rsi_prev")
     mh, mhp, pdi, mdi, adx, ph, rs5 = g_("macd_h"), g_("macd_h_prev"), g_("pdi"), g_("mdi"), g_("adx"), g_("prev_high"), g_("rs5")
@@ -464,7 +534,7 @@ def rule_checks(r, top, bottom, fno=True):
         ["MACD momentum improving", ok(mh > mhp, mh, mhp), "histogram " + num(mh, "+.2f") + " vs " + num(mhp, "+.2f") + " a day ago", "rising", 1],
         ["Buyers in control (+DI above -DI)", ok(pdi > mdi, pdi, mdi), num(pdi, ".0f") + " vs " + num(mdi, ".0f") + ", ADX " + num(adx, ".0f"), "+DI above", 1],
     ]
-    for it in mv + cs + pb + base + mo:
+    for it in mv + cs + pb + base + mo + xb:
         if it[1] is None and not str(it[2]).startswith("Not available") and "isn't available" not in str(it[2]):
             it[2] = "Not available: not enough price data"
     liq_ok = all(x[1] for x in liq)
@@ -481,6 +551,7 @@ def rule_checks(r, top, bottom, fno=True):
         group("Swing: tight base near highs", base, swing_liq),
         group(CS_NAME, cs, swing_liq),
         group(MV_NAME, mv, swing_liq),
+        group(XB_NAME, xb, swing_liq),
         group(MO_NAME, mo, None),
     ]
 
