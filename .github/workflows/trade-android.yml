@@ -1,0 +1,93 @@
+name: Opening Bell Android app
+
+# Builds the Opening Bell Android app (android-trade/) whenever its files change, and publishes it at a fixed address
+# that the app's Settings > Get the app button downloads:
+#   https://github.com/ViktorPapa469/ViktorPapa469.github.io/releases/download/opening-bell/OpeningBell.apk
+# The release is never marked "latest", so Fovea's own download link (releases/latest) keeps pointing at Fovea.
+# It is signed with Fovea's upload key; the key's fingerprint is written to /.well-known/assetlinks.json so Android
+# shows the app full screen. The build log goes to the ci-logs-trade-android branch.
+on:
+  push:
+    branches: [main]
+    paths: ['android-trade/**', '.github/workflows/trade-android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: trade-android
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Unlock the signing key
+        env:
+          FOVEA_SIGNING_PASSWORD: ${{ secrets.FOVEA_SIGNING_PASSWORD }}
+        run: |
+          if [ -z "$FOVEA_SIGNING_PASSWORD" ]; then
+            echo "The secret FOVEA_SIGNING_PASSWORD is missing. Add it under Settings, Secrets and variables, Actions." | tee build.log
+            exit 1
+          fi
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in android/fovea-upload.jks.enc -out android/fovea-upload.jks -pass env:FOVEA_SIGNING_PASSWORD \
+            || { echo "The secret FOVEA_SIGNING_PASSWORD does not unlock the key." | tee build.log; exit 1; }
+      - name: Build the APK
+        working-directory: android-trade
+        env:
+          FOVEA_SIGNING_PASSWORD: ${{ secrets.FOVEA_SIGNING_PASSWORD }}
+        run: |
+          set -o pipefail
+          gradle --no-daemon assembleRelease 2>&1 | tee ../build.log
+          mkdir -p ../out && cp app/build/outputs/apk/release/app-release.apk ../out/OpeningBell.apk
+          ls -la ../out
+      - name: Publish the APK
+        run: |
+          set -o pipefail
+          gh release delete opening-bell --yes --cleanup-tag 2>/dev/null || true
+          gh release create opening-bell out/OpeningBell.apk --target "$GITHUB_SHA" --latest=false \
+            --title "Opening Bell for Android 1.0.${{ github.run_number }}" \
+            --notes "Opening Bell for Android. Download OpeningBell.apk on your phone and open it to install. A screener for market study only, not investment advice." \
+            2>&1 | tee -a build.log
+      - name: Publish the app's fingerprint (assetlinks.json)
+        env:
+          FOVEA_SIGNING_PASSWORD: ${{ secrets.FOVEA_SIGNING_PASSWORD }}
+        run: |
+          set -o pipefail
+          fp=$(keytool -list -v -keystore android/fovea-upload.jks -alias fovea-upload -storepass "$FOVEA_SIGNING_PASSWORD" | sed -n 's/.*SHA256: *//p' | head -1 | tr -d ' ')
+          [ -n "$fp" ] || { echo "could not read the key fingerprint" | tee -a build.log; exit 1; }
+          mkdir -p .well-known
+          printf '[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"io.github.viktorpapa469.openingbell","sha256_cert_fingerprints":["%s"]}}]\n' "$fp" > /tmp/assetlinks.json
+          if cmp -s /tmp/assetlinks.json .well-known/assetlinks.json; then echo "assetlinks.json unchanged"; exit 0; fi
+          cp /tmp/assetlinks.json .well-known/assetlinks.json
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .well-known/assetlinks.json && git commit -qm "Opening Bell: publish the Android app's fingerprint"
+          for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && break; sleep 5; done
+      - name: Remove the unlocked key
+        if: always()
+        run: rm -f android/fovea-upload.jks
+      - name: Save the build log
+        if: always()
+        run: |
+          cp build.log /tmp/build.log 2>/dev/null || echo "no log" > /tmp/build.log
+          echo "run ${{ github.run_number }} ${{ job.status }} $(date -u)" > /tmp/status.txt
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q --orphan ci-logs-new
+          git rm -rfq --cached . > /dev/null
+          rm -rf ./* .github .well-known 2>/dev/null || true
+          tail -c 200000 /tmp/build.log > build.log; cp /tmp/status.txt .
+          git add build.log status.txt
+          git commit -qm "Opening Bell Android build ${{ github.run_number }}: ${{ job.status }}"
+          git push -qf origin ci-logs-new:ci-logs-trade-android

@@ -1,0 +1,30 @@
+{
+ "week": 15,
+ "title": "Loving-kindness",
+ "aspect": "Warmth",
+ "line": "Wish others well, and your own heart grows lighter.",
+ "invite": "As you pass people this week, on the street, at work, at home, silently wish them well: may you be happy.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 177.2
+  },
+  {
+   "name": "Breath",
+   "at": 259.2
+  },
+  {
+   "name": "Practice",
+   "at": 465.2
+  },
+  {
+   "name": "Closing",
+   "at": 1217.3
+  }
+ ]
+}

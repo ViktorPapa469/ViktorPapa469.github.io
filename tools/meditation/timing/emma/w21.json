@@ -1,0 +1,30 @@
+{
+ "week": 21,
+ "title": "Speaking Truthfully",
+ "aspect": "Honesty",
+ "line": "Kind truth heals. Unkind truth wounds. Untruth divides.",
+ "invite": "Before you speak this week, ask yourself: is it true, is it kind, is it helpful? Let that pause guide your words.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 175.1
+  },
+  {
+   "name": "Breath",
+   "at": 259.6
+  },
+  {
+   "name": "Practice",
+   "at": 466.7
+  },
+  {
+   "name": "Closing",
+   "at": 1212.2
+  }
+ ]
+}

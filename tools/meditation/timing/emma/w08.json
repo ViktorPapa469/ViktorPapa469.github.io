@@ -1,0 +1,30 @@
+{
+ "week": 8,
+ "title": "The Body Remembers",
+ "aspect": "Embodiment",
+ "line": "The body is always in the present moment. Visit it often.",
+ "invite": "Three times a day, pause and ask your body: how are you? Then listen for the answer before you move on.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 178.2
+  },
+  {
+   "name": "Breath",
+   "at": 259.5
+  },
+  {
+   "name": "Practice",
+   "at": 470.9
+  },
+  {
+   "name": "Closing",
+   "at": 1211.1
+  }
+ ]
+}

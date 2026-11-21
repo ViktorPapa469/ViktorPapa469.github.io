@@ -1,0 +1,30 @@
+{
+ "week": 4,
+ "title": "Kindness Toward Yourself",
+ "aspect": "Self-compassion",
+ "line": "Speak to yourself as you would to a dear friend.",
+ "invite": "When you catch a harsh thought about yourself, pause and ask: what would I say to a friend in my place?",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 184.1
+  },
+  {
+   "name": "Breath",
+   "at": 275.6
+  },
+  {
+   "name": "Practice",
+   "at": 462.8
+  },
+  {
+   "name": "Closing",
+   "at": 1203.5
+  }
+ ]
+}

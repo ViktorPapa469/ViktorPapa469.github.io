@@ -1,0 +1,30 @@
+{
+ "week": 35,
+ "title": "Restlessness",
+ "aspect": "Staying with discomfort",
+ "line": "The urge to move on is just another feeling. You can let it pass.",
+ "invite": "When you feel the urge to reach for your phone this week, wait for three breaths first, and notice what the urge feels like.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 169.6
+  },
+  {
+   "name": "Breath",
+   "at": 255.3
+  },
+  {
+   "name": "Practice",
+   "at": 470.2
+  },
+  {
+   "name": "Closing",
+   "at": 1220.8
+  }
+ ]
+}

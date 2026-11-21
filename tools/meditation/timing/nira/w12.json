@@ -1,0 +1,30 @@
+{
+ "week": 12,
+ "title": "Rest",
+ "aspect": "Renewal",
+ "line": "Rest is not the opposite of growth. It is part of it.",
+ "invite": "Give yourself one true rest each day this week: ten minutes with no phone, no task, and no guilt.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 184.1
+  },
+  {
+   "name": "Breath",
+   "at": 277.9
+  },
+  {
+   "name": "Practice",
+   "at": 471.6
+  },
+  {
+   "name": "Closing",
+   "at": 1203.5
+  }
+ ]
+}

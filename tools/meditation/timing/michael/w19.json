@@ -1,0 +1,30 @@
+{
+ "week": 19,
+ "title": "Generosity",
+ "aspect": "Giving freely",
+ "line": "What we give with an open hand comes back as joy.",
+ "invite": "Each day this week, give something small without being asked: your time, a compliment, a helping hand.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 170.7
+  },
+  {
+   "name": "Breath",
+   "at": 251.7
+  },
+  {
+   "name": "Practice",
+   "at": 447.3
+  },
+  {
+   "name": "Closing",
+   "at": 1220.8
+  }
+ ]
+}

@@ -1,0 +1,30 @@
+{
+ "week": 5,
+ "title": "Listening",
+ "aspect": "Attention",
+ "line": "Attention is the simplest form of love.",
+ "invite": "In one conversation each day, listen without planning your reply. Let the other person finish completely.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 184.2
+  },
+  {
+   "name": "Breath",
+   "at": 272.5
+  },
+  {
+   "name": "Practice",
+   "at": 485.9
+  },
+  {
+   "name": "Closing",
+   "at": 1209.2
+  }
+ ]
+}

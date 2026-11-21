@@ -1,0 +1,30 @@
+{
+ "week": 2,
+ "title": "Beginner's Mind",
+ "aspect": "Curiosity",
+ "line": "Meet familiar things as if for the first time.",
+ "invite": "Each day, choose one ordinary thing, a cup of tea, a walk, a face, and meet it as if for the first time.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 191.5
+  },
+  {
+   "name": "Breath",
+   "at": 279.8
+  },
+  {
+   "name": "Practice",
+   "at": 497.6
+  },
+  {
+   "name": "Closing",
+   "at": 1229.4
+  }
+ ]
+}

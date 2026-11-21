@@ -1,0 +1,30 @@
+{
+ "week": 50,
+ "title": "Awe",
+ "aspect": "Vastness",
+ "line": "In the presence of something vast, our worries find their true size.",
+ "invite": "Each night this week, step outside and look up at the sky for a few minutes before you sleep.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 196.5
+  },
+  {
+   "name": "Breath",
+   "at": 288.3
+  },
+  {
+   "name": "Practice",
+   "at": 499.1
+  },
+  {
+   "name": "Closing",
+   "at": 1224.4
+  }
+ ]
+}

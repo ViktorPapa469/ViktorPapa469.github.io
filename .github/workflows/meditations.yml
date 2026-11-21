@@ -1,0 +1,123 @@
+name: Render weekly meditations
+
+# Renders every week of the 52 weekly meditations in all five voices on GitHub's computers, skipping weeks that are
+# already published (they have a timing file in tools/meditation/timing/<voice>/), then copies the new audio into
+# med/<voice>/, refreshes the page data and pushes. Runs when this file or the scripts change, or by hand.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/meditations.yml', 'tools/meditation/scripts/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: meditations
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        voice: [asha, nira, emma, george, michael]
+        part: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/meditation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python packages and ffmpeg
+        run: |
+          pip install onnxruntime numpy scipy
+          which ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
+      - name: Voice model, phonemes and singing bowl
+        run: |
+          mkdir -p $HOME/fovea/kokoro $HOME/fovea/sounds/things
+          cd $HOME/fovea
+          curl -fsSL --retry 3 -o kokoro/kokoro-v1.0.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
+          curl -fsSL --retry 3 -o kokoro/voices-v1.0.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
+          curl -fsSL --retry 3 -o piper.tgz https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz
+          tar xzf piper.tgz && chmod +x piper/espeak-ng
+          curl -fsSL --retry 3 -o sounds/things/singing-bowl.mp3 https://raw.githubusercontent.com/remvze/moodist/main/public/sounds/things/singing-bowl.mp3
+          ls -la kokoro piper | head
+      - name: Render this part
+        env:
+          FOVEA_KOKORO: /home/runner/fovea/kokoro
+          FOVEA_PIPER: /home/runner/fovea/piper
+          FOVEA_MOODIST: /home/runner/fovea/sounds
+          KTHREADS: '4'
+        run: |
+          case "${{ matrix.voice }}" in asha|michael) bg=forest;; nira) bg=temple;; emma) bg=river;; george) bg=grassland;; esac
+          start=$(( (${{ matrix.part }} - 1) * 13 + 1 )); end=$(( start + 12 ))
+          mkdir -p out/${{ matrix.voice }} logs
+          exec > >(tee -a logs/render-${{ matrix.voice }}-${{ matrix.part }}.log) 2>&1
+          python3 -c "import onnxruntime, numpy, scipy; print('python ok')"
+          ls -la $FOVEA_KOKORO $FOVEA_PIPER | head -20
+          for n in $(seq $start $end); do
+            nn=$(printf %02d $n)
+            if [ -f tools/meditation/timing/${{ matrix.voice }}/w$nn.json ]; then echo "week $n already published"; continue; fi
+            python3 tools/meditation/build2.py --voice ${{ matrix.voice }} --bg $bg --only $n --app-only --outdir out
+          done
+          ls -la out/${{ matrix.voice }} || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: log-${{ matrix.voice }}-${{ matrix.part }}
+          path: logs
+          if-no-files-found: ignore
+          retention-days: 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: render-${{ matrix.voice }}-${{ matrix.part }}
+          path: out
+          if-no-files-found: ignore
+          retention-days: 3
+
+  publish:
+    needs: render
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          path: rendered
+          pattern: render-*
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          path: logs
+          pattern: log-*
+          merge-multiple: true
+      - name: Save the render logs to the ci-logs-med branch
+        run: |
+          mkdir -p /tmp/medlogs && cp -r logs/. /tmp/medlogs/ 2>/dev/null || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git worktree add --orphan -b ci-logs-med-tmp /tmp/wt 2>/dev/null || (git checkout --orphan ci-logs-med-tmp && git rm -rf --cached . > /dev/null)
+          cd /tmp/wt 2>/dev/null || true
+          cp /tmp/medlogs/* . 2>/dev/null || echo "no logs" > none.txt
+          git add -A . && git commit -q -m "render logs, run ${{ github.run_number }}" && git push -f -q origin HEAD:ci-logs-med || true
+      - name: Copy into the site and push
+        working-directory: ${{ github.workspace }}
+        run: |
+          pip install -q numpy scipy onnxruntime
+          git checkout -q main 2>/dev/null || true
+          ls -R rendered | head -50 || true
+          mkdir -p rendered
+          python3 tools/meditation/publish_ci.py rendered
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add med tools/meditation/timing index.html
+          if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
+          git commit -m "Weekly meditations: new audio from the cloud render (run ${{ github.run_number }})"
+          for i in 1 2 3; do git pull --rebase -q origin main && git push -q origin main && break; sleep 5; done
