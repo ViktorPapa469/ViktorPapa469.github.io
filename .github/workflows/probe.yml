@@ -1,0 +1,48 @@
+name: Backtest data
+on:
+  push:
+    branches: [ci-logs-nse-probe]
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q yfinance pandas
+      - name: Download daily (3y) and 15-minute (60d) prices for every F&O stock
+        run: |
+          curl -sS https://raw.githubusercontent.com/${{ github.repository }}/trade-data/analysis.json -o analysis.json
+          python3 - <<'PY'
+          import json, yfinance as yf, pandas as pd, time
+          syms = sorted(json.load(open("analysis.json"))["stocks"])
+          tick = [s + ".NS" for s in syms] + ["^NSEI"]
+          def grab(period, interval):
+              out = []
+              for i in range(0, len(tick), 40):
+                  for k in range(3):
+                      try:
+                          d = yf.download(tick[i:i+40], period=period, interval=interval, group_by="ticker", auto_adjust=True, threads=True, progress=False)
+                          break
+                      except Exception as e:
+                          print("retry", e); time.sleep(10)
+                  for t in tick[i:i+40]:
+                      if t not in d.columns.get_level_values(0): continue
+                      x = d[t].dropna(how="all")
+                      if x.empty: continue
+                      x = x.reset_index().rename(columns=str.lower)
+                      x = x.rename(columns={"date": "t", "datetime": "t"})
+                      x["sym"] = t.replace(".NS", "")
+                      out.append(x[["sym", "t", "open", "high", "low", "close", "volume"]])
+                  time.sleep(2)
+              df = pd.concat(out)
+              print(interval, df["sym"].nunique(), "symbols", len(df), "rows", df["t"].min(), df["t"].max())
+              return df
+          import os; os.makedirs("data", exist_ok=True)
+          grab("3y", "1d").to_csv("data/daily.csv.gz", index=False)
+          grab("60d", "15m").to_csv("data/m15.csv.gz", index=False)
+          PY
+          rm analysis.json
+          git config user.name "backtest"; git config user.email "backtest@users.noreply.github.com"
+          git add data; git commit -qm "backtest data [skip ci]"; git push -q
