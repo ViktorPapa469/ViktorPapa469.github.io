@@ -218,6 +218,7 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .why.outcome{color:var(--ink);margin-top:6px}
 .seg-scroll{overflow-x:auto;scrollbar-width:none}.seg-scroll::-webkit-scrollbar{display:none}
 .seg-scroll button{flex:0 0 auto;padding:6px 12px;white-space:nowrap}
+.trk.opn{width:100%}.trk.opn td,.trk.opn th{font-size:11.5px;padding:5px 2px;white-space:nowrap}.trk.opn td:nth-child(n+4),.trk.opn th:nth-child(n+4){text-align:right}.trk.opn td.sym{font-weight:600}
 .allst td,.allst th{font-size:10.5px;padding:5px 1px;letter-spacing:-.2px}.allst{table-layout:auto;width:100%}.allst th{font-size:10px}.allst tbody tr{cursor:pointer}.allst td.pass{color:var(--up);font-weight:600}
 .allst td.avg{font-weight:600}.allst td:first-child{font-weight:600;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .assess p{margin:0 0 10px;line-height:1.55;font-size:14.5px}.assess p:last-child{margin:0}
@@ -1609,7 +1610,16 @@ function trackPages(kind){
     honest + allTime + leftOut +
     (byDay ? '<div class="glass tile"><table class="trk"><thead><tr><th>Day</th><th>Signals</th><th>Trig.</th><th>Profit</th><th>Loss</th><th>Total</th></tr></thead><tbody>' + byDay + "</tbody></table></div>" : "") +
     older + '<p class="note">Rule outcomes on past prices for market study: not trades anyone made, and not a promise of future results. Updated ' + esc(niceDate(st.track.updated)) + " " + esc(hmOf(st.track.updated)) + ".</p>";
-  var trades = (T_.trades || []).filter(function(t){ return intra || t.trig || t.outcome === "Not triggered" || t.outcome === "Waiting"; });
+  // Only what's worth looking at: open trades in one compact table, then the latest finished ones in detail.
+  // Waiting / not-triggered setups and older finished ones stay in the counts above (and in the yearly log).
+  var all = T_.trades || [], LATEST = 9;
+  var open = all.filter(function(t){ return t.trig && !t.void && !t.done; }).sort(function(a, b){ return b.r - a.r; });
+  var trades = all.filter(function(t){ return t.trig && t.done; }).sort(function(a, b){ return String(b.trig).localeCompare(String(a.trig)) || String(b.d).localeCompare(String(a.d)); }).slice(0, LATEST);
+  var openRows = open.map(function(t){
+    return '<tr><td class="sym">' + esc(t.sym) + "</td><td>" + esc(intra ? (t.side === "short" ? "Short" : "Long") : String(t.setup).replace("Tight base", "Base").replace("Explosive", "Expl")) + "</td><td>" + esc(intra ? t.trig : niceDate(t.trig).replace(/^\w+, /, "")) +
+      "</td><td>" + n(t.fill || t.entry, 0) + "</td><td>" + (ok(t.exit) ? n(t.exit, 0) : "–") + '</td><td class="' + tone(t.r) + '">' + rBare(t.r) + (t.outcome.indexOf("first target") >= 0 ? "½" : "") + "</td></tr>";
+  });
+  var openTotal = open.reduce(function(a, t){ return a + (t.r || 0); }, 0);
   var cards = trades.map(function(t){
     var entry = t.fill || t.entry, risk = Math.abs(t.entry - t.stop), pct = risk && entry ? t.r * risk / entry * 100 : null;
     var cls = !t.trig || t.void ? "" : !t.done ? "gold" : t.r > 0 ? "up" : t.r < 0 ? "down" : "";
@@ -1626,7 +1636,12 @@ function trackPages(kind){
       : '<p class="why">Setup above ' + rs(t.entry) + ", stop " + rs(t.stop) + "." + (t.outcome === "Waiting" ? " Watching for 3 sessions." : " Price never reached the level within 3 sessions.") + "</p>") + "</div>";
   });
   var pages = [page(name + " track record", head)];
-  chunk(cards, 3).forEach(function(c, k, all){ pages.push(page(name + " setups " + (k + 1) + "/" + all.length, c.join(""), trades.length)); });
+  chunk(openRows, 60).forEach(function(c, k, a){
+    pages.push(page("Open now" + (a.length > 1 ? " " + (k + 1) + "/" + a.length : ""), '<div class="glass tile"><table class="trk opn"><thead><tr><th>Stock</th><th>' + (intra ? "Side" : "Setup") + "</th><th>In</th><th>Entry ₹</th><th>Now ₹</th><th>R</th></tr></thead><tbody>" + c.join("") + "</tbody></table>" +
+      (k === 0 ? '<p class="muted small" style="margin:8px 0 0">' + open.length + " open, best first, together " + '<span class="' + tone(openTotal) + '">' + fmtRH(openTotal) + "</span> if closed now. ½ = half already booked at the first target.</p>" : "") + "</div>", open.length));
+  });
+  chunk(cards, 3).forEach(function(c, k, a){ pages.push(page("Latest finished " + (k + 1) + "/" + a.length, c.join(""), trades.length)); });
+  if (all.length > open.length + trades.length) pages[pages.length - 1].html += '<p class="note">Showing the ' + trades.length + " most recent finished setups; the counts on the first page include all " + n(all.length) + ".</p>";
   return pages;
 }
 
@@ -1833,7 +1848,7 @@ function viewAllStrategies(){
   var head = "<thead><tr><th>Stock</th>" + STRATS.map(function(t){ return "<th>" + esc(t[3] || t[1]) + "</th>"; }).join("") + '<th title="Momentum">Mom</th><th>Score</th></tr></thead>';
   var lede = '<p class="lede">Every F&amp;O stock against each swing strategy: the % of its checks met (only checks with data count). The % includes the market trend and up-day vs down-day volume, so a stock only reaches 100% with nothing against it. ✓ means the stock is on that list; ◦ means it meets every required rule but isn\'t on it (a Pullback stock isn\'t repeated on Base, and each list keeps only its top picks). <b>Mom</b> is the last few days\' direction: ▲ rising, ▬ mixed, ▼ still falling (closed below its 5-day average, or 3 or more down days in the last 5). <b>Score</b> is the strategies\' average (60%) plus momentum (40%, halved while the stock is still falling), and the table is sorted by it; tap a stock for its full rule check.</p>' +
     '<p class="note">Rule check from ' + esc(niceDate(AN.data.as_of)) + " prices. For any other NSE or BSE stock, use Analyse on the Plan page.</p>";
-  return chunk(rows, 14).map(function(c, k, all){
+  return chunk(rows, 55).map(function(c, k, all){
     return page("All strategies " + (k + 1) + "/" + all.length, (k === 0 ? lede : "") +
       '<div class="glass tile"><table class="trk allst">' + head + "<tbody>" + c.map(function(r){
         return '<tr data-analyse="' + esc(r.sym) + '"><td>' + esc(r.sym) + "</td>" + r.sc.map(cell).join("") + moCell(r.mo) + '<td class="avg">' + (r.avg === null ? "–" : r.avg + "%") + "</td></tr>";
