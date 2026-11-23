@@ -691,7 +691,9 @@ def momentum20(daily, nifty, session):
     """The Momentum 20 portfolio: holdings ranked at the last month-end before `session`, the ranking if the month
     ended today, and the rule's month-by-month results over the data held (costs: COST_SWING_PCT on the stocks
     that change, both ways)."""
-    close = pd.DataFrame({s: d["close"] for s, d in daily.items()}).reindex(nifty.index).ffill(limit=3)
+    close = pd.DataFrame({s: d["close"] for s, d in daily.items()}).sort_index()
+    close = close[close.notna().sum(axis=1) >= 0.5 * close.shape[1]].ffill(limit=3)   # trading days most stocks have
+    nifty = nifty.reindex(close.index).ffill()
     rets = close.pct_change()
     dates = close.index
     if len(dates) < MOM_LOOKBACK + 30:

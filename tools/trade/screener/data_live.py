@@ -185,7 +185,7 @@ class LiveData:
 
     def index_daily(self):
         names = {"^NSEI": "NIFTY 50", "^NSEBANK": "BANK NIFTY", "^INDIAVIX": "INDIA VIX"}
-        raw = self._download(list(names), period="1y", interval="1d")
+        raw = self._download(list(names), period="2y", interval="1d")   # 2 years: Momentum 20 ranks on 12 months plus history
         return {names[t]: _completed_daily(df) for t, df in raw.items()}
 
     def global_cues(self):
