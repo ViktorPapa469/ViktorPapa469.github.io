@@ -218,7 +218,7 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .why.outcome{color:var(--ink);margin-top:6px}
 .seg-scroll{overflow-x:auto;scrollbar-width:none}.seg-scroll::-webkit-scrollbar{display:none}
 .seg-scroll button{flex:0 0 auto;padding:6px 12px;white-space:nowrap}
-.trk.opn{width:100%}.trk.opn td,.trk.opn th{font-size:11.5px;padding:5px 2px;white-space:nowrap}.trk.opn td:nth-child(n+4),.trk.opn th:nth-child(n+4){text-align:right}.trk.opn td.sym{font-weight:600}
+.trk.opn{width:100%}.trk.ready td:nth-child(2){white-space:normal;font-size:10.5px;color:var(--ink2)}.trk.opn td,.trk.opn th{font-size:11.5px;padding:5px 2px;white-space:nowrap}.trk.opn td:nth-child(n+4),.trk.opn th:nth-child(n+4){text-align:right}.trk.opn td.sym{font-weight:600}
 .allst td,.allst th{font-size:10.5px;padding:5px 1px;letter-spacing:-.2px}.allst{table-layout:auto;width:100%}.allst th{font-size:10px}.allst tbody tr{cursor:pointer}.allst td.pass{color:var(--up);font-weight:600}
 .allst td.avg{font-weight:600}.allst td:first-child{font-weight:600;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .assess p{margin:0 0 10px;line-height:1.55;font-size:14.5px}.assess p:last-child{margin:0}
@@ -1119,7 +1119,7 @@ function render(){
   else {
     if (st.tab === "intraday") tb = segCtl("side", [["longs", "Longs " + (st.pre.longs || []).length], ["shorts", "Shorts " + (st.pre.shorts || []).length]], st.side);
     if (st.tab === "swing") tb = segCtl("swing", [["pullbacks", "Pullback " + (st.pre.pullbacks || []).length], ["bases", "Base " + (st.pre.bases || []).length],
-      ["canslim", "CANSLIM " + (st.pre.canslim || []).length], ["minervini", "Minervini " + (st.pre.minervini || []).length], ["explosive", "Explosive " + (st.pre.explosive || []).length], ["all", "All strategies"], ["track", "Track record"]], st.swing).replace('class="seg-ctl"', 'class="seg-ctl seg-scroll"');
+      ["canslim", "CANSLIM " + (st.pre.canslim || []).length], ["minervini", "Minervini " + (st.pre.minervini || []).length], ["explosive", "Explosive " + (st.pre.explosive || []).length], ["all", "Ready to trade"], ["track", "Track record"]], st.swing).replace('class="seg-ctl"', 'class="seg-ctl seg-scroll"');
     if (st.tab === "live") tb = segCtl("liveview", [["scan", "Today's scan"], ["track", "Track record"]], st.liveView || "scan");
     pages = st.tab === "swing" && st.swing === "track" ? trackPages("swing") : st.tab === "swing" && st.swing === "all" ? viewAllStrategies() : st.tab === "live" && st.liveView === "track" ? trackPages("intraday") :
       ({plan:viewPlan, intraday:viewIntraday, live:viewLive, swing:viewSwing})[st.tab]();
@@ -1828,32 +1828,51 @@ var STRATS = [["Swing: pullback to the 20-day average", "Pullback", "Swing pullb
 function viewAllStrategies(){
   if (!AN.data){
     loadAnalysis().then(function(){ if (st.tab === "swing" && st.swing === "all") render(); }, function(){});
-    return [page("All strategies", '<div class="empty"><p>Loading the rule check…</p></div>')];
+    return [page("Ready to trade", '<div class="empty"><p>Loading the rule check…</p></div>')];
   }
-  var rows = Object.keys(AN.data.stocks).map(function(sym){
-    var x = AN.data.stocks[sym], by = {};
-    x.groups.forEach(function(g){ by[g.name] = g; });
-    var on = (x.lists || []).map(function(l){ return l.split(" #")[0]; });
-    // ✓ only when the stock is really on that list; ◦ when it meets every required rule but isn't (a stock on the
-    // Pullback list is not repeated on Base, and each list keeps only its top picks)
-    var sc = STRATS.map(function(t){ var g = by[t[0]]; return g ? {pct:scoreOf(g).pct, pass:g.pass && on.indexOf(t[2]) >= 0, meets:g.pass} : {pct:null, pass:false}; });
-    var have = sc.filter(function(v){ return v.pct !== null; });
-    var avg = have.length ? have.reduce(function(a, v){ return a + v.pct; }, 0) / have.length : null, mo = momentumOf(x);
-    // Score: the strategies' average (60%) and the last few days' direction (40%)
-    return {sym:sym, sc:sc, mo:mo, avg:avg === null ? null : Math.round(mo ? 0.6 * avg + 0.4 * (mo.pass ? mo.pct : mo.pct / 2) : avg)   /* a falling stock's momentum counts half */,
-            all:sc.filter(function(v){ return v.pass; }).length};
-  }).sort(function(a, b){ return (b.avg || 0) - (a.avg || 0) || b.all - a.all; });
-  var moCell = function(m){ return !m ? "<td>–</td>" : '<td class="' + (m.pass && m.pct >= 60 ? "up" : !m.pass ? "down" : "") + '" title="Momentum ' + m.pct + '%">' + (m.pass && m.pct >= 60 ? "▲" : !m.pass ? "▼" : "▬") + "</td>"; };
-  var cell = function(v){ return '<td class="' + (v.pass ? "pass" : v.pct >= 75 ? "up" : v.pct !== null && v.pct < 40 ? "down" : "") + '">' + (v.pct === null ? "–" : v.pct + "%") + (v.pass ? "✓" : v.meets ? "◦" : "") + "</td>"; };
-  var head = "<thead><tr><th>Stock</th>" + STRATS.map(function(t){ return "<th>" + esc(t[3] || t[1]) + "</th>"; }).join("") + '<th title="Momentum">Mom</th><th>Score</th></tr></thead>';
-  var lede = '<p class="lede">Every F&amp;O stock against each swing strategy: the % of its checks met (only checks with data count). The % includes the market trend and up-day vs down-day volume, so a stock only reaches 100% with nothing against it. ✓ means the stock is on that list; ◦ means it meets every required rule but isn\'t on it (a Pullback stock isn\'t repeated on Base, and each list keeps only its top picks). <b>Mom</b> is the last few days\' direction: ▲ rising, ▬ mixed, ▼ still falling (closed below its 5-day average, or 3 or more down days in the last 5). <b>Score</b> is the strategies\' average (60%) plus momentum (40%, halved while the stock is still falling), and the table is sorted by it; tap a stock for its full rule check.</p>' +
-    '<p class="note">Rule check from ' + esc(niceDate(AN.data.as_of)) + " prices. For any other NSE or BSE stock, use Analyse on the Plan page.</p>";
-  return chunk(rows, 55).map(function(c, k, all){
-    return page("All strategies " + (k + 1) + "/" + all.length, (k === 0 ? lede : "") +
-      '<div class="glass tile"><table class="trk allst">' + head + "<tbody>" + c.map(function(r){
-        return '<tr data-analyse="' + esc(r.sym) + '"><td>' + esc(r.sym) + "</td>" + r.sc.map(cell).join("") + moCell(r.mo) + '<td class="avg">' + (r.avg === null ? "–" : r.avg + "%") + "</td></tr>";
-      }).join("") + "</tbody></table></div>", rows.length);
+  /* Only stocks ready to trade: (1) direction confirmed: momentum rising (▲); (2) a strategy gives an entry trigger:
+     the stock is on its list; (3) the price is in the buy zone: from 1 ATR below the trigger to half an ATR above it,
+     and above the stop. Everything else is left out. */
+  var KINDS = [["pullbacks", "Pull"], ["bases", "Base"], ["canslim", "CAN"], ["minervini", "Minv"], ["explosive", "Expl"]];
+  var bySym = {}, onList = 0;
+  KINDS.forEach(function(kd){
+    (st.pre[kd[0]] || []).forEach(function(x, i){ (bySym[x.symbol] = bySym[x.symbol] || []).push({kind:kd[0], name:kd[1], x:x, rank:x.score, i:i}); });
   });
+  var cnt = {list:Object.keys(bySym).length, dir:0, zone:0};
+  var rows = [];
+  Object.keys(bySym).forEach(function(sym){
+    var a = AN.data.stocks[sym]; if (!a) return;
+    var mo = momentumOf(a), k = a.k || {}, l = lv(sym), price = l ? l[0] : k.p, atr_ = k.atr;
+    if (!(mo && mo.pass && mo.pct >= 60)) return;
+    cnt.dir++;
+    var zone = bySym[sym].filter(function(sx){
+      var e = sx.x.entry, stp = sx.x.stop;
+      return ok(price) && ok(atr_) && price > stp && price >= e - atr_ && price <= e + 0.5 * atr_;
+    });
+    if (!zone.length) return;
+    cnt.zone++;
+    zone.forEach(function(sx){ sx.w = winScore(sym, sx.kind, sx.rank); });
+    zone.sort(function(p, q){ return ((q.w && q.w.score) || 0) - ((p.w && p.w.score) || 0); });
+    var b = zone[0];
+    rows.push({sym:sym, b:b, names:zone.map(function(z){ return z.name; }), price:price, live:!!l, mo:mo, atr:atr_});
+  });
+  rows.sort(function(p, q){ return ((q.b.w && q.b.w.score) || 0) - ((p.b.w && p.b.w.score) || 0); });
+  var lede = '<p class="lede">Only stocks ready to trade: <b>direction confirmed</b> (momentum ▲), <b>an entry trigger</b> from at least one strategy, and the price <b>in the buy zone</b> (from one ATR below the trigger to half an ATR above it). Long only: every swing strategy here buys. Best win score first; tap a stock for its full plan.</p>' +
+    '<p class="note">A shortlist, not a signal: in a test on every trading day from Nov 2024 to Oct 2026, the setups on these lists lost about 0.1R a trade after costs, and requiring momentum \u25b2 or the buy zone did not improve that. Pullback came closest to break-even. Keep the risk per trade small.</p>';
+  var body;
+  if (!rows.length) {
+    body = '<div class="empty"><p>No stock is ready today.</p><p class="muted small">' + cnt.list + " on the strategy lists, " + cnt.dir + " of them with momentum rising, " + cnt.zone + " of those in the buy zone. Waiting is a position too.</p></div>";
+  } else {
+    body = '<div class="glass tile"><table class="trk opn ready"><thead><tr><th>Stock</th><th>Strategy</th><th>Buy ></th><th>Stop</th><th>Now</th><th>Win</th></tr></thead><tbody>' +
+      rows.map(function(r){
+        var e = r.b.x.entry, d = (r.price / e - 1) * 100, trig = r.price >= e;
+        return '<tr data-analyse="' + esc(r.sym) + '"><td class="sym">' + esc(r.sym) + "</td><td>" + esc(r.names.join(" ")) + "</td><td>" + n(e, 0) + "</td><td>" + n(r.b.x.stop, 0) +
+          '</td><td class="' + (trig ? "up" : "") + '">' + (trig ? "in " : "") + (d >= 0 ? "+" : "") + d.toFixed(1) + "%</td><td>" + (r.b.w ? r.b.w.score : "–") + "</td></tr>";
+      }).join("") + "</tbody></table>" +
+      '<p class="muted small" style="margin:8px 0 0">Now: the price ' + (rows.some(function(r){ return r.live; }) ? "(live) " : "(last close) ") + "against the trigger; \u201cin\u201d means it has already crossed it and is still in the zone. Prices in ₹. Strategy: Pull = Pullback, Base = Tight base, CAN = CANSLIM, Minv = Minervini, Expl = Explosive breakout. Targets and size are on each strategy's card.</p></div>";
+  }
+  body += '<p class="note">' + cnt.list + " stocks on the lists \u2192 " + cnt.dir + " with momentum \u25b2 \u2192 " + cnt.zone + " in the buy zone. Rule check from " + esc(niceDate(AN.data.as_of)) + " prices.</p>";
+  return [page("Ready to trade", lede + body, rows.length)];
 }
 
 /* ---- Test: list chips, then Overview, Stocks and the paper trades */
