@@ -132,6 +132,11 @@ def premarket(demo, open_browser=True, json_dir=None):
     regime = analysis.market_regime(indices)
     fund = company_earnings(demo, json_dir, list(daily))
     res = analysis.screen(daily, indices["NIFTY 50"], fo, industries, events, pre, regime, today, fund)
+    try:
+        res["momentum"] = analysis.momentum20(daily, indices["NIFTY 50"]["close"], session_date(demo))
+    except Exception as e:  # noqa: BLE001 - the portfolio is extra; never stop the screen for it
+        log(f"WARN: Momentum 20 not built ({str(e)[:120]})")
+        res["momentum"] = None
 
     breadth = None
     if len(pre) and pre["gap_pct"].notna().any():
@@ -157,7 +162,7 @@ def premarket(demo, open_browser=True, json_dir=None):
 
     # CSV of every pick + JSON watchlist for the ORB step
     rows = []
-    for key in ("longs", "shorts", "pullbacks", "bases", "canslim", "minervini", "explosive"):
+    for key in ("longs", "shorts", "pullbacks", "bases", "canslim", "minervini", "explosive", "dips"):
         for p in res[key]:
             rows.append({"list": key, **{k: v for k, v in p.items() if k not in ("reasons", "warnings")},
                          "reasons": "; ".join(p["reasons"]), "warnings": "; ".join(p["warnings"])})

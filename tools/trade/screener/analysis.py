@@ -39,6 +39,14 @@ XB_NEAR = -3                # % below the consolidation high (the pivot), at mos
 XB_ADR = 3.0                # average daily range %, 20 days: names that move enough to be explosive
 XB_BURST = 4.0              # % up on the breakout day (momentum burst)
 XB_BURST_VOL = 1.5          # breakout-day volume vs the 50-day average, at least
+# Dip buy (Larry Connors' RSI(2) pullback): a sharp 1-3 day dip in a stock above its 200-day average, only while Nifty
+# is above its own 200-day average. Buy at the open, sell on a close above the 5-day average, 10 sessions at most.
+DIP_RSI2 = 10               # 2-day RSI below this
+DIP_STOP_ATR = 3.0          # safety stop, ATRs below the entry (the original has none; 3 ATR left the test result intact)
+DIP_HOLD = 10
+# Momentum 20: the 20 F&O stocks with the best 12-month return (skipping the latest month) per unit of volatility,
+# bought in equal amounts at each month-end close and held for the month; in cash while Nifty is below its 200-day average
+MOM_N, MOM_LOOKBACK, MOM_SKIP = 20, 252, 21
 
 
 # ------------------------------------------------------------------ indicators
@@ -173,6 +181,7 @@ def stock_features(df, nifty):
         "sr": sr_levels(df, a.iloc[-1]),
         **_momentum(df, c, h, n),
         **_explosive(df, c, h, l, v, a.iloc[-1], n),
+        "rsi2": float(rsi(c, 2).iloc[-1]) if n > 5 else np.nan, "sma5": sma(5),
         "rs_raw": (0.4 * q[0] + 0.2 * q[1] + 0.2 * q[2] + 0.2 * q[3]) if n > 252 * 0.9 and not any(np.isnan(x) for x in q) else np.nan,
     }
 
@@ -333,6 +342,10 @@ def screen(daily, nifty_df, fo, industries, events, preopen, regime, today, fund
     pullbacks = _pullbacks(feat, top, mult)
     bases = _bases(feat.drop(index=[p["symbol"] for p in pullbacks]), top, mult)
     canslim, minervini, explosive = _by_rules(feat, top, bottom, mult)
+    n200 = nifty.rolling(200).mean()
+    nifty_above200 = bool(len(nifty) >= 200 and nifty.iloc[-1] > n200.iloc[-1])
+    dips_all = _dips(feat, mult)
+    dips = dips_all if nifty_above200 else []
     if regime.get("label") == "Downtrend":   # swing longs against the index: flagged and half size, like intraday counter-trend
         for row in pullbacks + bases + canslim + minervini + explosive:
             row["counter"] = True
@@ -340,6 +353,9 @@ def screen(daily, nifty_df, fo, industries, events, preopen, regime, today, fund
             row["warnings"] = ["Counter-trend: Nifty is in a downtrend - half size or skip"] + row.get("warnings", [])
     return {"features": feat, "sectors": sectors, "longs": longs, "shorts": shorts,
             "pullbacks": pullbacks, "bases": bases, "canslim": canslim, "minervini": minervini, "explosive": explosive,
+            "dips": dips, "dip_gate": {"nifty_above200": nifty_above200, "nifty": float(nifty.iloc[-1]),
+                                       "nifty200": float(n200.iloc[-1]) if len(nifty) >= 200 else None,
+                                       "candidates": len(dips_all)},
             "liquid_count": len(liquid), "top": top, "bottom": bottom,
             "rs_dist": sorted(float(x) for x in feat["rs_raw"].dropna())}
 
@@ -649,6 +665,86 @@ def _bases(df, top, mult):
                               [f"{r.dist_52wh:.1f}% from 52-week high",
                                f"10-day range {r.tight10:.1f}x ATR", f"Volume {r.dryup:.2f}x of 50-day avg"]))
     return out
+
+
+def _dips(df, mult):
+    """Connors RSI(2) dip: above the 200-day average, 2-day RSI under 10. Strongest stocks (RS rating) first."""
+    m = ((df["price"] >= C.MIN_PRICE) & (df["turnover_cr"] >= C.MIN_TURNOVER_CR)
+         & (df["price"] > df["sma200"]) & (df["rsi2"] < DIP_RSI2))
+    cand = df[m].copy()
+    if cand.empty:
+        return []
+    cand["score"] = (0.7 * cand["rs_rating"].fillna(50) + 3 * (DIP_RSI2 - cand["rsi2"])).clip(0, 100)
+    out = []
+    for sym, r in cand.sort_values("score", ascending=False).head(C.MAX_SWING_PICKS).iterrows():
+        entry = r.price                                 # bought at the next open; the close is the best estimate
+        stop = entry - DIP_STOP_ATR * r.atr
+        row = _swing_row(sym, r, entry, stop, mult, "Dip buy",
+                         [f"2-day RSI {r.rsi2:.0f}", f"{pct(r.price, r.sma200):+.1f}% above its 200-day average",
+                          f"RS rating {r.rs_rating:.0f}"])
+        row.update(t1=r.sma5, t2=r.sma5, exit_ma=r.sma5, rsi2=r.rsi2)
+        out.append(row)
+    return out
+
+
+def momentum20(daily, nifty, session):
+    """The Momentum 20 portfolio: holdings ranked at the last month-end before `session`, the ranking if the month
+    ended today, and the rule's month-by-month results over the data held (costs: COST_SWING_PCT on the stocks
+    that change, both ways)."""
+    close = pd.DataFrame({s: d["close"] for s, d in daily.items()}).reindex(nifty.index).ffill(limit=3)
+    rets = close.pct_change()
+    dates = close.index
+    if len(dates) < MOM_LOOKBACK + 30:
+        return None
+
+    def rank(i):
+        if i < MOM_LOOKBACK:
+            return pd.Series(dtype=float)
+        mom = close.iloc[i - MOM_SKIP] / close.iloc[i - MOM_LOOKBACK] - 1
+        vol = rets.iloc[i - MOM_LOOKBACK + 1:i + 1].std()
+        ok_ = close.iloc[i - MOM_LOOKBACK:i + 1].notna().all()
+        return (mom / vol)[ok_ & vol.gt(0)].dropna().sort_values(ascending=False)
+
+    n200 = nifty.rolling(200).mean()
+    above = lambda i: bool(nifty.iloc[i] > n200.iloc[i]) if not np.isnan(n200.iloc[i]) else True
+    month_end = [i for i in range(len(dates) - 1) if dates[i].month != dates[i + 1].month]
+    sess_m = (session.year, session.month)
+    rb = max([i for i in month_end + [len(dates) - 1] if (dates[i].year, dates[i].month) < sess_m], default=None)
+    if rb is None or rb < MOM_LOOKBACK:
+        return None
+    last = len(dates) - 1
+    held = rank(rb).head(MOM_N)
+    now = rank(last).head(MOM_N)
+    cost = C.COST_SWING_PCT / 100
+    hold_rows = []
+    for k, (sym, sc) in enumerate(held.items(), 1):
+        p0, p1 = close[sym].iloc[rb], close[sym].iloc[last]
+        hold_rows.append({"symbol": sym, "rank": k, "score": round(float(sc), 2), "base": round(float(p0), 2),
+                          "price": round(float(p1), 2), "since": round((p1 / p0 - 1) * 100, 2),
+                          "ret12": round((close[sym].iloc[rb - MOM_SKIP] / close[sym].iloc[rb - MOM_LOOKBACK] - 1) * 100, 1),
+                          "now_rank": int(list(now.index).index(sym) + 1) if sym in now.index else None})
+    # month-by-month results of the rule
+    hist, prev = [], set()
+    for a, b in zip(month_end, month_end[1:] + ([last] if last not in month_end else [])):
+        if a < MOM_LOOKBACK:
+            continue
+        pick = set(rank(a).head(MOM_N).index)
+        cash = not above(a)
+        r = float((close.loc[dates[b], list(pick)] / close.loc[dates[a], list(pick)] - 1).mean()) if pick else 0.0
+        turn = len(pick ^ prev) / (2 * MOM_N) if prev else 1.0
+        r -= 2 * turn * cost if not cash else 0.0
+        prev = pick if not cash else set()
+        hist.append({"from": dates[a].date().isoformat(), "to": dates[b].date().isoformat(), "partial": b == last and last not in month_end,
+                     "ret": round(r * 100, 2), "cash": cash, "used": round((0.0 if cash else r) * 100, 2),
+                     "nifty": round((nifty.iloc[b] / nifty.iloc[a] - 1) * 100, 2),
+                     "all": round(float((close.loc[dates[b]] / close.loc[dates[a]] - 1).mean() * 100), 2)})
+    return {"rebalanced": dates[rb].date().isoformat(), "as_of": dates[last].date().isoformat(),
+            "cash": not above(rb), "cash_now": not above(last), "nifty": round(float(nifty.iloc[last]), 2),
+            "nifty200": round(float(n200.iloc[last]), 2) if not np.isnan(n200.iloc[last]) else None,
+            "holdings": hold_rows,
+            "since": round(float(np.mean([h["since"] for h in hold_rows])), 2) if hold_rows else None,
+            "next_in": [s for s in now.index if s not in held.index], "next_out": [s for s in held.index if s not in now.index],
+            "history": hist[-12:], "n": MOM_N, "cost_pct": C.COST_SWING_PCT}
 
 
 def _swing_row(sym, r, entry, stop, mult, setup, reasons):

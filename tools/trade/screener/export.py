@@ -68,6 +68,8 @@ def premarket_payload(ctx, notes, generated):
         "canslim": [_pick(p, SWING_KEYS) for p in res.get("canslim", [])],
         "minervini": [_pick(p, SWING_KEYS) for p in res.get("minervini", [])],
         "explosive": [_pick(p, SWING_KEYS) for p in res.get("explosive", [])],
+        "dips": [dict(_pick(p, SWING_KEYS), exit_ma=p.get("exit_ma"), rsi2=p.get("rsi2")) for p in res.get("dips", [])],
+        "dip_gate": res.get("dip_gate"), "momentum": res.get("momentum"),
         "meta": {"universe": ctx["universe"], "priced": ctx["priced"], "liquid": res["liquid_count"],
                  "oi_date": ctx.get("oi_date_iso")},
         "notes": notes,
@@ -194,7 +196,7 @@ def write_analysis(out_dir, ctx, res, generated):
     from .analysis import rule_checks
     lists = {}
     for key, label in (("longs", "Intraday longs"), ("shorts", "Intraday shorts"), ("pullbacks", "Swing pullbacks"), ("bases", "Swing tight bases"),
-                       ("canslim", "CANSLIM"), ("minervini", "Minervini"), ("explosive", "Explosive breakout")):
+                       ("canslim", "CANSLIM"), ("minervini", "Minervini"), ("explosive", "Explosive breakout"), ("dips", "Dip buy")):
         for i, p in enumerate(res.get(key, [])):
             lists.setdefault(p["symbol"], []).append(f"{label} #{i + 1}")
     stocks = {}

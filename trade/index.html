@@ -218,7 +218,7 @@ input[type=number],input[type=text],input[type=email],input[type=password],input
 .why.outcome{color:var(--ink);margin-top:6px}
 .seg-scroll{overflow-x:auto;scrollbar-width:none}.seg-scroll::-webkit-scrollbar{display:none}
 .seg-scroll button{flex:0 0 auto;padding:6px 12px;white-space:nowrap}
-.trk.opn{width:100%}.trk.ready td:nth-child(2){white-space:normal;font-size:10.5px;color:var(--ink2)}.trk.opn td,.trk.opn th{font-size:11.5px;padding:5px 2px;white-space:nowrap}.trk.opn td:nth-child(n+4),.trk.opn th:nth-child(n+4){text-align:right}.trk.opn td.sym{font-weight:600}
+.trk.opn{width:100%}.trk.mom20 td:nth-child(2),.trk.mom20 th:nth-child(2){text-align:left}.trk.mom20 td,.trk.mom20 th{padding:5px 1px;font-size:11px}.trk.ready td:nth-child(2){white-space:normal;font-size:10.5px;color:var(--ink2)}.trk.opn td,.trk.opn th{font-size:11.5px;padding:5px 2px;white-space:nowrap}.trk.opn td:nth-child(n+4),.trk.opn th:nth-child(n+4){text-align:right}.trk.opn td.sym{font-weight:600}
 .allst td,.allst th{font-size:10.5px;padding:5px 1px;letter-spacing:-.2px}.allst{table-layout:auto;width:100%}.allst th{font-size:10px}.allst tbody tr{cursor:pointer}.allst td.pass{color:var(--up);font-weight:600}
 .allst td.avg{font-weight:600}.allst td:first-child{font-weight:600;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .assess p{margin:0 0 10px;line-height:1.55;font-size:14.5px}.assess p:last-child{margin:0}
@@ -1119,9 +1119,10 @@ function render(){
   else {
     if (st.tab === "intraday") tb = segCtl("side", [["longs", "Longs " + (st.pre.longs || []).length], ["shorts", "Shorts " + (st.pre.shorts || []).length]], st.side);
     if (st.tab === "swing") tb = segCtl("swing", [["pullbacks", "Pullback " + (st.pre.pullbacks || []).length], ["bases", "Base " + (st.pre.bases || []).length],
-      ["canslim", "CANSLIM " + (st.pre.canslim || []).length], ["minervini", "Minervini " + (st.pre.minervini || []).length], ["explosive", "Explosive " + (st.pre.explosive || []).length], ["all", "Ready to trade"], ["track", "Track record"]], st.swing).replace('class="seg-ctl"', 'class="seg-ctl seg-scroll"');
+      ["canslim", "CANSLIM " + (st.pre.canslim || []).length], ["minervini", "Minervini " + (st.pre.minervini || []).length], ["explosive", "Explosive " + (st.pre.explosive || []).length], ["dips", "Dip buy " + (st.pre.dips || []).length], ["momentum", "Momentum 20"], ["all", "Ready to trade"], ["track", "Track record"]], st.swing).replace('class="seg-ctl"', 'class="seg-ctl seg-scroll"');
     if (st.tab === "live") tb = segCtl("liveview", [["scan", "Today's scan"], ["track", "Track record"]], st.liveView || "scan");
-    pages = st.tab === "swing" && st.swing === "track" ? trackPages("swing") : st.tab === "swing" && st.swing === "all" ? viewAllStrategies() : st.tab === "live" && st.liveView === "track" ? trackPages("intraday") :
+    pages = st.tab === "swing" && st.swing === "track" ? trackPages("swing") : st.tab === "swing" && st.swing === "all" ? viewAllStrategies() :
+      st.tab === "swing" && st.swing === "dips" ? viewDips() : st.tab === "swing" && st.swing === "momentum" ? viewMomentum() : st.tab === "live" && st.liveView === "track" ? trackPages("intraday") :
       ({plan:viewPlan, intraday:viewIntraday, live:viewLive, swing:viewSwing})[st.tab]();
   }
   $("#toolbar").innerHTML = tb;
@@ -1647,6 +1648,8 @@ function trackPages(kind){
 
 /* ---- Glossary: every term the app uses, in plain words (Settings) */
 var GLOSSARY = [
+  ["Dip buy (RSI(2))", "Larry Connors' short-term pullback: buy a stock above its 200-day average after its 2-day RSI falls under 10 (a sharp 1-3 day dip), sell on the first close above its 5-day average, at most 10 sessions, safety stop 3 ATR below. Only while Nifty is above its 200-day average. Many small wins and fewer, larger losses; costs decide whether it pays."],
+  ["Momentum 20", "A monthly portfolio: the 20 F&O stocks with the highest 12-month return, leaving out the latest month, divided by their volatility; equal amounts, rebalanced at the last close of each month; cash while Nifty is below its 200-day average. Based on the momentum effect documented in markets worldwide and behind NSE's momentum indices."],
   ["Explosive breakout", "Swing setup from Kristjan Kullam\u00e4gi's breakout and Pradeep Bonde's momentum burst. Required: up 30%+ in the last 3 months, RS rating 80+, price above the 20-day average and the 20-day above the 50-day, a tight 10-day consolidation (3.5 ATR or less), and the price at the breakout point (within 3% below the consolidation high, no more than one ATR above it). Scored: average daily range 3%+, higher lows, quiet volume in the consolidation, a calm day before the breakout, not up 3 days in a row, the momentum burst, and the market trend."],
   ["Momentum burst (4% breakout)", "Pradeep Bonde's breakout day: up 4% or more on more volume than the day before (here also 1.5x the 50-day average), closing near the day's high, after a quiet consolidation. Such bursts often run for 3 to 5 days."],
   ["Average daily range (ADR)", "The average of each day's high-to-low range as a % of the price, over 20 days. Explosive breakouts need stocks that move: 3% or more."],
@@ -1819,6 +1822,60 @@ function viewSwing(){
   if (!p[key]) return [page(S_.name, lede + '<div class="empty"><p>This list arrives with the next screen.</p></div>')];
   if (!cards.length) return [page(S_.name, lede + '<div class="empty"><p>No stocks fit every rule today. All strategies shows how close each stock is.</p></div>')];
   return chunk(cards, 3).map(function(c, k){ return page(S_.name + " " + (k * 3 + 1) + "–" + (k * 3 + c.length), (k === 0 ? lede : "") + c.join(""), list.length + " in all"); });
+}
+
+/* ---- Dip buy (Connors RSI(2)) and Momentum 20: the two styles that did best in the two-year test */
+function viewDips(){
+  var p = st.pre, list = p.dips || [], gate = p.dip_gate || {}, mult = p.regime && p.regime.size_mult;
+  var lede = '<p class="lede">Larry Connors\' RSI(2) pullback: a stock above its 200-day average that has just had a sharp 1-3 day dip (2-day RSI under 10). <b>Buy at the open; sell on the first close above the 5-day average</b>, 10 sessions at most, with a safety stop 3 ATR below. Only while Nifty is above its own 200-day average. Strongest stocks (RS rating) first.</p>' +
+    '<p class="note">In the test (Nov 2024 to Nov 2026, F&amp;O stocks) it won 64% of trades, held about 4 days, and made +0.22% a trade at stock-futures costs (about 0.05%) but <b>about break-even at the 0.30% delivery costs</b> this app counts. Worth trading only where your costs are low. The track record uses 0.30%.</p>';
+  if (!p.dips) return [page("Dip buy", lede + '<div class="empty"><p>This list arrives with the next screen.</p></div>')];
+  if (gate.nifty_above200 === false)
+    return [page("Dip buy", lede + '<div class="empty"><p>Off: Nifty ' + n(gate.nifty, 0) + " is below its 200-day average " + n(gate.nifty200, 0) + ".</p><p class=\"muted small\">The rule only buys dips in a rising market. " + n(gate.candidates) + " stocks would otherwise qualify.</p></div>")];
+  if (!list.length) return [page("Dip buy", lede + '<div class="empty"><p>No sharp dips in rising stocks today.</p></div>')];
+  var cards = list.map(function(x, i){
+    var q = qty(x.entry, x.entry - x.stop, mult || 1);
+    return '<article class="stock glass"><div class="head"><span><span class="sym">' + esc(x.symbol) + '</span><span class="ind">' + esc(indOf(x.industry)) + "</span></span>" + pxTag(x.symbol, x.price, x.chg1) + "</div>" +
+      '<p class="why">' + esc((x.reasons || []).join(", ")) + "</p>" +
+      '<div class="levels"><div><span>Buy at the open, near</span><b>' + rs(x.entry) + "</b></div><div><span>Safety stop (3 ATR)</span><b>" + rs(x.stop) + "</b></div>" +
+      "<div><span>Position</span><b>" + n(q) + "</b></div><div><span>Sell on a close above</span><b>" + rs(x.exit_ma) + "</b></div>" +
+      "<div><span>Time limit</span><b>10 sessions</b></div><div><span>Stop distance</span><b>" + (ok(x.risk_pct) ? x.risk_pct.toFixed(1) + "%" : "–") + "</b></div></div>" +
+      (x.warnings || []).map(function(w){ return '<div class="warn">' + esc(plainWarn(w, x)) + "</div>"; }).join("") + ohlc(x.symbol) +
+      '<p class="muted small">The 5-day average moves each day: sell at the first close above that day\'s value.</p>' +
+      '<div class="row-actions"><button class="btn ghost small" type="button" data-practice="swing:dips:' + i + '">Paper trade</button>' + anBtn(x.symbol) + "</div></article>";
+  });
+  return chunk(cards, 3).map(function(c, k){ return page("Dip buy " + (k * 3 + 1) + "–" + (k * 3 + c.length), (k === 0 ? lede : "") + c.join(""), list.length + " in all"); });
+}
+
+function viewMomentum(){
+  var m = st.pre.momentum, mon = function(d){ return new Date(d + "T00:00:00").toLocaleDateString("en-GB", {month:"short", year:"2-digit"}); };
+  var lede = '<p class="lede">A portfolio, not trades: the 20 F&amp;O stocks with the best 12-month return (leaving out the latest month) for their volatility, <b>bought in equal amounts at the last close of each month and held for the month</b>. While Nifty is below its 200-day average, hold cash instead. About an hour\'s work a month.</p>' +
+    '<p class="note">In the test (Nov 2024 to Nov 2026, 0.30% costs) it returned +18% with a worst fall of 4% (+24%, worst fall 22%, without the cash rule), against +9% for Nifty and +20% for all F&amp;O stocks in equal amounts. Two years is short, and the 6-month version of the same idea lost money: judge it over years, not months.</p>';
+  if (!m) return [page("Momentum 20", lede + '<div class="empty"><p>The portfolio arrives with the next screen.</p></div>')];
+  var per = S.capital ? S.capital / m.n : 0;
+  var status = m.cash ? '<div class="warn">This month: <b>cash</b>. Nifty was below its 200-day average at the ' + esc(niceDate(m.rebalanced)) + " close, so the rule holds nothing. The list below is what it would hold.</div>" :
+    '<div class="glass tile"><div class="facts"><div class="fact"><b class="' + tone(m.since) + '">' + pc(m.since) + "</b><span>Since " + esc(niceDate(m.rebalanced)) + "</span></div>" +
+    '<div class="fact"><b>' + m.n + "</b><span>Stocks, " + (100 / m.n) + "% each</span></div>" + (per ? '<div class="fact"><b>₹' + n(Math.round(per)) + "</b><span>Each, of your ₹" + n(S.capital) + "</span></div>" : "") +
+    '<div class="fact"><b>' + (m.cash_now ? "Cash" : "Invested") + "</b><span>If the month ended today</span></div></div></div>";
+  var rows = (m.holdings || []).map(function(h){
+    var sh = per ? Math.floor(per / h.base) : null;
+    return '<tr data-analyse="' + esc(h.symbol) + '"><td>' + h.rank + '</td><td class="sym">' + esc(h.symbol) + "</td><td>" + n(h.base, 0) + "</td><td>" + n(h.price, 0) + '</td><td class="' + tone(h.since) + '">' + pc(h.since) +
+      "</td><td>" + (sh === null ? "–" : n(sh)) + "</td><td>" + (h.now_rank ? h.now_rank : '<span class="down">out</span>') + "</td></tr>";
+  }).join("");
+  var table = '<div class="glass tile"><table class="trk opn mom20"><thead><tr><th>#</th><th>Stock</th><th>Bought</th><th>Now</th><th>Since</th><th>Qty</th><th>Rank</th></tr></thead><tbody>' + rows + "</tbody></table>" +
+    '<p class="muted small" style="margin:8px 0 0">Bought: the ' + esc(niceDate(m.rebalanced)) + " close. Prices in ₹. Qty: your capital split in 20 at that price. Rank: where it would rank if the month ended today; \u201cout\u201d would be sold at the next month-end.</p></div>";
+  var nxt = '<div class="glass tile"><b>At the next month-end, if today were the last day</b><p class="small" style="margin:6px 0 0">' +
+    (m.next_out.length || m.next_in.length ? "Sell " + (m.next_out.length ? esc(m.next_out.join(", ")) : "nothing") + "; buy " + (m.next_in.length ? esc(m.next_in.join(", ")) : "nothing") + "." : "No changes.") +
+    (m.cash_now ? " Nifty is below its 200-day average now: if it stays there, sell everything and hold cash." : "") + " Rebalance at the last close of each month (the evening preview on that day shows the new list).</p></div>";
+  var tot = 1, totN = 1, totA = 1;
+  var hist = (m.history || []).map(function(h){
+    tot *= 1 + h.used / 100; totN *= 1 + h.nifty / 100; totA *= 1 + h.all / 100;
+    return "<tr><td>" + esc(mon(h.to)) + (h.partial ? "*" : "") + '</td><td class="' + tone(h.used) + '">' + (h.cash ? "cash" : pc(h.used)) + '</td><td class="' + tone(h.nifty) + '">' + pc(h.nifty) + '</td><td class="' + tone(h.all) + '">' + pc(h.all) + "</td></tr>";
+  }).join("");
+  var histT = hist ? '<div class="glass tile"><b>The rule, month by month</b><table class="trk opn" style="margin-top:6px"><thead><tr><th>Month</th><th>Momentum 20</th><th>Nifty</th><th>All F&amp;O</th></tr></thead><tbody>' + hist +
+    '<tr><td><b>Total</b></td><td class="' + tone(tot - 1) + '"><b>' + pc((tot - 1) * 100) + '</b></td><td class="' + tone(totN - 1) + '">' + pc((totN - 1) * 100) + '</td><td class="' + tone(totA - 1) + '">' + pc((totA - 1) * 100) + "</td></tr></tbody></table>" +
+    '<p class="muted small" style="margin:8px 0 0">Worked out from past prices with the same rule, after ' + m.cost_pct + "% costs on every change. * month so far. Rule results, not trades anyone made.</p></div>" : "";
+  return [page("Momentum 20", lede + status + nxt), page("Holdings", table, m.n), page("Results", histT || '<div class="empty"><p>Not enough history yet.</p></div>')];
 }
 
 /* ---- All strategies: every F&O stock's % of checks met for each swing strategy (from the rule check) */

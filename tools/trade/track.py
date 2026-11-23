@@ -44,8 +44,8 @@ from screener.plan import walk  # noqa: E402
 METHOD = 2                                # how results are worked out; a change rebuilds the record from the saved scans
 KEEP = {"intraday": 7, "swing": 30}       # days of detail in track.json
 SWING_TRIGGER_DAYS = 3                    # sessions
-SWING_HOLD = {"Pullback": 10, "Tight base": 10, "CANSLIM": 30, "Minervini": 30, "Explosive": 15}   # sessions, then the time exit
-SETUPS = (("pullbacks", "Pullback"), ("bases", "Tight base"), ("canslim", "CANSLIM"), ("minervini", "Minervini"), ("explosive", "Explosive"))
+SWING_HOLD = {"Pullback": 10, "Tight base": 10, "CANSLIM": 30, "Minervini": 30, "Explosive": 15, "Dip buy": 10}   # sessions, then the time exit
+SETUPS = (("pullbacks", "Pullback"), ("bases", "Tight base"), ("canslim", "CANSLIM"), ("minervini", "Minervini"), ("explosive", "Explosive"), ("dips", "Dip buy"))
 SQUARE_OFF = dt.time(15, 15)
 GIVE_UP_DAYS = 45                         # an intraday setup still without prices after this long is closed as "no data"
 
@@ -182,9 +182,49 @@ def eval_intraday(t, bars5, now):
     t.pop("void", None)
 
 
+def eval_dip(t, df):
+    """Dip buy (Connors RSI(2)): bought at the session's open, sold on the first close above the 5-day average, safety
+    stop 3 ATR below (moved with the fill), 10 sessions at most."""
+    day = pd.Timestamp(t["d"])
+    d = df[df.index.normalize() >= day]
+    if d.empty:
+        return
+    fill = float(d["open"].iloc[0])
+    stop = t["stop"] + (fill - t["entry"])
+    unit = fill - stop
+    sma5 = df["close"].rolling(5).mean()
+    t.update(trig=d.index[0].strftime("%Y-%m-%d"), fill=round(fill, 2))
+    hold = SWING_HOLD["Dip buy"]
+    for k, (ix, bar) in enumerate(d.iloc[:hold].iterrows()):
+        if k > 0 and bar["open"] <= stop:
+            ex, outcome = float(bar["open"]), "Stop (gap)"
+        elif bar["low"] <= stop:
+            ex, outcome = stop, "Stop"
+        elif bar["close"] > sma5.loc[ix]:
+            ex, outcome = float(bar["close"]), "Sold above the 5-day average"
+        elif k == hold - 1:
+            ex, outcome = float(bar["close"]), "Time exit"
+        else:
+            continue
+        r = (ex - fill) / unit
+        c = cost_r("swing", fill, unit)
+        t.update(outcome=outcome, gross=round(r, 2), cost=round(c, 2), r=round(r - c, 2), ideal=round(r, 2), exit=round(ex, 2),
+                 done=True, held=k + 1, hits={})
+        return
+    last = d.iloc[:hold]
+    r = (float(last["close"].iloc[-1]) - fill) / unit
+    c = cost_r("swing", fill, unit)
+    t.update(outcome="Open", gross=round(r, 2), cost=round(c, 2), r=round(r - c, 2), ideal=round(r, 2),
+             exit=round(float(last["close"].iloc[-1]), 2), done=False, held=len(last), hits={})
+
+
 def eval_swing(t, daily, now):
     df = daily.get(t["sym"])
     if df is None:
+        return
+    if t.get("setup") == "Dip buy":
+        eval_dip(t, df)
+        t.pop("void", None)
         return
     day = pd.Timestamp(t["d"])
     d = df[df.index.normalize() >= day]
