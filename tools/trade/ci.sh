@@ -15,6 +15,13 @@ set -u
 cd "$(dirname "$0")"
 PUB="${PUB:-$GITHUB_WORKSPACE/pub}"
 MODE="${MODE:-auto}"
+# GitHub sometimes starts an evening or backup schedule hours late, after midnight. Such a run would sleep until
+# morning holding the queue (blocking the clock's on-time runs) and be cut off at its time limit. Nothing scheduled is
+# due between midnight and 6 AM: a scheduled run that starts then stops at once. Runs started by hand or by the clock
+# (workflow_dispatch) are not affected.
+if [ "${GITHUB_EVENT_NAME:-}" = "schedule" ] && [ "$(TZ=Asia/Kolkata date +%H%M)" -lt 0600 ]; then
+  echo "Scheduled run started at $(TZ=Asia/Kolkata date '+%H:%M') IST, long after its time; nothing is due before 6 AM."; exit 0
+fi
 NOTIFY="${NOTIFY:-1}"
 
 hhmm() { echo $((10#$(date +%H%M))); }
