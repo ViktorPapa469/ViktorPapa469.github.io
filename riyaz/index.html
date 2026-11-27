@@ -303,8 +303,8 @@ details ul,details ol{margin:0;padding-left:20px;display:flex;flex-direction:col
 
   <div class="card">
     <h3>Your own songs</h3>
-    <p class="small muted">Load any audio file from your phone. The app reads the song's melody and draws it as a yellow line. Sing along and your voice is drawn over it: green where you match the song, blue where you are below it, pink where you are above. Wear headphones, or the microphone hears the song instead of you. The melody reads best where the voice is clear over the music.</p>
-    <div class="row"><input id="songFile" type="file" accept="audio/*" style="flex:1;min-width:0"></div>
+    <p class="small muted">Load a song from your phone: MP3, M4A, WAV, a WhatsApp audio file or a video. The app reads the song's melody and draws it as a yellow line. Sing along and your voice is drawn over it: green where you match the song, blue where you are below it, pink where you are above. Wear headphones, or the microphone hears the song instead of you. The melody reads best where the voice is clear over the music.</p>
+    <div class="row"><input id="songFile" type="file" style="flex:1;min-width:0"></div>
     <div class="pieces" id="mySongs"></div>
     <audio id="player" controls hidden></audio>
     <p class="small" id="songMsg" aria-live="polite"></p>
@@ -518,11 +518,11 @@ function droneOff(){ clearInterval(droneT); droneT = null; if (droneGain){ var g
 
 /* ================= pitch detection (YIN) ================= */
 var yinD = null;
-function detect(buf, sr){
+function detect(buf, sr, slack){   // slack (for a song with backing): take the shortest period within this of the best one
   var N = buf.length, half = N >> 1, i, tau, rms = 0;
   for (i = 0; i < N; i++) rms += buf[i] * buf[i];
   rms = Math.sqrt(rms / N);
-  if (rms < 0.008) return { hz:0, clarity:0, rms:rms };
+  if (rms < (slack ? 0.002 : 0.008)) return { hz:0, clarity:0, rms:rms };
   var tMin = Math.max(2, Math.floor(sr / 1100)), tMax = Math.min(half - 1, Math.floor(sr / 65));
   if (!yinD || yinD.length < tMax + 2) yinD = new Float32Array(tMax + 2);
   var d = yinD, run = 0; d[0] = 1;
@@ -530,8 +530,9 @@ function detect(buf, sr){
     var s = 0; for (i = 0; i < half; i++){ var x = buf[i] - buf[i + tau]; s += x * x; }
     run += s; d[tau] = run ? s * tau / run : 1;
   }
-  var best = -1;
-  for (tau = tMin; tau < tMax; tau++){ if (d[tau] < 0.15){ while (tau + 1 < tMax && d[tau + 1] < d[tau]) tau++; best = tau; break; } }
+  var best = -1, thr = 0.15;
+  if (slack){ var mm = 1; for (tau = tMin; tau < tMax; tau++) if (d[tau] < mm) mm = d[tau]; thr = Math.max(0.15, mm + slack); }
+  for (tau = tMin; tau < tMax; tau++){ if (d[tau] < thr){ while (tau + 1 < tMax && d[tau + 1] < d[tau]) tau++; best = tau; break; } }
   if (best < 0){ var m = 1; for (tau = tMin; tau < tMax; tau++) if (d[tau] < m){ m = d[tau]; best = tau; } if (m > 0.4) return { hz:0, clarity:0, rms:rms }; }
   var a = d[best - 1], b = d[best], c2 = d[best + 1], den = a - 2 * b + c2, shift = den ? 0.5 * (a - c2) / den : 0;
   if (!(shift > -1 && shift < 1)) shift = 0;
@@ -614,8 +615,12 @@ function melodyStats(mel){
   mel.cover = mel.midi.length ? v.length / mel.midi.length : 0; mel.lo = v.length ? v[Math.floor(v.length * 0.03)] : 55; mel.hi = v.length ? v[Math.floor(v.length * 0.97)] : 67;
   mel.pc = pcs.indexOf(Math.max.apply(0, pcs)); return mel;
 }
+function blobBytes(blob){
+  if (blob.arrayBuffer) return blob.arrayBuffer();
+  return new Promise(function(res, rej){ var r = new FileReader(); r.onload = function(){ res(r.result); }; r.onerror = function(){ rej(r.error); }; r.readAsArrayBuffer(blob); });
+}
 function readMelody(blob, onProg){
-  return blob.arrayBuffer().then(function(ab){
+  return blobBytes(blob).then(function(ab){
     return new Promise(function(res, rej){ var p = ac().decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); });
   }).then(function(buf){
     var S_ = songSamples(buf); buf = null;
@@ -624,6 +629,35 @@ function readMelody(blob, onProg){
       (function step(){ var to = Math.min(M.n, i + 200); melodyRaw(S_.x, M, i, to); i = to; onProg(M.n ? i / M.n : 1); if (i < M.n) setTimeout(step, 0); else res({ hop:M.hopN / S_.sr, midi:melodyClean(M) }); })();
     });
   });
+}
+var songTap = null;      // { el, src, an, buf }: the song's sound, tapped while it plays (live reading only)
+function liveSong(dur){
+  var n = Math.ceil(Math.min(dur > 0 ? dur : 720, 720) / 0.04) + 2, m = new Float32Array(n); m.fill(NaN);
+  return { hop:0.04, midi:m, live:true, lo:state.saMidi - 3, hi:state.saMidi + 14, cover:1, pc:state.saMidi % 12, last:[] };
+}
+function tapSong(au){
+  var c = ac();
+  if (!songTap || songTap.el !== au){
+    try {     // the song still plays as normal; a copy, with bass and drums filtered out, goes to the pitch reader
+      var src = c.createMediaElementSource(au), hp = c.createBiquadFilter(), hp2 = c.createBiquadFilter(), an = c.createAnalyser();
+      hp.type = hp2.type = 'highpass'; hp.frequency.value = hp2.frequency.value = 180; an.fftSize = 2048;
+      src.connect(master); src.connect(hp); hp.connect(hp2); hp2.connect(an); songTap = { el:au, src:src, an:an, buf:new Float32Array(2048) };
+    }
+    catch(e){ songTap = null; }
+  }
+  return songTap;
+}
+function readSongLive(t){
+  if (!SONG || !SONG.live || !songTap || !run || !run.audio || run.audio.paused) return;
+  songTap.an.getFloatTimeDomainData(songTap.buf);
+  var p = detect(songTap.buf, AC.sampleRate, 0.1), k = Math.round(t / SONG.hop);
+  if (k < 0 || k >= SONG.midi.length) return;
+  if (!(p.hz > 80 && p.hz < 900 && p.clarity > 0.65)){ SONG.last.length = 0; return; }
+  var x = 69 + 12 * Math.log2(p.hz / 440), L = SONG.last;
+  if (L.length){ var prev = L[L.length - 1]; if (Math.abs(x - prev) > 8) x += 12 * Math.round((prev - x) / 12); }   // fold octave slips
+  L.push(x); if (L.length > 3) L.shift();
+  var srt = L.slice().sort(function(a, b){ return a - b; }), v = srt[srt.length >> 1];
+  SONG.midi[k] = v; if (k + 1 < SONG.midi.length) SONG.midi[k + 1] = v;
 }
 function songAt(t){
   if (!SONG) return null; var i = Math.round(t / SONG.hop), m = SONG.midi;
@@ -693,6 +727,7 @@ function frame(){
   raf = requestAnimationFrame(frame);
   var c = AC, now = run ? (run.audio ? run.audio.currentTime : c.currentTime - run.start) : c.currentTime;
   if (trail.length && now < trail[trail.length - 1].t - 0.5) trail = [];      // the song was moved back
+  readSongLive(now);
   if (mic.on){
     mic.an.getFloatTimeDomainData(mic.buf);
     var p = detect(mic.buf, c.sampleRate), hz = p.hz;
@@ -772,7 +807,7 @@ function start(){
       renderNotation(); $('#verdict').textContent = 'Four clicks, then sing.'; $('#verdict').style.color = '';
     } else {
       var au = $('#player'); run = { kind:'free', start:c.currentTime, all:[], songErrs:[], song:!!SONG, wob:[], voiced:0, began:Date.now(), audio:au.hidden ? null : au };
-      if (run.audio){ try { au.currentTime = 0; au.play(); } catch(e){} }
+      if (run.audio){ if (SONG && SONG.live) tapSong(au); try { au.currentTime = 0; var pp = au.play(); if (pp && pp.catch) pp.catch(function(){}); } catch(e){} }
       $('#verdict').textContent = 'Listening. Sing along.'; $('#verdict').style.color = '';
     }
     setButtons(); cancelAnimationFrame(raf); frame();
@@ -878,11 +913,14 @@ function useSong(name, blob, mel){
     SONG = melodyStats(m); if (SONG.cover < 0.03) SONG = null;
     ready(); songNote();
   }).catch(function(){
-    if (freeName === name) msg.textContent = 'The melody could not be read from this file (too long, or a format this browser cannot open). You can still sing along and see your own line.';
+    if (freeName !== name || mode !== 'free') return;
+    SONG = liveSong($('#player').duration); ready();
+    msg.textContent = 'This browser can play this file but cannot read it ahead, so the melody is read live while the song plays: the yellow line appears as each note is sung, not before it, and is less exact. Saving the song as MP3 or M4A gives the full line.';
   }).then(function(){ $('#startBtn').disabled = false; });
 }
 function songNote(){
   var msg = $('#songMsg'); msg.textContent = '';
+  if (SONG && SONG.live) return;
   if (!SONG){ msg.textContent = 'No clear melody was found in this song, so only your own line is shown.'; return; }
   var sa = SONG.pc + 48; while (sa > 62) sa -= 12; while (sa < 43) sa += 12; if (sa + 12 <= 62 && Math.abs(sa + 12 - state.saMidi) < Math.abs(sa - state.saMidi)) sa += 12;
   msg.append('Melody found for ' + Math.round(SONG.cover * 100) + '% of the song. ');
@@ -1165,11 +1203,29 @@ $('#paceTempo').addEventListener('click', function(){ setPace('tempo'); });
 $('#holdLen').addEventListener('input', function(){ $('#holdVal').textContent = this.value + ' s'; });
 $('#holdLen').addEventListener('change', function(){ if (run){ this.value = state.holdSecs; renderPace(); return; } stopListen(); state.holdSecs = +this.value; saveState(); renderPace(); });
 $('#dlBtn').addEventListener('click', function(){ if (mode !== 'piece'){ toast('Pick one of the practice pieces first.'); return; } downloadPiece(); });
+function canPlay(blob){       // true once the browser has read the file's length, false if it reports it cannot play it
+  return new Promise(function(res){
+    var a = document.createElement('audio'), u = URL.createObjectURL(blob), done = false;
+    function end(v){ if (done) return; done = true; clearTimeout(t); a.removeAttribute('src'); try { a.load(); } catch(e){} URL.revokeObjectURL(u); res(v); }
+    var t = setTimeout(function(){ end(null); }, 8000);            // no answer: try anyway
+    a.preload = 'metadata'; a.onloadedmetadata = function(){ end(true); }; a.onerror = function(){ end(false); };
+    a.src = u; try { a.load(); } catch(e){}
+  });
+}
 $('#songFile').addEventListener('change', function(){
-  var f = this.files && this.files[0]; if (!f) return; var name = f.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 60);
-  dbDo('readwrite', function(s){ return s.put({ name:name, blob:f }); }).then(function(){ $('#songMsg').textContent = 'Saved on this device.'; }, function(){ $('#songMsg').textContent = 'Loaded for now. This browser could not keep it for next time.'; }).then(function(){ useSong(name, f); });
-  this.value = '';
+  var f = this.files && this.files[0], inp = this; if (!f) return;
+  var name = f.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 60) || 'Song', msg = $('#songMsg'), ty = f.type || '';
+  inp.value = '';
+  if (/^(image|text)\//.test(ty) || /pdf|msword|officedocument|zip/.test(ty)){ msg.textContent = f.name + ' is not a song. Pick an audio or video file.'; return; }
+  msg.textContent = 'Opening ' + f.name + '…';
+  canPlay(f).then(function(ok){
+    if (ok === false){ msg.textContent = 'This browser cannot play ' + f.name + '. Save or convert it as MP3 or M4A and load that.'; return; }
+    loadSong(f, name);
+  });
 });
+function loadSong(f, name){
+  dbDo('readwrite', function(s){ return s.put({ name:name, blob:f }); }).then(function(){ $('#songMsg').textContent = 'Saved on this device.'; }, function(){ $('#songMsg').textContent = 'Loaded for now. This browser could not keep it for next time.'; }).then(function(){ useSong(name, f); });
+}
 $('#player').addEventListener('timeupdate', function(){ if (!run && mode === 'free' && SONG && !$('#p-practice').hidden) draw(this.currentTime); });
 $('#saChip').addEventListener('click', function(){ go('me'); setTimeout(function(){ $('#saSel').focus(); }, 50); });
 $('#saSel').addEventListener('change', function(){ setSa(+this.value); playSt(0); });
