@@ -1,0 +1,30 @@
+{
+ "week": 52,
+ "title": "The Path Continues",
+ "aspect": "Integration",
+ "line": "There is no finish line. Only the next step, taken with care.",
+ "invite": "Choose one practice from this year to keep, and begin it again tomorrow morning.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 173.3
+  },
+  {
+   "name": "Breath",
+   "at": 245.8
+  },
+  {
+   "name": "Practice",
+   "at": 435.9
+  },
+  {
+   "name": "Closing",
+   "at": 1214.3
+  }
+ ]
+}

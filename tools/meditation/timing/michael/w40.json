@@ -1,0 +1,30 @@
+{
+ "week": 40,
+ "title": "What Matters Most",
+ "aspect": "Values",
+ "line": "When you know what matters, small choices become easy.",
+ "invite": "Before one decision each day this week, ask: does this move me towards what matters most?",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 177.1
+  },
+  {
+   "name": "Breath",
+   "at": 255.1
+  },
+  {
+   "name": "Practice",
+   "at": 445.9
+  },
+  {
+   "name": "Closing",
+   "at": 1210.4
+  }
+ ]
+}

@@ -1,0 +1,48 @@
+// Event Run Sheet (/events/). Publish in the Firebase console: Firestore Database > Rules > paste > Publish.
+// Written without any quote marks, so phones and tablets that turn quotes into curly ones cannot break it.
+// Anyone with the link reads the schedule and notifications. Only organisers (confirmed email) change them.
+// The owner is the first confirmed account to claim the app and adds or removes organisers by email.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function me(uid) { return request.auth != null && request.auth.uid == uid; }
+    function email() { return request.auth.token.email.lower(); }
+    function confirmed() { return request.auth != null && request.auth.token.email != null && request.auth.token.email_verified == true; }
+    function ownerDoc() { return /databases/$(database)/documents/config/owner; }
+    function isOwner() { return confirmed() && exists(ownerDoc()) && get(ownerDoc()).data.email == email(); }
+    function isOrganiser() { return confirmed() && (isOwner() || exists(/databases/$(database)/documents/organisers/$(email()))); }
+
+    match /config/owner {
+      allow get: if true;
+      allow create: if confirmed() && request.resource.data.size() == 2 && request.resource.data.email == email() && request.resource.data.at is number;
+      allow update, delete: if false;
+    }
+    match /config/ai {
+      allow get: if isOrganiser();
+      allow create, update: if isOwner() && request.resource.data.key is string && request.resource.data.key.size() < 300;
+      allow delete: if isOwner();
+    }
+    match /organisers/{em} {
+      allow get: if isOwner() || (confirmed() && em == email());
+      allow list: if isOwner();
+      allow create, update: if isOwner() && request.resource.data.size() == 1 && request.resource.data.at is number;
+      allow delete: if isOwner();
+    }
+    match /events/{id} {
+      allow read: if true;
+      allow create, update: if isOrganiser() && request.resource.data.name is string && request.resource.data.subs is list && request.resource.data.subs.size() <= 300;
+      allow delete: if isOrganiser();
+    }
+    match /notices/{id} {
+      allow read: if true;
+      allow create: if isOrganiser() && request.resource.data.text is string && request.resource.data.text.size() <= 280 && request.resource.data.at is number;
+      allow update: if false;
+      allow delete: if isOrganiser();
+    }
+    match /push/{uid} {
+      allow create, update: if me(uid) && request.resource.data.endpoint is string && request.resource.data.endpoint.size() < 1000;
+      allow delete: if me(uid);
+      allow get: if me(uid);
+      allow list: if true;
+    }
+  }
+}

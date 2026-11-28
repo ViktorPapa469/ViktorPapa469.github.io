@@ -1,0 +1,30 @@
+{
+ "week": 48,
+ "title": "Being Real",
+ "aspect": "Authenticity",
+ "line": "The world needs you, not a copy of someone else.",
+ "invite": "This week, notice one moment each day when you are pretending, and try being a little more yourself.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 184.4
+  },
+  {
+   "name": "Breath",
+   "at": 271.2
+  },
+  {
+   "name": "Practice",
+   "at": 475.1
+  },
+  {
+   "name": "Closing",
+   "at": 1205.0
+  }
+ ]
+}

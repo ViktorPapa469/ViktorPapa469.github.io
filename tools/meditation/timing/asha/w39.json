@@ -1,0 +1,30 @@
+{
+ "week": 39,
+ "title": "Hope",
+ "aspect": "Looking forward",
+ "line": "Hope is a small light we carry through the dark.",
+ "invite": "Each evening this week, write down one thing you are looking forward to, however small.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 164.6
+  },
+  {
+   "name": "Breath",
+   "at": 233.3
+  },
+  {
+   "name": "Practice",
+   "at": 437.0
+  },
+  {
+   "name": "Closing",
+   "at": 1224.1
+  }
+ ]
+}

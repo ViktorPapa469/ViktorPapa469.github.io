@@ -1,0 +1,30 @@
+{
+ "week": 36,
+ "title": "Honouring Limits",
+ "aspect": "Tiredness and care",
+ "line": "Your limits are not failures. They are information.",
+ "invite": "This week, when you feel tired, ask your body what it needs, and give it at least one small thing.",
+ "seconds": 1320,
+ "sections": [
+  {
+   "name": "Settling",
+   "at": 0.0
+  },
+  {
+   "name": "Theme",
+   "at": 178.2
+  },
+  {
+   "name": "Breath",
+   "at": 259.6
+  },
+  {
+   "name": "Practice",
+   "at": 465.9
+  },
+  {
+   "name": "Closing",
+   "at": 1211.1
+  }
+ ]
+}
