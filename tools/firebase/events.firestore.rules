@@ -1,67 +1,43 @@
-rules_version = '2';
 // Event Run Sheet (/events/). Publish in the Firebase console: Firestore Database > Rules > paste > Publish.
-// Anyone with the link reads the schedule and notifications without signing in.
-// Only organisers (signed in with a confirmed email) change them. The owner is the first confirmed account to claim
-// the app; the owner adds and removes organisers by email.
+// Written without any quote marks, so phones and tablets that turn quotes into curly ones cannot break it.
+// Anyone with the link reads the schedule and notifications. Only organisers (confirmed email) change them.
+// The owner is the first confirmed account to claim the app and adds or removes organisers by email.
 service cloud.firestore {
   match /databases/{database}/documents {
     function me(uid) { return request.auth != null && request.auth.uid == uid; }
     function email() { return request.auth.token.email.lower(); }
-    function confirmed() {
-      return request.auth != null && request.auth.token.email != null && request.auth.token.email_verified == true;
-    }
+    function confirmed() { return request.auth != null && request.auth.token.email != null && request.auth.token.email_verified == true; }
     function ownerDoc() { return /databases/$(database)/documents/config/owner; }
     function isOwner() { return confirmed() && exists(ownerDoc()) && get(ownerDoc()).data.email == email(); }
-    function isOrganiser() {
-      return confirmed() && (isOwner() || exists(/databases/$(database)/documents/organisers/$(email())));
-    }
+    function isOrganiser() { return confirmed() && (isOwner() || exists(/databases/$(database)/documents/organisers/$(email()))); }
 
-    /* Who owns the app. Readable so the app can say whether it has an owner; claimed once, never changed from an app. */
     match /config/owner {
       allow get: if true;
-      allow create: if confirmed() && request.resource.data.keys().hasOnly(['email', 'at'])
-                    && request.resource.data.email == email();
+      allow create: if confirmed() && request.resource.data.size() == 2 && request.resource.data.email == email() && request.resource.data.at is number;
       allow update, delete: if false;
     }
-
-    /* Organisers, by email. Only the owner adds or removes them; an organiser can check their own entry. */
     match /organisers/{em} {
       allow get: if isOwner() || (confirmed() && em == email());
       allow list: if isOwner();
-      allow create, update: if isOwner() && request.resource.data.keys().hasOnly(['at']);
+      allow create, update: if isOwner() && request.resource.data.size() == 1 && request.resource.data.at is number;
       allow delete: if isOwner();
     }
-
-    /* Events with their sub-events, tasks and suggestions. */
     match /events/{id} {
       allow read: if true;
-      allow create, update: if isOrganiser() && request.resource.data.name is string
-                            && request.resource.data.subs is list && request.resource.data.subs.size() <= 300;
+      allow create, update: if isOrganiser() && request.resource.data.name is string && request.resource.data.subs is list && request.resource.data.subs.size() <= 300;
       allow delete: if isOrganiser();
     }
-
-    /* Notifications sent by organisers. */
     match /notices/{id} {
       allow read: if true;
-      allow create: if isOrganiser() && request.resource.data.text is string && request.resource.data.text.size() <= 280
-                    && request.resource.data.at is number;
+      allow create: if isOrganiser() && request.resource.data.text is string && request.resource.data.text.size() <= 280 && request.resource.data.at is number;
       allow update: if false;
       allow delete: if isOrganiser();
     }
-
-    /* Phone alerts: each phone saves its own push address. The sender on GitHub lists them with the public web key;
-       a push address is useless without the site's private push key. */
     match /push/{uid} {
-      allow create, update: if me(uid) && request.resource.data.endpoint is string
-                            && request.resource.data.endpoint.matches('https://.+') && request.resource.data.endpoint.size() < 1000;
+      allow create, update: if me(uid) && request.resource.data.endpoint is string && request.resource.data.endpoint.size() < 1000;
       allow delete: if me(uid);
       allow get: if me(uid);
       allow list: if true;
-    }
-
-    /* Everything else stays closed. */
-    match /{path=**} {
-      allow read, write: if false;
     }
   }
 }
