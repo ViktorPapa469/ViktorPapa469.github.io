@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Event Run Sheet</title>
+<meta name="description" content="Plan sub-events, track tasks and get alerts 5 minutes before each one.">
+<meta name="theme-color" content="#f4a51c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Run Sheet">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: backstage and exact, a stage manager's clipboard
+   IDEA: the printed run sheet taped up in the wings
+   PICTURE: the board of sub-event tiles; live mode is a big clock and hanging times
+   COLOUR and TYPE: marigold band, ink on paper, vermilion for late and alerts; Archivo + Inter
+   LAYOUT: band header with folder tabs, figure row, tile grid by day; one column on phones */
+:root{color-scheme:light dark;--bg:light-dark(#fbfaf6,#13110e);--ink:light-dark(#1b1915,#f3efe6);--mute:light-dark(#655e50,#a69e8e);--card:light-dark(#fff,#1d1a15);--line:light-dark(#e6dfcf,#373126);--band:light-dark(#f4a51c,#2a2008);--bink:light-dark(#1b1915,#f9c650);--mar:light-dark(#e3940c,#f9b938);--hot:light-dark(#c8321c,#ff6b52);--soft:light-dark(#fdf1d8,#2a2416)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3,.t{font-family:Archivo,Inter,sans-serif;font-variant-numeric:tabular-nums;margin:0}
+h1{font-size:clamp(30px,5vw,46px);line-height:1.05;text-wrap:balance;font-weight:800}
+h2{font-size:22px;font-weight:800}h3{font-size:19px;line-height:1.2;font-weight:800}
+.top{background:var(--band);color:var(--bink);padding:18px max(5vw,16px) 0}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.top .row{justify-content:space-between}
+.sub{margin:6px 0 14px;font-weight:500}
+select,input,textarea{font:16px Inter,sans-serif;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
+textarea{min-height:110px;resize:vertical}
+.top select{width:auto;max-width:100%;background:transparent;color:inherit;border-color:currentColor;font-weight:600}
+.role{background:transparent;color:inherit;cursor:pointer;min-height:40px;font-size:14px;font-weight:600;padding:6px 12px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+.tabs{display:flex;gap:6px;margin-top:6px}
+.tabs a{padding:12px 20px;border-radius:12px 12px 0 0;color:inherit;text-decoration:none;font:800 16px Archivo,sans-serif;min-height:44px}
+.tabs a[aria-current=page]{background:var(--bg);color:var(--ink)}
+.wrap{max-width:1240px;margin:0 auto;padding:24px max(5vw,16px) 64px}
+.btn{min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:600 15px Inter,sans-serif;cursor:pointer;white-space:nowrap}
+.btn.pri{background:var(--ink);color:var(--bg);border-color:var(--ink)}.btn.hot{color:var(--hot);border-color:var(--hot)}
+.btn:focus-visible,a:focus-visible,.task:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--mar);outline-offset:2px}
+.figs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-block:2px solid var(--ink);margin-bottom:18px}
+.figs div{padding:12px 14px;border-inline-start:1px solid var(--line)}.figs div:first-child{border:0;padding-inline-start:0}
+.figs b{display:block;font:800 clamp(24px,4vw,34px)/1.1 Archivo,sans-serif}.figs span{font-size:14px;color:var(--mute)}
+.tools{margin-bottom:22px}.tools label{display:flex;gap:8px;align-items:center;font-size:15px;min-height:44px}
+.tools input[type=checkbox]{width:20px;min-height:20px;accent-color:var(--mar)}
+.day{margin:28px 0 12px;display:flex;gap:12px;align-items:baseline}.day span{color:var(--mute);font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;border-top:6px solid var(--line)}
+.tile.live{border-top-color:var(--mar);box-shadow:0 0 0 2px var(--mar)}.tile.soon{border-top-color:var(--hot)}.tile.done{border-top-color:var(--ink);opacity:.78}
+.tt{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}.tt .big{font-size:28px;font-weight:800}.tt .t:not(.big){color:var(--mute)}
+.pill{margin-inline-start:auto;font-size:13px;font-weight:600;padding:3px 10px;border-radius:99px;background:var(--soft);white-space:nowrap}
+.pill.live{background:var(--mar);color:#1b1915}.pill.soon{background:var(--hot);color:#fff}.pill.done{background:var(--ink);color:var(--bg)}
+.meta{margin:0;color:var(--mute);font-size:15px}.moved{margin:0;color:var(--hot);font-weight:600;font-size:14px}
+.prog{display:flex;gap:10px;align-items:center;font-size:14px;color:var(--mute)}.bar{flex:1;height:8px;border-radius:9px;background:var(--soft);overflow:hidden}.bar i{display:block;height:100%;background:var(--mar)}
+.lbl{font-size:13px;font-weight:600;color:var(--mute);margin:4px 0 0}
+.tasks{list-style:none;margin:0;padding:0}
+.task{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:start;background:none;border:0;color:inherit;font:15px/1.4 Inter,sans-serif;padding:10px 2px;min-height:44px;cursor:pointer;border-bottom:1px solid var(--line)}
+.task:disabled{cursor:default;opacity:1}
+.box{flex:none;width:22px;height:22px;border:2px solid var(--ink);border-radius:6px;display:grid;place-items:center;font-size:14px;font-style:normal}
+.ok .task span{text-decoration:line-through;color:var(--mute)}.ok .box{background:var(--ink);color:var(--bg)}
+.none{color:var(--mute);font-size:14px;padding:6px 0}
+.req ul{margin:4px 0 0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px}.req li{background:var(--soft);border-radius:8px;padding:3px 10px;font-size:14px}
+.ops{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:6px}.ops .btn{padding:0 12px}.ops .pri{margin-inline-start:auto}
+.sug{border:1px dashed var(--mar);border-radius:10px;padding:10px 12px;background:var(--soft)}
+.sug ul{list-style:none;margin:4px 0 8px;padding:0}.sug li{display:flex;gap:6px;align-items:center;padding:4px 0;font-size:15px;line-height:1.35}.sug li span{flex:1}
+.mini{flex:none;min-height:36px;min-width:36px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:600 13px Inter,sans-serif;cursor:pointer;white-space:nowrap}
+.prev{margin:0;padding-inline-start:0;list-style:none;max-height:220px;overflow:auto;font-size:15px}.prev:empty{display:none}.prev li{padding:3px 0}.prev b{font-family:Archivo,sans-serif;font-variant-numeric:tabular-nums}
+.evs{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 14px;margin-bottom:12px}.evs:empty{display:none}
+.ev{flex:0 0 auto;width:min(250px,78vw);scroll-snap-align:start;text-align:start;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:14px;cursor:pointer;font:inherit;display:grid;gap:4px;align-content:start}
+.ev b{font:800 18px/1.2 Archivo,sans-serif}.ev span{font-size:14px;color:var(--mute)}.ev[aria-current=true]{border:2px solid var(--ink);box-shadow:0 4px 0 var(--mar)}
+.ev.add{border-style:dashed;background:transparent;place-content:center;text-align:center}
+.prev h4{margin:10px 0 2px;font:800 16px Archivo,sans-serif;list-style:none}
+.empty{border:2px dashed var(--line);border-radius:14px;padding:32px;text-align:center;color:var(--mute)}
+.note{background:var(--soft);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:15px}.note:empty{display:none}
+.live-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:20px;align-items:stretch;margin-bottom:28px}
+.clock{font:800 clamp(56px,11vw,112px)/1 Archivo,sans-serif;font-variant-numeric:tabular-nums}
+.cards{display:grid;gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}.card.nx{border:2px solid var(--hot)}
+.card .cd{font:800 30px Archivo,sans-serif;color:var(--hot);font-variant-numeric:tabular-nums}
+.sched{list-style:none;padding:0;margin:0;border-top:2px solid var(--ink)}
+.sched li{display:grid;grid-template-columns:5.5em minmax(0,1fr);gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.sched time{font:800 24px Archivo,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sched li.done{opacity:.55}.sched li.live time{color:var(--mar)}.sched li.soon time{color:var(--hot)}
+.sched p{margin:2px 0 0;font-size:15px;color:var(--mute)}
+dialog{border:0;border-radius:16px;padding:0;width:min(560px,94vw);background:var(--bg);color:var(--ink);max-height:92vh}
+dialog::backdrop{background:rgba(10,8,5,.55)}
+dialog form{padding:20px 20px 0;display:grid;gap:12px}
+dialog .dact{position:sticky;bottom:0;background:var(--bg);margin:0 -20px;padding:12px 20px 20px;border-top:1px solid var(--line);z-index:1}
+.f2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+label.fl{display:grid;gap:4px;font-size:14px;font-weight:600}
+.hint{font-size:14px;color:var(--mute);margin:0}
+.dact{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.dact .hot{margin-inline-end:auto}
+#pop{position:fixed;inset:0;background:rgba(10,8,5,.6);display:none;place-items:center;padding:16px;z-index:9}
+#pop.on{display:grid}
+.pc{width:min(520px,100%);background:var(--bg);border-radius:18px;overflow:hidden;animation:up .35s ease-out}
+.ph{background:var(--hot);color:#fff;padding:16px 20px}.ph .t{font-size:44px;font-weight:800;line-height:1}
+.pb{padding:18px 20px;display:grid;gap:10px;max-height:60vh;overflow:auto}.pb ul{margin:0;padding-inline-start:20px}
+@keyframes up{from{transform:translateY(24px);opacity:0}}
+@media(prefers-reduced-motion:reduce){.pc{animation:none}}
+.bell{min-height:40px;padding:0 14px;border-radius:99px;border:1px solid currentColor;background:transparent;color:inherit;font:600 14px Inter,sans-serif;cursor:pointer;white-space:nowrap}
+.bell b{display:inline-block;min-width:22px;margin-inline-start:6px;padding:1px 6px;border-radius:99px;background:var(--hot);color:#fff;font-size:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.nl{list-style:none;margin:0;padding:0;border-top:2px solid var(--ink)}.nl li{padding:12px 0;border-bottom:1px solid var(--line);display:grid;gap:4px}
+.nl p{margin:0;font-size:16px}.nl .meta{font-size:14px}.nl .row{gap:6px}.nl a{font-size:14px;font-weight:600;color:var(--ink)}
+.lv{font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--soft)}.lv.urgent{background:var(--hot);color:#fff}
+#nb{position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(520px,94vw);z-index:11;display:none;background:var(--bg);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.35);border-inline-start:10px solid var(--ink);padding:14px 16px;animation:up .3s ease-out}
+#nb.on{display:grid;gap:6px}#nb.urgent{border-color:var(--hot)}#nb p{margin:0}#nb .msg{font-size:18px;font-weight:600;line-height:1.35}
+@media(prefers-reduced-motion:reduce){#nb{animation:none}}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:15px;display:none;z-index:10;max-width:92vw}
+@media(max-width:700px){.live-top{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){.figs{grid-template-columns:repeat(2,minmax(0,1fr))}.figs div:nth-child(3){border:0;padding-inline-start:0}.f2{grid-template-columns:minmax(0,1fr)}.tabs a{padding:12px 16px}}
+.setup{max-width:640px}.setup ol{padding-inline-start:22px}.setup li{margin:6px 0}
+.acc{display:grid;gap:10px}.acc .row{gap:8px}.team{list-style:none;margin:0;padding:0}.team li{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px;overflow-wrap:anywhere}
+.linkbtn{background:none;border:0;color:var(--ink);text-decoration:underline;font:600 15px Inter,sans-serif;cursor:pointer;min-height:44px;padding:0}
+.err{color:var(--hot);font-size:15px;margin:0}.err:empty{display:none}
+</style></head><body>
+<header class="top">
+  <div class="row" style="justify-content:flex-end"><button class="bell" id="bell" data-a="notes" hidden>Notifications</button><button class="role" id="role" data-a="acc">Organiser sign in</button></div>
+  <h1 id="evName" style="margin-top:14px">Event run sheet</h1>
+  <p class="sub" id="evSub">Loading the schedule…</p>
+  <nav class="tabs"><a href="#planning" id="tPlan">Planning</a><a href="#live" id="tLive">Live management</a></nav>
+</header>
+<main class="wrap">
+  <div class="note" id="note"></div>
+  <nav class="evs" id="evs" aria-label="Events"></nav>
+  <section id="plan"></section>
+  <section id="live" hidden></section>
+</main>
+
+<dialog id="dSub"><form id="fSub">
+  <h2 id="dSubT">Sub-event</h2>
+  <label class="fl">Title<input id="sTitle" required maxlength="120"></label>
+  <div class="f2"><label class="fl">Location<input id="sLoc" maxlength="80"></label><label class="fl">Person in charge<input id="sLead" maxlength="80"></label></div>
+  <p class="lbl">Planned timeline</p>
+  <div class="f2"><label class="fl">Start<input type="datetime-local" id="sPs" required></label><label class="fl">End<input type="datetime-local" id="sPe"></label></div>
+  <p class="lbl">Actual schedule (leave blank if running to plan)</p>
+  <div class="f2"><label class="fl">Start<input type="datetime-local" id="sAs"></label><label class="fl">End<input type="datetime-local" id="sAe"></label></div>
+  <label style="display:flex;gap:10px;align-items:center;font-size:15px;min-height:44px"><input type="checkbox" id="sRip" style="width:20px;min-height:20px;flex:none">Shift later sub-events by the same amount</label>
+  <label class="fl">Tasks, one per line<textarea id="sTasks"></textarea></label>
+  <label class="fl">Required at start (shown in the 5-minute alert), one per line<textarea id="sReqs"></textarea></label>
+  <div class="dact"><button type="button" class="btn hot" id="sDel">Delete</button><button type="button" class="btn" data-close>Cancel</button><button class="btn pri">Save</button></div>
+</form></dialog>
+
+<dialog id="dEv"><form id="fEv">
+  <h2 id="dEvT">Event</h2>
+  <label class="fl">Event name<input id="eName" required maxlength="120"></label>
+  <label class="fl">Venue or note<input id="eVenue" maxlength="120"></label>
+  <div class="dact"><button type="button" class="btn hot" id="eDel">Delete event</button><button type="button" class="btn" data-close>Cancel</button><button class="btn pri">Save</button></div>
+</form></dialog>
+
+<dialog id="dImp"><form id="fImp">
+  <h2>Add a schedule</h2>
+  <p class="hint">Type or paste the programme: from a document, WhatsApp, or Excel/Sheets rows. One sub-event per line, time first. Examples:</p>
+  <pre class="hint" style="margin:0;white-space:pre-wrap;background:var(--soft);padding:10px;border-radius:8px">Sat 5 Dec 2026
+1700h-1745h Readiness of IT | Flight Cadets Mess | S/L Yogi
+- Test data wall
+Need: videos loaded, spare mic
+7:30 pm Arrival of RO
+19:35 – 19:40 Air Force Song</pre>
+  <p class="hint">A line with no time starts a new, separate event (its name). A date line sets the date. Lines starting with "-" are tasks; "Need:" lines are what's required at the start.</p>
+  <div class="f2"><label class="fl">Date (if the schedule has none)<input type="date" id="iDate" required></label>
+  <label class="fl">Add it as<select id="iMode"></select></label></div>
+  <label class="fl">Schedule<textarea id="iText" style="min-height:160px"></textarea></label>
+  <p class="hint" id="iStat" aria-live="polite"></p>
+  <ol class="prev" id="iPrev"></ol>
+  <div class="dact"><button type="button" class="btn" data-close>Cancel</button><button class="btn pri" id="iGo">Read schedule</button></div>
+</form></dialog>
+
+<dialog id="dAcc"><form id="fAcc" class="acc"><div class="acc" id="accBody"></div>
+  <p class="err" id="accErr" aria-live="polite"></p>
+  <div class="dact"><button type="button" class="btn" data-close>Close</button></div>
+</form></dialog>
+
+<dialog id="dHelp"><form id="fHelp"><div id="helpBody"></div><div class="dact"><button type="button" class="btn pri" data-close>OK</button></div></form></dialog>
+
+<div id="pop" role="alertdialog" aria-modal="true" aria-labelledby="popT"><div class="pc">
+  <div class="ph"><div>Starts in</div><div class="t" id="popCd">5:00</div></div>
+  <div class="pb" id="popB"></div>
+  <div class="dact" style="padding:0 20px 20px"><button class="btn" id="popGo">Open tile</button><button class="btn pri" id="popOk">Got it</button></div>
+</div></div>
+<div id="nb" role="alert"></div>
+<dialog id="dNote"><form id="fNote">
+  <h2>Notifications</h2>
+  <div id="nCompose" style="display:grid;gap:10px">
+    <label class="fl">Message to everyone using the app<textarea id="nText" maxlength="280" style="min-height:80px" placeholder="e.g. RO arriving in 10 min, all officers to the reception point"></textarea></label>
+    <div class="chips" id="nTpl"></div>
+    <div class="f2"><label class="fl">Priority<select id="nLvl"><option value="info">Normal</option><option value="urgent">Urgent (red)</option></select></label><label class="fl">For (optional)<input id="nTo" maxlength="60" placeholder="Everyone"></label></div>
+    <label style="display:flex;gap:10px;align-items:center;font-size:15px;min-height:44px"><input type="checkbox" id="nAuto" style="width:20px;min-height:20px;flex:none">Send a notification automatically when I reschedule a sub-event</label>
+  </div>
+  <p class="hint" id="nHint"></p>
+  <ol class="nl" id="nList"></ol>
+  <div class="dact"><button type="button" class="btn" data-a="push" id="nPush">Phone alerts</button><button type="button" class="btn" data-close>Close</button><button class="btn pri" id="nSend">Send to everyone</button></div>
+</form></dialog>
+<div id="toast" role="status"></div>
+<script type="module" src="app.js"></script>
+</body></html>
