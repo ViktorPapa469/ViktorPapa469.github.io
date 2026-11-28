@@ -111,6 +111,7 @@ label.fl{display:grid;gap:4px;font-size:14px;font-weight:600}
 @media(max-width:600px){.figs{grid-template-columns:repeat(2,minmax(0,1fr))}.figs div:nth-child(3){border:0;padding-inline-start:0}.f2{grid-template-columns:minmax(0,1fr)}.tabs a{padding:12px 16px}}
 .setup{max-width:640px}.setup ol{padding-inline-start:22px}.setup li{margin:6px 0}
 .acc{display:grid;gap:10px}.acc .row{gap:8px}.team{list-style:none;margin:0;padding:0}.team li{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px;overflow-wrap:anywhere}
+label.btn{display:inline-flex;align-items:center;justify-content:center}
 .linkbtn{background:none;border:0;color:var(--ink);text-decoration:underline;font:600 15px Inter,sans-serif;cursor:pointer;min-height:44px;padding:0}
 .err{color:var(--hot);font-size:15px;margin:0}.err:empty{display:none}
 </style></head><body>
@@ -150,7 +151,10 @@ label.fl{display:grid;gap:4px;font-size:14px;font-weight:600}
 
 <dialog id="dImp"><form id="fImp">
   <h2>Add a schedule</h2>
-  <p class="hint">Type or paste the programme: from a document, WhatsApp, or Excel/Sheets rows. One sub-event per line, time first. Examples:</p>
+  <div class="row"><label class="btn pri" for="iFile" id="iFileL">Upload file or photo</label><input type="file" id="iFile" accept=".docx,.xlsx,.xls,.csv,.tsv,.txt,.pdf,image/*" hidden></div>
+  <p class="hint" style="margin:0">Word, Excel, PDF, text, or a photo or scan of a printed programme. The text appears below for you to check.</p>
+  <p class="hint" id="iStat" aria-live="polite"></p>
+  <p class="hint">Or type or paste it below. One sub-event per line, time first. Examples:</p>
   <pre class="hint" style="margin:0;white-space:pre-wrap;background:var(--soft);padding:10px;border-radius:8px">Sat 5 Dec 2026
 1700h-1745h Readiness of IT | Flight Cadets Mess | S/L Yogi
 - Test data wall
@@ -161,7 +165,6 @@ Need: videos loaded, spare mic
   <div class="f2"><label class="fl">Date (if the schedule has none)<input type="date" id="iDate" required></label>
   <label class="fl">Add it as<select id="iMode"></select></label></div>
   <label class="fl">Schedule<textarea id="iText" style="min-height:160px"></textarea></label>
-  <p class="hint" id="iStat" aria-live="polite"></p>
   <ol class="prev" id="iPrev"></ol>
   <div class="dact"><button type="button" class="btn" data-close>Cancel</button><button class="btn pri" id="iGo">Read schedule</button></div>
 </form></dialog>

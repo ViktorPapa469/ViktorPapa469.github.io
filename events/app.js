@@ -229,22 +229,79 @@ function dateLine(l){const t=l.toLowerCase().replace(/,/g,' ').replace(/\b(mon|t
   if((m=/^(\d{1,2}) ?-?([a-z]{3})[a-z]* ?-?(\d{4})?$/.exec(t))&&MON[m[2]])return`${m[3]||new Date().getFullYear()}-${pad(MON[m[2]])}-${pad(+m[1])}`;
   if((m=/^([a-z]{3})[a-z]* (\d{1,2}) ?(\d{4})?$/.exec(t))&&MON[m[1]])return`${m[3]||new Date().getFullYear()}-${pad(MON[m[1]])}-${pad(+m[2])}`;
   return''}
+const TCELL=new RegExp(`^${TM}\\s*(?:h(?:rs?|ours)?\\b)?(?:\\s*(?:-|to|till|until)\\s*${TM}\\s*(?:h(?:rs?|ours)?\\b)?)?$`,'i');
+function dateIn(l){const t=l.toLowerCase().replace(/(\d)(st|nd|rd|th)\b/g,'$1');let m;
+  if((m=/\b(\d{4})-(\d{2})-(\d{2})\b/.exec(t)))return`${m[1]}-${m[2]}-${m[3]}`;
+  if((m=/\b(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})\b/.exec(t)))return`${m[3]}-${pad(+m[2])}-${pad(+m[1])}`;
+  if((m=/\b(\d{1,2})[\s\-]*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s\-,]*(\d{4})\b/.exec(t)))return`${m[3]}-${pad(MON[m[2]])}-${pad(+m[1])}`;
+  if((m=/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})[\s,]+(\d{4})\b/.exec(t)))return`${m[3]}-${pad(MON[m[1]])}-${pad(+m[2])}`;
+  return''}
 function parseText(txt,date){const gs=[{name:'',rows:[]}];let d=date,last=null;
   for(const raw of txt.replace(/\r/g,'').split('\n')){
-    let l=raw.replace(/[–—]/g,'-').trim();if(!l)continue;
-    if(l.includes('\t')){const c=l.split('\t').map(x=>x.trim()).filter(Boolean);if(c.length>1&&t24(c[0])){const e=t24(c[1]||'');const rest=c.slice(e?2:1);l=`${c[0]}${e?' - '+c[1]:''} ${rest.join(' | ')}`}}
+    let l=raw.replace(/[–—]/g,'-').replace(/^[|\s]+|[|\s]+$/g,'').trim();if(!l)continue;
+    l=l.replace(/^\(?\d{1,3}[.)]?\s*(?:\||\t)\s*/,'').replace(/^\(?\d{1,3}[.)]\s+(?=\d)/,'');
+    if(l.includes('\t')){const c=l.split('\t').map(x=>x.trim()).filter(Boolean),i=c.findIndex(x=>TCELL.test(x));
+      if(i>=0){const two=c[i+1]&&TCELL.test(c[i+1])&&!/[-–]|to/i.test(c[i]);l=`${c[i]}${two?' - '+c[i+1]:''} ${c.slice(i+(two?2:1)).join(' | ')}`}
+      else l=c.join(' ')}
     const dl=dateLine(l);if(dl){d=dl;continue}
     const bul=/^[-•*·]\s*(.+)$/.exec(l);
     if(bul&&last){last.tasks.push(bul[1].slice(0,200));continue}
     const need=/^(?:need(?:ed|s)?|req(?:uired|uirement)?s?|bring)\s*[:\-]\s*(.+)$/i.exec(l);
     if(need&&last){last.reqs.push(...need[1].split(/[,;]/).map(x=>x.trim()).filter(Boolean).map(x=>x.slice(0,200)));continue}
     const m=LINE.exec(l);
-    if(!m||!t24(m[1])){const g=gs[gs.length-1];if(g.rows.length)gs.push({name:l.slice(0,120),rows:[]});else g.name=l.replace(/[:\-]+$/,'').slice(0,120);last=null;continue}
+    if(!m||!t24(m[1])){
+      if((l.match(/\b(ser|s\.? ?no|sl|time|timings?|events?|activity|activities|venue|location|place|responsib\w*|in charge|remarks?|duration|detail\w*)\b/gi)||[]).length>=2&&l.split(/\s+/).length<=10)continue;   // a table's header row
+      const di=dateIn(l);if(di)d=di;
+      const g=gs[gs.length-1],nm=l.replace(/[:\-|]+$/,'').trim().slice(0,120);if(g.rows.length)gs.push({name:nm,rows:[]});else if(!g.name)g.name=nm;last=null;continue}
     const parts=m[3].split('|').map(x=>x.trim());
     last={a:`${d}T${t24(m[1])}`,b:m[2]&&t24(m[2])?`${d}T${t24(m[2])}`:'',title:parts[0].replace(/^[-:]\s*/,'').slice(0,120),loc:(parts[1]||'').slice(0,80),lead:(parts[2]||'').slice(0,80),tasks:[],reqs:[],sugg:[]};
     if(parts[3]){const n=parts[3].replace(/^need(?:ed|s)?\s*:?/i,'');last.reqs.push(...n.split(/[,;]/).map(x=>x.trim()).filter(Boolean))}
     gs[gs.length-1].rows.push(last)}
   return gs.filter(g=>g.rows.length)}
+/* Uploaded files: Word, Excel, PDF and text are read in the browser; photos and scanned PDFs go through
+   on-device text recognition (Tesseract). The text lands in the box for the organiser to check. */
+const LIBS={zip:'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',xlsx:'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+  pdf:'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',pdfw:'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',ocr:'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'};
+const loadJs=(u,g)=>window[g]?Promise.resolve():new Promise((r,j)=>{const s=document.createElement('script');s.src=u;s.onload=r;s.onerror=()=>j(new Error('Could not load the file reader. Check your internet and try again.'));document.head.append(s)});
+function docxText(xml){const W='http://schemas.openxmlformats.org/wordprocessingml/2006/main',d=new DOMParser().parseFromString(xml,'application/xml'),out=[];
+  const pt=p=>{let s='';const walk=n=>{for(const c of n.childNodes){if(c.namespaceURI!==W)continue;const k=c.localName;if(k==='t')s+=c.textContent;else if(k==='tab')s+='\t';else if(k==='br'||k==='cr')s+=' ';else walk(c)}};walk(p);return s};
+  const block=n=>{for(const c of n.childNodes){if(c.namespaceURI!==W)continue;const k=c.localName;
+    if(k==='p')out.push(pt(c));
+    else if(k==='tbl'){for(const tr of c.childNodes){if(tr.localName!=='tr')continue;const cells=[];for(const tc of tr.childNodes)if(tc.localName==='tc')cells.push([...tc.childNodes].filter(x=>x.localName==='p').map(pt).join(' ').replace(/\s+/g,' ').trim());out.push(cells.join('\t'))}}
+    else if(k==='sdt'||k==='sdtContent')block(c)}};
+  block(d.getElementsByTagNameNS(W,'body')[0]||d);return out.join('\n')}
+const toCanvas=f=>new Promise((res,rej)=>{const u=URL.createObjectURL(f),im=new Image();
+  im.onload=()=>{const k=Math.min(1,2400/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement('canvas');c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);res(c)};
+  im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('This photo can’t be opened here. Take a screenshot of it and upload that instead.'))};im.src=u});
+async function ocr(srcs,stat){await loadJs(LIBS.ocr,'Tesseract');const out=[];
+  for(let i=0;i<srcs.length;i++){const c=srcs[i] instanceof Blob?await toCanvas(srcs[i]):srcs[i];
+    const r=await Tesseract.recognize(c,'eng',{logger:m=>{if(m.status==='recognizing text')stat(`Reading the picture${srcs.length>1?` (page ${i+1} of ${srcs.length})`:''}… ${Math.round(m.progress*100)}%`);else if(/load/.test(m.status||''))stat('Getting the text reader ready (first time only)…')}});
+    out.push(r.data.text)}
+  return out.join('\n')}
+async function fileText(f,stat){const n=f.name.toLowerCase();
+  if(/\.docx$/.test(n)){stat('Reading the Word file…');await loadJs(LIBS.zip,'JSZip');const z=await JSZip.loadAsync(f),x=z.file('word/document.xml');if(!x)throw new Error('This Word file looks damaged.');return docxText(await x.async('string'))}
+  if(/\.doc$/.test(n))throw new Error('Old .doc files can’t be read. Save it as .docx or PDF, or copy and paste the text.');
+  if(/\.(xlsx|xls|ods)$/.test(n)){stat('Reading the spreadsheet…');await loadJs(LIBS.xlsx,'XLSX');const wb=XLSX.read(await f.arrayBuffer());return wb.SheetNames.map(s=>XLSX.utils.sheet_to_csv(wb.Sheets[s],{FS:'\t',blankrows:false})).join('\n')}
+  if(/\.pdf$/.test(n)||f.type==='application/pdf'){stat('Reading the PDF…');await loadJs(LIBS.pdf,'pdfjsLib');pdfjsLib.GlobalWorkerOptions.workerSrc=LIBS.pdfw;
+    const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise,lines=[];
+    for(let i=1;i<=Math.min(pdf.numPages,20);i++){const tc=await (await pdf.getPage(i)).getTextContent(),rows=new Map();
+      for(const it of tc.items){if(!it.str||!it.str.trim())continue;const y=Math.round(it.transform[5]/3);if(!rows.has(y))rows.set(y,[]);rows.get(y).push({x:it.transform[4],w:it.width,s:it.str})}
+      [...rows.entries()].sort((a,b)=>b[0]-a[0]).forEach(([,its])=>{its.sort((a,b)=>a.x-b.x);let s='',end=null;for(const t of its){if(end!==null)s+=t.x-end>12?'\t':t.x-end>1?' ':'';s+=t.str;end=t.x+t.w}lines.push(s)})}
+    let text=lines.join('\n');
+    if(text.replace(/\s/g,'').length<20){const pages=[];for(let i=1;i<=Math.min(pdf.numPages,3);i++){const pg=await pdf.getPage(i),v=pg.getViewport({scale:2}),c=document.createElement('canvas');c.width=v.width;c.height=v.height;await pg.render({canvasContext:c.getContext('2d'),viewport:v}).promise;pages.push(c)}text=await ocr(pages,stat)}
+    return text}
+  if(f.type.startsWith('image/')||/\.(jpe?g|png|webp|heic|heif|gif|bmp)$/.test(n))return ocr([f],stat);
+  if(f.type.startsWith('text/')||/\.(txt|csv|tsv|md)$/.test(n))return f.text();
+  throw new Error('This file type can’t be read. Use Word (.docx), Excel, PDF, text or a photo.')}
+$('#iFile').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
+  const stat=m=>$('#iStat').textContent=m,btn=$('#iGo'),lab=$('#iFileL');btn.disabled=true;lab.style.opacity=.5;lab.style.pointerEvents='none';
+  try{const text=String(await fileText(f,stat)||'').replace(/\u00a0/g,' ').replace(/[ ]{2,}/g,' ').trim();
+    if(!text){stat('No text found in that file. Try another file, or type the programme.');return}
+    const box=$('#iText');box.value=(box.value.trim()?box.value.trim()+'\n':'')+text;resetImp();
+    const gs=parseText(box.value,$('#iDate').value||iso(new Date()).slice(0,10));showRows(gs);
+    stat(gs.length?`${$('#iStat').textContent} The text from ${f.name} is in the box below; fix anything misread, then tap the button.`:`Text from ${f.name} is in the box below, but no lines with times were found. Check it, fix the times (like 1700h or 17:00), then tap Read schedule.`)}
+  catch(err){stat(err?.message&&!/^[A-Z_]+$/.test(err.message)?err.message:'Could not read that file. Try again, or type the programme.')}
+  finally{btn.disabled=false;lab.style.opacity='';lab.style.pointerEvents=''}});
 const gName=(g,i)=>g.name||`Event ${events.length+i+1}`;
 function showRows(gs){iRows=gs;const n=gs.reduce((s,g)=>s+g.rows.length,0),newEv=$('#iMode').value==='new';
   $('#iPrev').innerHTML=gs.map((g,i)=>`<li><h4>${newEv?'New event: ':''}${esc(gName(g,i))}</h4><ol style="margin:0;padding-inline-start:22px">${g.rows.map(r=>`<li><b>${esc(r.a.slice(8,10)+'/'+r.a.slice(5,7))} ${hm(r.a)}${r.b?'–'+hm(r.b):''}</b> ${esc(r.title)}${r.loc?' · '+esc(r.loc):''}${r.tasks.length+r.reqs.length?` <span class="hint">(${r.tasks.length} tasks, ${r.reqs.length} needed)</span>`:''}</li>`).join('')}</ol></li>`).join('');
