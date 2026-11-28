@@ -324,8 +324,12 @@ function aiErr(status,body){const t=String(body||'');
   return new Error('The AI could not read it ('+status+').')}
 async function gemini(key,parts,prompt){
   let model=ls('rs-gm');
-  if(!model){const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=300&key='+encodeURIComponent(key));if(!r.ok)throw aiErr(r.status,await r.text());
-    const names=((await r.json()).models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>m.name.replace(/^models\//,''));
+  if(!model){let names=[];
+    try{const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=300&key='+encodeURIComponent(key));
+      if(r.status===401||r.status===403)throw aiErr(r.status,await r.text());
+      if(r.ok)names=((await r.json()).models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>m.name.replace(/^models\//,''))}
+    catch(e){if(/refused/.test(e?.message||''))throw e}
+    if(!names.length)names=['gemini-flash-latest'];   // listing not allowed for this key: use Google's always-current Flash alias
     const ver=n=>parseFloat((/gemini-([\d.]+)/.exec(n)||[])[1]||0);
     model=names.find(n=>n==='gemini-flash-latest')||names.filter(n=>/^gemini-[\d.]+-flash$/.test(n)).sort((a,b)=>ver(b)-ver(a))[0]||names.find(n=>/gemini.*flash/.test(n)&&!/live|image|tts|audio|embed/.test(n))||names.find(n=>/^gemini/.test(n));
     if(!model)throw new Error('No Gemini model is available for this key.');ls('rs-gm',model)}
@@ -364,14 +368,25 @@ Already planned: ${s.tasks.map(t=>t.t).join('; ')||'nothing'}. Required: ${s.req
 Give 3 short, practical, specific things to do or prepare for this sub-event that are not already covered. Reply with JSON only: {"ideas":["...","...","..."]}, each under 90 characters.`);
   return(Array.isArray(r?.ideas)?r.ideas:[]).map(x=>S(String(x))).filter(Boolean)}
 
-$('#iFile')?.addEventListener('change',async e=>{const files=[...e.target.files];e.target.value='';if(!files.length)return;
-  const stat=m=>$('#iStat').textContent=m,btn=$('#iGo'),lab=$('#iFileL'),box=$('#iText'),bad=[];let got=0;
+// Pages are collected first (a camera gives one photo per tap), shown as numbered thumbnails, then read together.
+let pending=[];
+function renderTray(){const t=$('#iTray');if(!t)return;t.querySelectorAll('img').forEach(i=>URL.revokeObjectURL(i.src));
+  t.innerHTML=pending.map((f,i)=>`<div class="tp">${/^image\//.test(f.type)?`<img alt="Page ${i+1}" src="${URL.createObjectURL(f)}">`:`<span>${esc(f.name)}</span>`}<b>${i+1}</b><button type="button" class="mini" data-a="trayDel" data-i="${i}" aria-label="Remove page ${i+1}">✕</button></div>`).join('');
+  const r=$('#iRead');r.hidden=!pending.length;r.textContent=pending.length>1?`Read all ${pending.length} pages`:'Read this page'}
+['#iPhoto','#iFile'].forEach(s=>$(s)?.addEventListener('change',e=>{pending.push(...e.target.files);e.target.value='';renderTray();
+  $('#iStat').textContent=pending.length>1?`${pending.length} pages added. Add more, or tap Read all.`:'Page 1 added. Add the next page, or tap Read.'}));
+$('#iRead')?.addEventListener('click',()=>{const f=pending;pending=[];renderTray();readFiles(f)});
+async function readFiles(files){if(!files.length)return;
+  const stat=m=>$('#iStat').textContent=m,btn=$('#iGo'),lab=$('#iRead'),box=$('#iText'),bad=[];let got=0;
   btn.disabled=true;lab.style.opacity=.5;lab.style.pointerEvents='none';
-  if(aiKey){try{const date=$('#iDate').value||iso(new Date()).slice(0,10),txt=await aiRead(files,box.value.trim(),date,stat);
+  if(aiKey){let msg;
+    try{const date=$('#iDate').value||iso(new Date()).slice(0,10),txt=await aiRead(files,'',date,stat);
       if(txt.trim()){box.value=txt;resetImp();const gs=parseText(box.value,date);showRows(gs);
         stat(`${$('#iStat').textContent} Read by AI. The text is in the box below: check it, fix anything, then tap the button.`);btn.disabled=false;lab.style.opacity='';lab.style.pointerEvents='';return}
-      stat('The AI found no times in that. Trying the phone reader instead…')}
-    catch(err){stat((err?.message||'The AI could not read it.')+' Trying the phone reader instead…')}}
+      msg='The AI found no times on these pages. Check the photos are the programme and clear, then tap Read again.'}
+    catch(err){msg='AI reading failed: '+(err?.message||'unknown error')+(/fetch|network|load/i.test(err?.message||'')?' Check the internet connection.':'')+' Tap Read to try again.'}
+    pending=files;renderTray();stat(msg);btn.disabled=false;lab.style.opacity='';lab.style.pointerEvents='';return}
+  box.value='';
   try{for(let i=0;i<files.length;i++){const f=files[i],pre=files.length>1?`File ${i+1} of ${files.length}: `:'';
       try{const text=String(await fileText(f,m=>stat(pre+m))||'').replace(/\u00a0/g,' ').replace(/[ ]{2,}/g,' ').trim();
         if(!text){bad.push(`${f.name}: no text found`);continue}
@@ -382,7 +397,7 @@ $('#iFile')?.addEventListener('change',async e=>{const files=[...e.target.files]
     const gs=parseText(box.value,$('#iDate').value||iso(new Date()).slice(0,10));showRows(gs);
     const from=files.length>1?`${got} of ${files.length} files`:files[0].name;
     stat((gs.length?`${$('#iStat').textContent} The text from ${from} is in the box below; fix anything misread, then tap the button.`:`Text from ${from} is in the box below, but no lines with times were found. Check it, fix the times (like 1700h or 17:00), then tap Read schedule.`)+(bad.length?' Not read: '+bad.join(' · '):''))}
-  finally{btn.disabled=false;lab.style.opacity='';lab.style.pointerEvents=''}});
+  finally{btn.disabled=false;lab.style.opacity='';lab.style.pointerEvents=''}}
 const gName=(g,i)=>g.name||`Event ${events.length+i+1}`;
 function showRows(gs){iRows=gs;const n=gs.reduce((s,g)=>s+g.rows.length,0),newEv=$('#iMode').value==='new';
   $('#iPrev').innerHTML=gs.map((g,i)=>`<li><h4>${newEv?'New event: ':''}${esc(gName(g,i))}</h4><ol style="margin:0;padding-inline-start:22px">${g.rows.map(r=>`<li><b>${esc(r.a.slice(8,10)+'/'+r.a.slice(5,7))} ${hm(r.a)}${r.b?'–'+hm(r.b):''}</b> ${esc(r.title)}${r.loc?' · '+esc(r.loc):''}${r.tasks.length+r.reqs.length?` <span class="hint">(${r.tasks.length} tasks, ${r.reqs.length} needed)</span>`:''}</li>`).join('')}</ol></li>`).join('');
@@ -517,6 +532,8 @@ document.addEventListener('click',e=>{
   if(e.target.matches('[data-close]')){e.target.closest('dialog').close();return}
   const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a,sid=b.closest('[data-s]')?.dataset.s,ev=cur();
   if(['signin','signup','reset','resend','verified','signout','claim','teamAdd','teamDel','refreshRole','aiSave','aiDel'].includes(a)){accAction(a,b);return}
+  if(a==='iClear'){$('#iText').value='';resetImp();return}
+  if(a==='trayDel'){pending.splice(+b.dataset.i,1);renderTray();return}
   if(a==='acc'){$('#dAcc').showModal();renderAcc()}
   if(a==='push')togglePush();
   if(a==='tog'&&canEdit){const c=clone(ev),t=c.subs.find(x=>x.id===sid)?.tasks.find(x=>x.id===b.dataset.t);if(t){t.done=!t.done;save(c)}}
@@ -540,7 +557,7 @@ document.addEventListener('click',e=>{
   if(a==='newEv')openEv(null);
   if(a==='pick'){curId=b.dataset.e;ls('rs-ev',curId);render();$('#evs').querySelector('[aria-current=true]')?.scrollIntoView({block:'nearest',inline:'nearest'})}
   if(a==='editEv')openEv(ev);
-  if(a==='imp'){$('#iDate').value=iso(new Date()).slice(0,10);$('#iMode').innerHTML='<option value="new">A new event (separate tiles)</option>'+(ev?`<option value="plan">More sub-events in ${esc(ev.name)}</option><option value="act">Actual times for ${esc(ev.name)}</option>`:'');resetImp();$('#dImp').showModal()}
+  if(a==='imp'){$('#iDate').value=iso(new Date()).slice(0,10);$('#iMode').innerHTML='<option value="new">A new event (separate tiles)</option>'+(ev?`<option value="plan">More sub-events in ${esc(ev.name)}</option><option value="act">Actual times for ${esc(ev.name)}</option>`:'');$('#iText').value='';resetImp();pending=[];renderTray();$('#dImp').showModal()}
   if(a==='alerts'){alertsOn=!alertsOn;ls('rs-alerts',alertsOn?'on':'off');render()}
   if(a==='sound'){if(audio){audio.close?.();audio=null}else{try{audio=new (window.AudioContext||window.webkitAudioContext)();beep()}catch(x){toast('Sound is not available here')}}render()}
   if(a==='test'){const L=sorted(ev),now=Date.now(),s=L.find(x=>ms(st(x))>now)||L[L.length-1];if(s)showPop({ev:ev.id,s:s.id});else toast('Add a sub-event first')}
