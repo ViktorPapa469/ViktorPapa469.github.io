@@ -78,10 +78,11 @@ for nid, n in docs('notices', orderBy='at desc', pageSize=20):
     msgs.append({'title': title[:90], 'body': body[:280], 'tag': 'note-' + nid, 'urgent': urgent, 'ttl': 3600})
 
 sent = gone = failed = phones = 0
+subs_all = [p for _, p in docs('push') if p.get('on', True) and p.get('endpoint')]
+print('events read OK; phones with alerts on: %d' % len(subs_all))
 if msgs:
     open('vapid.pem', 'w').write(VAPID + '\n')
-    for pid, p in docs('push'):
-        if not p.get('on', True) or not p.get('endpoint'): continue
+    for pid, p in [(p['endpoint'][-8:], p) for p in subs_all]:
         phones += 1
         for m in msgs:
             try:

@@ -6,6 +6,9 @@ on:
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/events-push.yml', '.github/scripts/send_event_push.py', 'events/config.json']
 permissions:
   contents: write
 concurrency:
@@ -33,13 +36,17 @@ jobs:
           (git fetch -q --depth=1 origin ci-state-events && git show origin/ci-state-events:last.txt > /tmp/last.txt) 2>/dev/null || echo 0 > /tmp/last.txt
           echo "LAST=$(tr -dc 0-9 < /tmp/last.txt)" >> "$GITHUB_ENV"
       - name: Send alerts
-        run: python .github/scripts/send_event_push.py
+        shell: bash
+        run: |
+          set -o pipefail
+          python .github/scripts/send_event_push.py 2>&1 | tee /tmp/events_log.txt
         env:
           VAPID_PRIVATE: ${{ secrets.VAPID_PRIVATE }}
-      - name: Save this run's time to the ci-state-events branch
-        if: success()
+      - name: Save this run's time and log to the ci-state-events branch
+        if: always()
         run: |
-          [ -f /tmp/events_last.txt ] || exit 0
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -q --orphan state && git rm -rq --cached . && rm -rf ./* .github events 2>/dev/null || true
-          cp /tmp/events_last.txt last.txt && git add last.txt && git commit -qm "event alerts: last run" && git push -qf origin state:ci-state-events
+          if [ -f /tmp/events_last.txt ]; then cp /tmp/events_last.txt last.txt; else cp /tmp/last.txt last.txt; fi
+          { echo "run $(TZ=Asia/Kolkata date '+%d %b %H:%M:%S IST') (${{ github.event_name }}) result: ${{ job.status }}"; cat /tmp/events_log.txt 2>/dev/null; } > log.txt
+          git add last.txt log.txt && git commit -qm "event alerts: last run" && git push -qf origin state:ci-state-events
