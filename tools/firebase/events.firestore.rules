@@ -16,6 +16,11 @@ service cloud.firestore {
       allow create: if confirmed() && request.resource.data.size() == 2 && request.resource.data.email == email() && request.resource.data.at is number;
       allow update, delete: if false;
     }
+    match /config/ai {
+      allow get: if isOrganiser();
+      allow create, update: if isOwner() && request.resource.data.key is string && request.resource.data.key.size() < 300;
+      allow delete: if isOwner();
+    }
     match /organisers/{em} {
       allow get: if isOwner() || (confirmed() && em == email());
       allow list: if isOwner();

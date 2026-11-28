@@ -26,6 +26,7 @@ let db=null,FS=null,AU=null,fs=null,auth=null,user=null,role='viewer',ownerEmail
 let events=[],curId=ls('rs-ev'),canEdit=false,loaded=false,editSub=null,editEv=null,alertsOn=ls('rs-alerts')!=='off',audio=null,popItem=null,lastSig='',iRows=null,pushOn=!!ls('rs-push');
 let fired=new Set();try{fired=new Set(JSON.parse(ls('rs-fired')||'[]'))}catch(e){}
 const queue=[];
+let aiKey=null;
 let notices=[],nShown=null,seenTs=+ls('rs-seen')||0,nAuto=ls('rs-nauto')!=='0';const loadT=Date.now(),popped=new Set(),mine=new Set(),nq=[];
 const TPL=['Running 10 min late','All proceed to the next venue','Standby, chief guest arriving','Programme has started','Please take your seats','Dinner is served'];
 
@@ -252,6 +253,8 @@ function parseText(txt,date){const gs=[{name:'',rows:[]}];let d=date,last=null,b
       if(i>=0){const two=c[i+1]&&TCELL.test(c[i+1])&&!/[-–]|to/i.test(c[i]);l=`${c[i]}${two?' - '+c[i+1]:''} ${c.slice(i+(two?2:1)).join(' | ')}`}
       else l=c.join(' ')}
     const dl=dateLine(l);if(dl){d=dl;continue}
+    const idea=/^(?:idea|suggestion)s?\s*[:\-]\s*(.+)$/i.exec(l);
+    if(idea){if(last)last.sugg.push(idea[1].slice(0,200));continue}
     const bul=/^[-•*·]\s*(.+)$/.exec(l);
     if(bul&&last){last.tasks.push(bul[1].slice(0,200));continue}
     const need=/^(?:need(?:ed|s)?|req(?:uired|uirement)?s?|bring)\s*[:\-]\s*(.+)$/i.exec(l);
@@ -307,9 +310,68 @@ async function fileText(f,stat){const n=f.name.toLowerCase();
   if(f.type.startsWith('image/')||/\.(jpe?g|png|webp|heic|heif|gif|bmp)$/.test(n))return ocr([f],stat);
   if(f.type.startsWith('text/')||/\.(txt|csv|tsv|md)$/.test(n))return f.text();
   throw new Error('This file type can’t be read. Use Word (.docx), Excel, PDF, text or a photo.')}
+/* ---------- AI reading (optional): the owner saves a Gemini (free, aistudio.google.com) or Claude API key in
+   Firestore config/ai, readable only by organisers. Photos, scans and PDFs are then read by AI into the same
+   text format as typing, so the organiser can check and fix it before adding. ---------- */
+const b64=f=>new Promise((r,j)=>{const fr=new FileReader();fr.onload=()=>r(String(fr.result).split(',')[1]);fr.onerror=()=>j(new Error('Could not read the file'));fr.readAsDataURL(f)});
+async function aiPart(f){if(f.type==='application/pdf'||/\.pdf$/i.test(f.name))return{mime:'application/pdf',data:await b64(f)};
+  const c=await toCanvas(f),blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.85));return{mime:'image/jpeg',data:await b64(blob)}}
+const isDoc=f=>f.type.startsWith('image/')||f.type==='application/pdf'||/\.(pdf|jpe?g|png|webp|heic|heif|gif|bmp)$/i.test(f.name);
+function aiErr(status,body){const t=String(body||'');
+  if(status===401||status===403||/API key not valid|invalid x-api-key|authentication/i.test(t))return new Error('The AI key was refused. The owner can paste a new one under Owner settings.');
+  if(status===429||/quota|rate/i.test(t))return new Error('The AI is busy or today’s free limit is used up. Try again in a minute.');
+  if(status===413)return new Error('The photos are too large together. Upload fewer at a time.');
+  return new Error('The AI could not read it ('+status+').')}
+async function gemini(key,parts,prompt){
+  let model=ls('rs-gm');
+  if(!model){const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=300&key='+encodeURIComponent(key));if(!r.ok)throw aiErr(r.status,await r.text());
+    const names=((await r.json()).models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>m.name.replace(/^models\//,''));
+    const ver=n=>parseFloat((/gemini-([\d.]+)/.exec(n)||[])[1]||0);
+    model=names.find(n=>n==='gemini-flash-latest')||names.filter(n=>/^gemini-[\d.]+-flash$/.test(n)).sort((a,b)=>ver(b)-ver(a))[0]||names.find(n=>/gemini.*flash/.test(n)&&!/live|image|tts|audio|embed/.test(n))||names.find(n=>/^gemini/.test(n));
+    if(!model)throw new Error('No Gemini model is available for this key.');ls('rs-gm',model)}
+  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({contents:[{role:'user',parts:[...parts.map(p=>({inline_data:{mime_type:p.mime,data:p.data}})),{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:.1}})});
+  if(r.status===404){ls('rs-gm','');throw new Error('The AI model changed. Tap Upload again.')}
+  if(!r.ok)throw aiErr(r.status,await r.text());
+  return((await r.json()).candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('')}
+async function claudeAI(key,parts,prompt){
+  const content=[...parts.map(p=>p.mime==='application/pdf'?{type:'document',source:{type:'base64',media_type:p.mime,data:p.data}}:{type:'image',source:{type:'base64',media_type:p.mime,data:p.data}}),{type:'text',text:prompt}];
+  for(const model of ['claude-sonnet-5-5','claude-haiku-5-5']){
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model,max_tokens:8000,messages:[{role:'user',content}]})});
+    if(r.status===404)continue;if(!r.ok)throw aiErr(r.status,await r.text());
+    return((await r.json()).content||[]).filter(c=>c.type==='text').map(c=>c.text).join('')}
+  throw new Error('No Claude model is available for this key.')}
+async function askAI(parts,prompt){const raw=/^sk-ant-/.test(aiKey)?await claudeAI(aiKey,parts,prompt):await gemini(aiKey,parts,prompt);
+  const a=raw.indexOf('{'),b=raw.lastIndexOf('}');if(a<0||b<a)throw new Error('The AI reply could not be read. Try again.');return JSON.parse(raw.slice(a,b+1))}
+const hhmm=v=>{const m=/^(\d{1,2})[:.]?(\d{2})/.exec(String(v||'').trim());return m&&+m[1]<24&&+m[2]<60?pad(+m[1])+':'+m[2]:''};
+function aiToText(r){const out=[],arr=v=>Array.isArray(v)?v:[],cl=v=>S(String(v??'')).replace(/[|\r\n]+/g,' ').trim();
+  arr(r?.events).forEach((g,gi)=>{const items=arr(g?.items).filter(x=>hhmm(x?.start));if(!items.length)return;
+    if(out.length)out.push('');out.push(cl(g?.name)||`Event ${events.length+gi+1}`);if(/^\d{4}-\d{2}-\d{2}$/.test(g?.date||''))out.push(g.date);
+    for(const x of items){const e=hhmm(x.end),loc=cl(x.location),lead=cl(x.lead);
+      out.push(`${hhmm(x.start)}${e?'-'+e:''} ${cl(x.title)||'Untitled'}${loc||lead?' | '+loc+(lead?' | '+lead:''):''}`);
+      arr(x.tasks).forEach(t=>cl(t)&&out.push('- '+cl(t)));arr(x.requirements).forEach(t=>cl(t)&&out.push('Need: '+cl(t)));arr(x.ideas).forEach(t=>cl(t)&&out.push('Idea: '+cl(t)))}});
+  return out.join('\n')}
+async function aiRead(files,typed,date,stat){
+  const parts=[],texts=[];
+  for(const f of files){if(isDoc(f)){stat(`Preparing ${f.name}…`);parts.push(await aiPart(f))}else texts.push(await fileText(f,stat))}
+  stat('The AI is reading the programme… (10 to 40 seconds)');
+  const prompt=`Read this event programme. It may be photos, scans, screenshots or PDFs, often a table with columns such as Time, Event, In charge and Remarks, sometimes with handwritten notes: read those carefully too.
+Reply with JSON only: {"events":[{"name":"event name","date":"YYYY-MM-DD or empty","items":[{"start":"HH:MM","end":"HH:MM or empty","title":"","location":"","lead":"","tasks":[],"requirements":[],"ideas":[]}]}]}
+Rules: one item per row or sub-event, in order. 24-hour times: "1930h" is "19:30"; "1930 - 1935h" is start 19:30, end 19:35. A time cell split over two lines is one range. location: the row's venue, else the venue in the title. lead: the person or people in charge. Remarks and notes become tasks (things to do) or requirements (things or people needed at the start). ideas: 2 short practical suggestions for that sub-event not already listed. Keep every string under 100 characters and never invent rows. Only make more than one event if the source clearly has separate programmes. If no date is shown use ${date}; a year written 26 means 2026.${texts.length?'\nMore of the programme as text:\n'+texts.join('\n').slice(0,30000):''}${typed?'\nAlready typed by the organiser (include it too):\n'+typed.slice(0,10000):''}`;
+  return aiToText(await askAI(parts,prompt))}
+async function aiIdeas(s,ev){const r=await askAI([],`Event: "${ev.name}"${ev.venue?' at '+ev.venue:''}. Sub-event: "${s.title}" ${hm(st(s))}-${hm(en(s))}${s.loc?' at '+s.loc:''}${s.lead?', in charge '+s.lead:''}.
+Already planned: ${s.tasks.map(t=>t.t).join('; ')||'nothing'}. Required: ${s.reqs.join('; ')||'nothing'}. Already suggested or dismissed: ${[...s.sugg,...s.drop].join('; ')||'nothing'}.
+Give 3 short, practical, specific things to do or prepare for this sub-event that are not already covered. Reply with JSON only: {"ideas":["...","...","..."]}, each under 90 characters.`);
+  return(Array.isArray(r?.ideas)?r.ideas:[]).map(x=>S(String(x))).filter(Boolean)}
+
 $('#iFile')?.addEventListener('change',async e=>{const files=[...e.target.files];e.target.value='';if(!files.length)return;
   const stat=m=>$('#iStat').textContent=m,btn=$('#iGo'),lab=$('#iFileL'),box=$('#iText'),bad=[];let got=0;
   btn.disabled=true;lab.style.opacity=.5;lab.style.pointerEvents='none';
+  if(aiKey){try{const date=$('#iDate').value||iso(new Date()).slice(0,10),txt=await aiRead(files,box.value.trim(),date,stat);
+      if(txt.trim()){box.value=txt;resetImp();const gs=parseText(box.value,date);showRows(gs);
+        stat(`${$('#iStat').textContent} Read by AI. The text is in the box below: check it, fix anything, then tap the button.`);btn.disabled=false;lab.style.opacity='';lab.style.pointerEvents='';return}
+      stat('The AI found no times in that. Trying the phone reader instead…')}
+    catch(err){stat((err?.message||'The AI could not read it.')+' Trying the phone reader instead…')}}
   try{for(let i=0;i<files.length;i++){const f=files[i],pre=files.length>1?`File ${i+1} of ${files.length}: `:'';
       try{const text=String(await fileText(f,m=>stat(pre+m))||'').replace(/\u00a0/g,' ').replace(/[ ]{2,}/g,' ').trim();
         if(!text){bad.push(`${f.name}: no text found`);continue}
@@ -334,7 +396,7 @@ $('#fImp').addEventListener('submit',e=>{e.preventDefault();
   if(!iRows){if(!txt){$('#iStat').textContent='Type or paste a schedule first.';return}showRows(parseText(txt,date));return}
   const mode=$('#iMode').value,gs=iRows;
   for(const g of gs)g.rows.forEach((r,i,rows)=>{if(!ok(r.b)||ms(r.b)<=ms(r.a)){const n=rows.slice(i+1).find(x=>ms(x.a)>ms(r.a));r.b=rows[i+1]&&ms(rows[i+1].a)===ms(r.a)?addMin(r.a,5):n?n.a:addMin(r.a,30)}});
-  const mk=r=>{const s=normSub({id:rid(),title:r.title,loc:r.loc,lead:r.lead,ps:r.a,pe:r.b,tasks:r.tasks.map(t=>({id:rid(),t,done:false})),reqs:r.reqs});s.sugg=ideas(s).slice(0,3);return s};
+  const mk=r=>{const s=normSub({id:rid(),title:r.title,loc:r.loc,lead:r.lead,ps:r.a,pe:r.b,tasks:r.tasks.map(t=>({id:rid(),t,done:false})),reqs:r.reqs});s.sugg=r.sugg&&r.sugg.length?r.sugg.slice(0,4):ideas(s).slice(0,3);return s};
   let msg;
   if(mode==='new'){const now=Date.now(),made=gs.map((g,i)=>({id:newId(),name:gName(g,i),venue:'',tz:TZ,created:now+gs.length-i,subs:g.rows.map(mk)}));
     for(const ev of [...made].reverse())save(ev);curId=made[0].id;ls('rs-ev',curId);render();msg=made.length>1?`${made.length} events created`:`${made[0].name} created`}
@@ -414,6 +476,8 @@ function renderAcc(){
   else{h=`<h2>${role==='owner'?'Owner':role==='organiser'?'Organiser':'Signed in'}</h2><p>${esc(u.email)}</p>`;
     if(!ownerEmail)h+=`<p>This app has no owner yet. The owner adds and removes organisers.</p><button type="button" class="btn pri" data-a="claim">Make me the owner</button>`;
     else if(role==='viewer')h+=`<p>You can view everything. To edit, ask the owner to add <b>${esc(u.email)}</b> as an organiser, then tap Refresh.</p><button type="button" class="btn" data-a="refreshRole">Refresh</button>`;
+    if(role==='owner')h+=`<h3 style="margin-top:8px">Reading photos with AI</h3><p class="hint">${aiKey?`An AI key is saved (${/^sk-ant-/.test(aiKey)?'Claude':'Gemini'}). Photos, scans and PDFs that organisers upload are read by AI.`:'Paste a Gemini API key (free from aistudio.google.com) or a Claude API key. The app then reads photos, scans and PDFs of programmes, including tables and handwriting. Only signed-in organisers’ apps can use it.'}</p>
+      <div class="row" style="flex-wrap:nowrap"><input type="password" id="aiK" placeholder="${aiKey?'Paste a new key to replace it':'AIza… or sk-ant-…'}" autocomplete="off"><button type="button" class="btn pri" data-a="aiSave">Save</button></div>${aiKey?'<button type="button" class="linkbtn" data-a="aiDel">Remove the AI key</button>':''}`;
     if(role==='owner')h+=`<h3 style="margin-top:8px">Organisers</h3><p class="hint">Organisers can edit, reschedule and send notifications. They sign in here with the same email.</p>
       <ul class="team">${team.length?team.map(em=>`<li><span>${esc(em)}</span><button type="button" class="mini" data-a="teamDel" data-em="${esc(em)}">Remove</button></li>`).join(''):'<li class="hint">No organisers yet.</li>'}</ul>
       <div class="row" style="flex-wrap:nowrap"><input type="email" id="tEm" placeholder="name@example.com" autocomplete="off"><button type="button" class="btn pri" data-a="teamAdd">Add</button></div>`;
@@ -427,6 +491,7 @@ async function refreshRole(){
   else if(em){try{const d=await FS.getDoc(FS.doc(fs,'organisers',em));if(d.exists()){role='organiser';canEdit=true}}catch(e){}}
   if(role==='owner'&&!teamUnsub)teamUnsub=FS.onSnapshot(FS.collection(fs,'organisers'),s=>{team=s.docs.map(d=>d.id).sort();renderAcc()},()=>{});
   if(role!=='owner'&&teamUnsub){teamUnsub();teamUnsub=null;team=[]}
+  aiKey=null;if(canEdit){try{const d=await FS.getDoc(FS.doc(fs,'config','ai'));if(d.exists())aiKey=String(d.data().key||'')||null}catch(e){}}
 }
 async function accAction(a,b){
   const em=()=>($('#aEm')?.value||'').trim(),pw=()=>$('#aPw')?.value||'';
@@ -439,16 +504,19 @@ async function accAction(a,b){
     if(a==='signout'){await AU.signOut(auth)}
     if(a==='claim'){await FS.setDoc(FS.doc(fs,'config','owner'),{email:user.email.toLowerCase(),at:Date.now()})}
     if(a==='teamAdd'){const v=($('#tEm').value||'').trim().toLowerCase();if(!/^[^\s@\/]+@[^\s@\/]+\.[^\s@\/]+$/.test(v)){$('#accErr').textContent='Enter a full email address.';return}await FS.setDoc(FS.doc(fs,'organisers',v),{at:Date.now()});toast('Organiser added')}
+    if(a==='aiSave'){const k=($('#aiK').value||'').trim();if(!/^(AIza[\w-]{30,}|sk-ant-[\w-]{20,})$/.test(k)){$('#accErr').textContent='That doesn’t look like a Gemini key (starts AIza) or a Claude key (starts sk-ant-).';return}
+      await FS.setDoc(FS.doc(fs,'config','ai'),{key:k,at:Date.now()});aiKey=k;ls('rs-gm','');toast('AI key saved')}
+    if(a==='aiDel'){if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Tap again to remove';return}await FS.deleteDoc(FS.doc(fs,'config','ai'));aiKey=null;toast('AI key removed')}
     if(a==='teamDel'){if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Tap again';return}await FS.deleteDoc(FS.doc(fs,'organisers',b.dataset.em))}
     if(['verified','claim','refreshRole','signin'].includes(a)){await refreshRole();render()}
     renderAcc();
-  }catch(e){if(/permission/i.test(e?.code||''))$('#accErr').textContent=a==='claim'?'Someone already owns this app.':'Not allowed.';else aerr(e)}}
+  }catch(e){if(/permission/i.test(e?.code||''))$('#accErr').textContent=a==='claim'?'Someone already owns this app.':/^ai/.test(a)?'Not allowed yet: publish the updated Firebase rules first.':'Not allowed.';else aerr(e)}}
 
 /* ---------- Clicks ---------- */
 document.addEventListener('click',e=>{
   if(e.target.matches('[data-close]')){e.target.closest('dialog').close();return}
   const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a,sid=b.closest('[data-s]')?.dataset.s,ev=cur();
-  if(['signin','signup','reset','resend','verified','signout','claim','teamAdd','teamDel','refreshRole'].includes(a)){accAction(a,b);return}
+  if(['signin','signup','reset','resend','verified','signout','claim','teamAdd','teamDel','refreshRole','aiSave','aiDel'].includes(a)){accAction(a,b);return}
   if(a==='acc'){$('#dAcc').showModal();renderAcc()}
   if(a==='push')togglePush();
   if(a==='tog'&&canEdit){const c=clone(ev),t=c.subs.find(x=>x.id===sid)?.tasks.find(x=>x.id===b.dataset.t);if(t){t.done=!t.done;save(c)}}
@@ -456,6 +524,10 @@ document.addEventListener('click',e=>{
     if($('#ripple')?.checked){for(const x of c.subs)if(x.id!==sid&&ms(st(x))>=from)shiftSub(x,m)}shiftSub(s,m);save(c);autoNote(s,m,!!$('#ripple')?.checked);toast(`${s.title} ${m>0?'delayed':'moved earlier'} ${Math.abs(m)} min`)}
   if(a==='tDel'){if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Remove';setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent='✕'}},4000);return}
     const c=clone(ev),s=c.subs.find(x=>x.id===sid);if(!s)return;s.tasks=s.tasks.filter(x=>x.id!==b.dataset.t);save(c);toast('Task removed')}
+  if(a==='suggest'&&aiKey&&!b.dataset.busy){b.dataset.busy='1';b.textContent='Thinking…';b.disabled=true;
+    aiIdeas(ev.subs.find(x=>x.id===sid),ev).then(more=>{const c=clone(cur()),s=c.subs.find(x=>x.id===sid);if(!s)return;const have=new Set([...s.sugg,...s.drop,...s.tasks.map(t=>t.t)].map(x=>x.toLowerCase()));
+      const add=more.filter(x=>!have.has(x.toLowerCase()));if(!add.length)throw 0;s.sugg=[...s.sugg,...add].slice(-8);save(c)})
+    .catch(()=>{const c=clone(cur()),s=c.subs.find(x=>x.id===sid);const more=s?ideas(s).slice(0,3):[];if(s&&more.length){s.sugg=[...s.sugg,...more].slice(-8);save(c)}else{render();toast('No more ideas for this one')}});return}
   if(a==='suggest'){const c=clone(ev),s=c.subs.find(x=>x.id===sid);if(!s)return;const more=ideas(s).slice(0,3);if(!more.length){toast('No more ideas for this one');return}s.sugg=[...s.sugg,...more].slice(-8);save(c)}
   if(a==='sAdd'||a==='sDrop'){const c=clone(ev),s=c.subs.find(x=>x.id===sid),i=+b.dataset.i,v=s?.sugg[i];if(v==null)return;s.sugg.splice(i,1);if(a==='sAdd')s.tasks.push({id:rid(),t:v,done:false});else s.drop=[...s.drop,v].slice(-30);save(c)}
   if(a==='notes'){if(nShown)nextNote();openNotes()}
