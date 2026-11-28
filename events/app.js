@@ -109,9 +109,11 @@ function renderPlan(ev,L){
   if(!L.length)h+=`<div class="empty"><p>No sub-events yet.${canEdit?' Add one or paste a timeline.':''}</p></div>`;
   let d='';const days=[];for(const s of L){const k=dayOf(st(s));if(k!==d){days.push({k,items:[]});d=k}days[days.length-1].items.push(s)}
   for(const g of days)h+=`<div class="day"><h2>${esc(g.k)}</h2><span>${g.items.length} sub-event${g.items.length>1?'s':''}</span></div><div class="grid">${g.items.map(tile).join('')}</div>`;
+  const ae=document.activeElement,keep=ae&&ae.closest&&ae.closest('.addt')?{sid:ae.closest('[data-s]')?.dataset.s,v:ae.value}:null;
   $('#plan').innerHTML=h;
+  if(keep){const i=document.getElementById('s-'+keep.sid)?.querySelector('.addt input');if(i){i.value=keep.v;i.focus()}}
 }
-const taskLi=t=>`<li class="${t.done?'ok':''}"><button class="task" data-a="tog" data-t="${esc(t.id)}" aria-pressed="${t.done}"${canEdit?'':' disabled'}><i class="box">${t.done?'✓':''}</i><span>${esc(t.t)}</span></button></li>`;
+const taskLi=t=>`<li class="${t.done?'ok':''}"><button class="task" data-a="tog" data-t="${esc(t.id)}" aria-pressed="${t.done}"${canEdit?'':' disabled'}><i class="box">${t.done?'✓':''}</i><span>${esc(t.t)}</span></button>${canEdit?`<button class="mini" data-a="tDel" data-t="${esc(t.id)}" aria-label="Remove task: ${esc(t.t)}">✕</button>`:''}</li>`;
 function tile(s){
   const tk=s.tasks,todo=tk.filter(t=>!t.done),done=tk.filter(t=>t.done),pc=tk.length?Math.round(done.length/tk.length*100):0,dl=delay(s),k=status(s);
   return `<article class="tile ${k}" data-s="${esc(s.id)}" id="s-${esc(s.id)}">
@@ -122,6 +124,7 @@ function tile(s){
   <div class="prog"><div class="bar"><i style="width:${pc}%"></i></div><span>${done.length}/${tk.length} done</span></div>
   <p class="lbl">To do</p><ul class="tasks">${todo.map(taskLi).join('')||'<li class="none">Nothing left to do</li>'}</ul>
   ${done.length?`<p class="lbl">Completed</p><ul class="tasks">${done.map(taskLi).join('')}</ul>`:''}
+  ${canEdit?`<form class="addt"><input name="t" maxlength="200" placeholder="Add a task" aria-label="Add a task to ${esc(s.title)}" autocomplete="off"><button class="btn">Add</button></form>`:''}
   ${s.reqs.length?`<div class="req"><p class="lbl">Required at start</p><ul>${s.reqs.map(r=>`<li>${esc(r)}</li>`).join('')}</ul></div>`:''}
   ${s.sugg.length||canEdit?`<div class="sug"><p class="lbl" style="margin:0">Suggestions</p>${s.sugg.length?`<ul>${s.sugg.map((x,i)=>`<li><span>${esc(x)}</span>${canEdit?`<button class="mini" data-a="sAdd" data-i="${i}">+ Task</button><button class="mini" data-a="sDrop" data-i="${i}" aria-label="Dismiss suggestion">✕</button>`:''}</li>`).join('')}</ul>`:'<p class="hint" style="margin:4px 0 8px">Ideas for this kind of sub-event.</p>'}${canEdit?`<button class="mini" data-a="suggest">${s.sugg.length?'More ideas':'Suggest ideas'}</button>`:''}</div>`:''}
   ${canEdit?`<div class="ops"><button class="btn" data-a="shift" data-m="-5" aria-label="Move 5 minutes earlier">−5</button><button class="btn" data-a="shift" data-m="5" aria-label="Delay 5 minutes">+5</button><button class="btn" data-a="shift" data-m="15" aria-label="Delay 15 minutes">+15 min</button><button class="btn hot" data-a="del">Delete</button><button class="btn pri" data-a="edit">Edit</button></div>`:''}
@@ -233,12 +236,17 @@ const TCELL=new RegExp(`^${TM}\\s*(?:h(?:rs?|ours)?\\b)?(?:\\s*(?:-|to|till|unti
 function dateIn(l){const t=l.toLowerCase().replace(/(\d)(st|nd|rd|th)\b/g,'$1');let m;
   if((m=/\b(\d{4})-(\d{2})-(\d{2})\b/.exec(t)))return`${m[1]}-${m[2]}-${m[3]}`;
   if((m=/\b(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})\b/.exec(t)))return`${m[3]}-${pad(+m[2])}-${pad(+m[1])}`;
-  if((m=/\b(\d{1,2})[\s\-]*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s\-,]*(\d{4})\b/.exec(t)))return`${m[3]}-${pad(MON[m[2]])}-${pad(+m[1])}`;
+  if((m=/\b(\d{1,2})[\s\-]*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s\-,']*(\d{4}|\d{2})\b/.exec(t)))return`${m[3].length===2?'20'+m[3]:m[3]}-${pad(MON[m[2]])}-${pad(+m[1])}`;
   if((m=/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})[\s,]+(\d{4})\b/.exec(t)))return`${m[3]}-${pad(MON[m[1]])}-${pad(+m[2])}`;
   return''}
-function parseText(txt,date){const gs=[{name:'',rows:[]}];let d=date,last=null;
+// "Need: a, b, c" becomes separate items only when each is a short item; a sentence with a comma stays whole.
+function needs(s){const parts=[];let cur='',depth=0;for(const ch of s){if(ch==='(')depth++;if(ch===')')depth=Math.max(0,depth-1);if((ch===','||ch===';')&&!depth){parts.push(cur);cur=''}else cur+=ch}parts.push(cur);
+  const p=parts.map(x=>x.trim()).filter(Boolean);return(p.some(x=>x.split(/\s+/).length>4)?[s.trim()]:p).map(x=>x.slice(0,200))}
+function parseText(txt,date){const gs=[{name:'',rows:[]}];let d=date,last=null,blank=true;
   for(const raw of txt.replace(/\r/g,'').split('\n')){
-    let l=raw.replace(/[–—]/g,'-').replace(/^[|\s]+|[|\s]+$/g,'').trim();if(!l)continue;
+    let l=raw.replace(/[–—]/g,'-').replace(/^[|\s]+|[|\s]+$/g,'').trim();if(!l){blank=true;continue}
+    const wasBlank=blank;blank=false;
+    if(TCELL.test(l)&&last){const e=/(?:-|to|till|until)\s*(.+)$/i.exec(l),tok=e?e[1]:l.replace(/^[-\s]+/,'');const t=t24(tok);if(t&&!last.b)last.b=`${d}T${t}`;continue}   // a time on its own line: the end of the one above (wrapped table cell)
     l=l.replace(/^\(?\d{1,3}[.)]?\s*(?:\||\t)\s*/,'').replace(/^\(?\d{1,3}[.)]\s+(?=\d)/,'');
     if(l.includes('\t')){const c=l.split('\t').map(x=>x.trim()).filter(Boolean),i=c.findIndex(x=>TCELL.test(x));
       if(i>=0){const two=c[i+1]&&TCELL.test(c[i+1])&&!/[-–]|to/i.test(c[i]);l=`${c[i]}${two?' - '+c[i+1]:''} ${c.slice(i+(two?2:1)).join(' | ')}`}
@@ -247,15 +255,21 @@ function parseText(txt,date){const gs=[{name:'',rows:[]}];let d=date,last=null;
     const bul=/^[-•*·]\s*(.+)$/.exec(l);
     if(bul&&last){last.tasks.push(bul[1].slice(0,200));continue}
     const need=/^(?:need(?:ed|s)?|req(?:uired|uirement)?s?|bring)\s*[:\-]\s*(.+)$/i.exec(l);
-    if(need&&last){last.reqs.push(...need[1].split(/[,;]/).map(x=>x.trim()).filter(Boolean).map(x=>x.slice(0,200)));continue}
+    if(need&&last){last.reqs.push(...needs(need[1]));continue}
     const m=LINE.exec(l);
     if(!m||!t24(m[1])){
-      if((l.match(/\b(ser|s\.? ?no|sl|time|timings?|events?|activity|activities|venue|location|place|responsib\w*|in charge|remarks?|duration|detail\w*)\b/gi)||[]).length>=2&&l.split(/\s+/).length<=10)continue;   // a table's header row
+      if((l.match(/\b(ser|s\.? ?no|sl|time|timings?|events?|activity|activities|venue|location|place|responsib\w*|in ?charge|remarks?|duration|detail\w*)\b/gi)||[]).length>=2&&l.split(/\s+/).length<=10)continue;   // a table's header row
       const di=dateIn(l);if(di)d=di;
-      const g=gs[gs.length-1],nm=l.replace(/[:\-|]+$/,'').trim().slice(0,120);if(g.rows.length)gs.push({name:nm,rows:[]});else if(!g.name)g.name=nm;last=null;continue}
+      const g=gs[gs.length-1],nm=l.replace(/[:\-|]+$/,'').trim().slice(0,120);
+      if(!g.rows.length){if(!g.name)g.name=nm;continue}
+      // After sub-events have started, only a real heading starts a new event: on its own after a blank line, in CAPITALS, or with a date.
+      // Anything else is a wrapped line from a table or a note, so it is skipped.
+      const letters=l.replace(/[^a-z]/gi,''),caps=letters.length>3&&letters.replace(/[^A-Z]/g,'').length/letters.length>.7;
+      if((wasBlank&&l.split(/\s+/).length<=8)||caps||di){gs.push({name:nm,rows:[]});last=null}
+      continue}
     const parts=m[3].split('|').map(x=>x.trim());
     last={a:`${d}T${t24(m[1])}`,b:m[2]&&t24(m[2])?`${d}T${t24(m[2])}`:'',title:parts[0].replace(/^[-:]\s*/,'').slice(0,120),loc:(parts[1]||'').slice(0,80),lead:(parts[2]||'').slice(0,80),tasks:[],reqs:[],sugg:[]};
-    if(parts[3]){const n=parts[3].replace(/^need(?:ed|s)?\s*:?/i,'');last.reqs.push(...n.split(/[,;]/).map(x=>x.trim()).filter(Boolean))}
+    if(parts[3]){const n=parts[3].replace(/^need(?:ed|s)?\s*:?/i,'');last.reqs.push(...needs(n))}
     gs[gs.length-1].rows.push(last)}
   return gs.filter(g=>g.rows.length)}
 /* Uploaded files: Word, Excel, PDF and text are read in the browser; photos and scanned PDFs go through
@@ -319,7 +333,7 @@ $('#fImp').addEventListener('submit',e=>{e.preventDefault();
   const date=$('#iDate').value,txt=$('#iText').value.trim();if(!date)return;
   if(!iRows){if(!txt){$('#iStat').textContent='Type or paste a schedule first.';return}showRows(parseText(txt,date));return}
   const mode=$('#iMode').value,gs=iRows;
-  for(const g of gs)g.rows.forEach((r,i,rows)=>{if(!ok(r.b)||ms(r.b)<=ms(r.a))r.b=rows[i+1]&&ms(rows[i+1].a)>ms(r.a)?rows[i+1].a:addMin(r.a,30)});
+  for(const g of gs)g.rows.forEach((r,i,rows)=>{if(!ok(r.b)||ms(r.b)<=ms(r.a)){const n=rows.slice(i+1).find(x=>ms(x.a)>ms(r.a));r.b=rows[i+1]&&ms(rows[i+1].a)===ms(r.a)?addMin(r.a,5):n?n.a:addMin(r.a,30)}});
   const mk=r=>{const s=normSub({id:rid(),title:r.title,loc:r.loc,lead:r.lead,ps:r.a,pe:r.b,tasks:r.tasks.map(t=>({id:rid(),t,done:false})),reqs:r.reqs});s.sugg=ideas(s).slice(0,3);return s};
   let msg;
   if(mode==='new'){const now=Date.now(),made=gs.map((g,i)=>({id:newId(),name:gName(g,i),venue:'',tz:TZ,created:now+gs.length-i,subs:g.rows.map(mk)}));
@@ -440,6 +454,8 @@ document.addEventListener('click',e=>{
   if(a==='tog'&&canEdit){const c=clone(ev),t=c.subs.find(x=>x.id===sid)?.tasks.find(x=>x.id===b.dataset.t);if(t){t.done=!t.done;save(c)}}
   if(a==='shift'){const c=clone(ev),s=c.subs.find(x=>x.id===sid),m=+b.dataset.m,from=ms(st(s));
     if($('#ripple')?.checked){for(const x of c.subs)if(x.id!==sid&&ms(st(x))>=from)shiftSub(x,m)}shiftSub(s,m);save(c);autoNote(s,m,!!$('#ripple')?.checked);toast(`${s.title} ${m>0?'delayed':'moved earlier'} ${Math.abs(m)} min`)}
+  if(a==='tDel'){if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Remove';setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent='✕'}},4000);return}
+    const c=clone(ev),s=c.subs.find(x=>x.id===sid);if(!s)return;s.tasks=s.tasks.filter(x=>x.id!==b.dataset.t);save(c);toast('Task removed')}
   if(a==='suggest'){const c=clone(ev),s=c.subs.find(x=>x.id===sid);if(!s)return;const more=ideas(s).slice(0,3);if(!more.length){toast('No more ideas for this one');return}s.sugg=[...s.sugg,...more].slice(-8);save(c)}
   if(a==='sAdd'||a==='sDrop'){const c=clone(ev),s=c.subs.find(x=>x.id===sid),i=+b.dataset.i,v=s?.sugg[i];if(v==null)return;s.sugg.splice(i,1);if(a==='sAdd')s.tasks.push({id:rid(),t:v,done:false});else s.drop=[...s.drop,v].slice(-30);save(c)}
   if(a==='notes'){if(nShown)nextNote();openNotes()}
@@ -457,6 +473,10 @@ document.addEventListener('click',e=>{
   if(a==='sound'){if(audio){audio.close?.();audio=null}else{try{audio=new (window.AudioContext||window.webkitAudioContext)();beep()}catch(x){toast('Sound is not available here')}}render()}
   if(a==='test'){const L=sorted(ev),now=Date.now(),s=L.find(x=>ms(st(x))>now)||L[L.length-1];if(s)showPop({ev:ev.id,s:s.id});else toast('Add a sub-event first')}
 });
+document.addEventListener('submit',e=>{const f=e.target.closest('.addt');if(!f)return;e.preventDefault();if(!canEdit)return;
+  const v=f.t.value.trim().slice(0,200),sid=f.closest('[data-s]')?.dataset.s;if(!v||!sid)return;
+  const c=clone(cur()),s=c.subs.find(x=>x.id===sid);if(!s)return;s.tasks.push({id:rid(),t:v,done:false});f.t.value='';save(c);
+  setTimeout(()=>document.getElementById('s-'+sid)?.querySelector('.addt input')?.focus(),0)});
 document.addEventListener('change',e=>{if(e.target.id==='ripple')ls('rs-rip',e.target.checked?'1':'0')});
 $('#popOk').addEventListener('click',closePop);
 $('#popGo').addEventListener('click',()=>{const p=popItem;closePop();if(p){curId=p.ev;location.hash='#planning';render();setTimeout(()=>document.getElementById('s-'+p.s)?.scrollIntoView({behavior:'smooth',block:'center'}),60)}});

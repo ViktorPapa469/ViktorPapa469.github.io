@@ -55,6 +55,8 @@ input[type=date],input[type=datetime-local]{-webkit-appearance:none;appearance:n
 .prog{display:flex;gap:10px;align-items:center;font-size:14px;color:var(--mute)}.bar{flex:1;height:8px;border-radius:9px;background:var(--soft);overflow:hidden}.bar i{display:block;height:100%;background:var(--mar)}
 .lbl{font-size:13px;font-weight:600;color:var(--mute);margin:4px 0 0}
 .tasks{list-style:none;margin:0;padding:0}
+.tasks li{display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--line)}.tasks li .task{flex:1;border-bottom:0}
+.addt{display:flex;gap:6px;margin-top:4px}.addt input{min-height:40px;padding:8px 10px;font-size:16px}.addt .btn{min-height:40px;padding:0 14px}
 .task{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:start;background:none;border:0;color:inherit;font:15px/1.4 Inter,sans-serif;padding:10px 2px;min-height:44px;cursor:pointer;border-bottom:1px solid var(--line)}
 .task:disabled{cursor:default;opacity:1}
 .box{flex:none;width:22px;height:22px;border:2px solid var(--ink);border-radius:6px;display:grid;place-items:center;font-size:14px;font-style:normal}
@@ -162,7 +164,7 @@ label.btn{display:inline-flex;align-items:center;justify-content:center}
 Need: videos loaded, spare mic
 7:30 pm Arrival of RO
 19:35 – 19:40 Air Force Song</pre>
-  <p class="hint">A line with no time starts a new, separate event (its name). A date line sets the date. Lines starting with "-" are tasks; "Need:" lines are what's required at the start.</p>
+  <p class="hint">The first line is the event name. For a second event, leave a blank line and write its name. A date line sets the date. Lines starting with "-" are tasks; "Need:" lines are what's required at the start.</p>
   <div class="f2"><label class="fl">Date (if the schedule has none)<input type="date" id="iDate" required></label>
   <label class="fl">Add it as<select id="iMode"></select></label></div>
   <label class="fl">Schedule<textarea id="iText" style="min-height:160px"></textarea></label>
