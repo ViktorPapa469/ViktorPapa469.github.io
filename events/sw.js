@@ -2,7 +2,7 @@
    - Opening the app loads the newest page from the website; with no signal it shows the copy saved last time.
    - Phone notifications: the scheduled sender on GitHub (.github/workflows/events-push.yml) pushes
      {title, body, tag, urgent}; this shows them, and tapping one opens the app. */
-var CACHE = 'runsheet-v1';
+var CACHE = 'runsheet-v2';   // v2: v1 kept serving the first saved page (see the fetch handler)
 var CORE = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'badge-96.png', 'apple-touch-icon.png'];
 self.addEventListener('install', function(e){
   self.skipWaiting();
@@ -17,7 +17,8 @@ self.addEventListener('fetch', function(e){
   var r = e.request, url = new URL(r.url);
   if (r.method !== 'GET' || url.origin !== self.location.origin) return;   // Firebase and fonts go straight to the network
   var key = r.mode === 'navigate' ? './' : r;
-  e.respondWith(fetch(r, { cache:'no-cache' }).then(function(res){
+  // Fetch by address: browsers refuse fetch(request, options) for page loads, which made v1 fall back to the saved page every time.
+  e.respondWith(fetch(r.url, { cache:'no-cache', credentials:'same-origin' }).then(function(res){
     if (res && res.ok){ var copy = res.clone(); caches.open(CACHE).then(function(c){ return c.put(key, copy); }); }
     return res;
   }).catch(function(){ return caches.match(key).then(function(m){ return m || Response.error(); }); }));

@@ -293,14 +293,19 @@ async function fileText(f,stat){const n=f.name.toLowerCase();
   if(f.type.startsWith('image/')||/\.(jpe?g|png|webp|heic|heif|gif|bmp)$/.test(n))return ocr([f],stat);
   if(f.type.startsWith('text/')||/\.(txt|csv|tsv|md)$/.test(n))return f.text();
   throw new Error('This file type can’t be read. Use Word (.docx), Excel, PDF, text or a photo.')}
-$('#iFile').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
-  const stat=m=>$('#iStat').textContent=m,btn=$('#iGo'),lab=$('#iFileL');btn.disabled=true;lab.style.opacity=.5;lab.style.pointerEvents='none';
-  try{const text=String(await fileText(f,stat)||'').replace(/\u00a0/g,' ').replace(/[ ]{2,}/g,' ').trim();
-    if(!text){stat('No text found in that file. Try another file, or type the programme.');return}
-    const box=$('#iText');box.value=(box.value.trim()?box.value.trim()+'\n':'')+text;resetImp();
+$('#iFile')?.addEventListener('change',async e=>{const files=[...e.target.files];e.target.value='';if(!files.length)return;
+  const stat=m=>$('#iStat').textContent=m,btn=$('#iGo'),lab=$('#iFileL'),box=$('#iText'),bad=[];let got=0;
+  btn.disabled=true;lab.style.opacity=.5;lab.style.pointerEvents='none';
+  try{for(let i=0;i<files.length;i++){const f=files[i],pre=files.length>1?`File ${i+1} of ${files.length}: `:'';
+      try{const text=String(await fileText(f,m=>stat(pre+m))||'').replace(/\u00a0/g,' ').replace(/[ ]{2,}/g,' ').trim();
+        if(!text){bad.push(`${f.name}: no text found`);continue}
+        box.value=(box.value.trim()?box.value.trim()+'\n':'')+text;got++}
+      catch(err){bad.push(`${f.name}: ${err?.message&&!/^[A-Z_]+$/.test(err.message)?err.message:'could not be read'}`)}}
+    resetImp();
+    if(!got){stat(bad.join(' · ')||'Could not read that. Try again, or type the programme.');return}
     const gs=parseText(box.value,$('#iDate').value||iso(new Date()).slice(0,10));showRows(gs);
-    stat(gs.length?`${$('#iStat').textContent} The text from ${f.name} is in the box below; fix anything misread, then tap the button.`:`Text from ${f.name} is in the box below, but no lines with times were found. Check it, fix the times (like 1700h or 17:00), then tap Read schedule.`)}
-  catch(err){stat(err?.message&&!/^[A-Z_]+$/.test(err.message)?err.message:'Could not read that file. Try again, or type the programme.')}
+    const from=files.length>1?`${got} of ${files.length} files`:files[0].name;
+    stat((gs.length?`${$('#iStat').textContent} The text from ${from} is in the box below; fix anything misread, then tap the button.`:`Text from ${from} is in the box below, but no lines with times were found. Check it, fix the times (like 1700h or 17:00), then tap Read schedule.`)+(bad.length?' Not read: '+bad.join(' · '):''))}
   finally{btn.disabled=false;lab.style.opacity='';lab.style.pointerEvents=''}});
 const gName=(g,i)=>g.name||`Event ${events.length+i+1}`;
 function showRows(gs){iRows=gs;const n=gs.reduce((s,g)=>s+g.rows.length,0),newEv=$('#iMode').value==='new';
@@ -461,7 +466,9 @@ render();setInterval(tick,1000);
 
 /* ---------- Start: config, Firebase, live data ---------- */
 (async()=>{
-  if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+  if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(r=>r.update()).catch(()=>{});
+    // When a newer version of the app takes over, reload once so the page and its script match.
+    let had=!!navigator.serviceWorker.controller,done=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(had&&!done){done=true;location.reload()}had=true})}
   let cfg=null;try{cfg=await (await fetch('config.json',{cache:'no-cache'})).json()}catch(e){}
   if(!cfg?.apiKey||/PASTE/.test(cfg.apiKey)||!cfg.projectId){loaded=true;
     $('#plan').innerHTML=`<div class="empty setup" style="text-align:start"><h2>Almost ready</h2><p>This app needs its Firebase project connected before anyone can use it. The setup steps are in the chat where it was built (paste the Firebase web config into events/config.json).</p></div>`;
